@@ -1,36 +1,44 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# zkh013 — Зэвсэгт хүчний 013 дугаар анги
 
-## Getting Started
+Next.js (App Router) дээр бичигдсэн ангийн танилцуулах вэбсайт. Clerk-ээр нэвтрэлт/эрх,
+MongoDB-д мэдээ (news) болон холбоо барих зурвасуудыг хадгална.
 
-First, run the development server:
+## Эрхийн тогтолцоо
+
+- **Админ** — бүх зүйлийг удирдана: мэдээ нийтлэх/засах/устгах, мэдээг зөвшөөрөх/татгалзах,
+  мөн `/admin/users` хуудаснаас хэрэглэгчдэд Админ/Хянагч эрх олгож хандах эрхийг шийднэ.
+- **Хянагч** — шинээр орж ирсэн мэдээг `/admin/news`-с хянаж, зөвшөөрөх (нийтлэх) эсвэл
+  татгалзах эрхтэй.
+- Шинэ мэдээ үргэлж "Хяналтад" (pending) төлөвтэй үүсэж, хянагч/админ зөвшөөрсний дараа
+  нийтлэгдэнэ.
+
+## Локал дээр ажиллуулах
 
 ```bash
+npm install
+cp .env.local.example .env.local   # утгуудаа бөглөнө
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+`http://localhost:3000` дээр нээгдэнэ.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Орчны хувьсагчид (`.env.local`)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY` — https://dashboard.clerk.com
+  (эсвэл `npx clerk@latest init --accountless` ажиллуулбал нэвтрэхгүйгээр түр зуурын
+  dev key автоматаар үүснэ — бид эхлээд үүгээр туршилаа).
+- `MONGODB_URI` — MongoDB Atlas холболтын мөр. **Хоосон/жишээ утгаараа орхивол** local
+  dev-д автоматаар түр зуурын in-memory MongoDB ашиглана (server дахин асаах бүрд
+  өгөгдөл шинээр эхэлнэ) — `lib/mongodb.ts`-г үзнэ үү. Production дээр (Vercel) заавал
+  бодит Atlas URI тохируулах шаардлагатай.
+- `INITIAL_ADMIN_EMAILS` — Clerk дээр гараар role тохируулах шаардлагагүйгээр, энд
+  бүртгэсэн и-мэйлээр анх удаа нэвтэрсэн хэрэглэгч автоматаар **admin** эрхтэй болно.
+  Дараа нь бусад хэрэглэгчдэд `/admin/users` хуудаснаас эрх өгч болно.
 
-## Learn More
+## Vercel дээр deploy хийх
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. Vercel project-ийн Environment Variables-д дээрх хувьсагчдыг (бодит утгуудаар нь)
+   нэмнэ — `MONGODB_URI` нь заавал бодит Atlas URI байх ёстой.
+2. Clerk dashboard-д production instance үүсгэж (эсвэл одоогийн dev instance-аа
+   ашиглаж), `pk_live_...` / `sk_live_...` key-үүдийг тохируулна.
+3. `git push` хийсний дараа Vercel автоматаар deploy хийнэ.
