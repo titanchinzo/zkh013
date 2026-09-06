@@ -1,4 +1,11 @@
+import dns from "node:dns";
 import mongoose from "mongoose";
+
+// Зарим Windows машин дээр Node.js-ийн dns.resolveSrv/resolveTxt (c-ares) нь
+// системийн бодит DNS сервер биш харин 127.0.0.1 руу асуулга явуулж ECONNREFUSED
+// алдаа өгдөг (mongodb+srv:// холболтод хэрэгтэй). Тиймээс нийтийн DNS сервер
+// рүү тогтмол шилжүүлнэ. Энэ нь Vercel зэрэг production орчинд нөлөөлдөггүй.
+dns.setServers(["1.1.1.1", "8.8.8.8"]);
 
 const MONGODB_URI = process.env.MONGODB_URI;
 const isPlaceholderUri = !MONGODB_URI || MONGODB_URI.includes("<user>");
