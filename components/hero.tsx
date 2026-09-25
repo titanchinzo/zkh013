@@ -1,9 +1,64 @@
-export function Hero() {
+import { HeroSlideshow, type HeroSlide } from "@/components/hero-slideshow";
+import { connectToDatabase } from "@/lib/mongodb";
+import News from "@/lib/models/News";
+
+const BASE_SLIDES: HeroSlide[] = [1, 2, 3, 4].map((n) => ({
+  src: `/hero/hero-${n}.jpg`,
+  alt: "Зэвсэгт хүчний 013 дугаар анги",
+}));
+
+// Hero-д ээлжлэн гарах нийтлэгдсэн мэдээний зургийн дээд тоо
+const MAX_NEWS_SLIDES = 5;
+
+function isUsableImageUrl(url: string) {
+  if (url.startsWith("/")) return true;
+  try {
+    const { protocol } = new URL(url);
+    return protocol === "https:" || protocol === "http:";
+  } catch {
+    return false;
+  }
+}
+
+async function getNewsSlides(): Promise<HeroSlide[]> {
+  try {
+    await connectToDatabase();
+    const items = (await News.find({ status: "published", imageUrl: { $ne: "" } })
+      .sort({ createdAt: -1 })
+      .limit(MAX_NEWS_SLIDES)
+      .select("title imageUrl")
+      .lean()) as unknown as { _id: unknown; title: string; imageUrl: string }[];
+
+    return items
+      .filter((item) => isUsableImageUrl(item.imageUrl))
+      .map((item) => ({
+        src: item.imageUrl,
+        alt: item.title,
+        newsTitle: item.title,
+        newsHref: `/news/${String(item._id)}`,
+      }));
+  } catch (err) {
+    // Мэдээ татаж чадахгүй бол нүүр хуудсыг унагахгүй, үндсэн зургуудаа л харуулна
+    console.error("[hero] мэдээний зураг татаж чадсангүй:", err);
+    return [];
+  }
+}
+
+export async function Hero() {
+  const newsSlides = await getNewsSlides();
+  const seen = new Set<string>();
+  const slides = [...newsSlides, ...BASE_SLIDES].filter((slide) => {
+    if (seen.has(slide.src)) return false;
+    seen.add(slide.src);
+    return true;
+  });
+
   return (
     <section
       id="hero"
       className="relative min-h-screen flex items-center justify-center overflow-hidden tactical-grid bg-black"
     >
+      <HeroSlideshow slides={slides} />
       <div className="absolute inset-0 bg-black/65 z-20" />
       <div className="absolute inset-0 flex items-center justify-center opacity-10 z-25">
         <div className="relative w-[600px] h-[600px]">

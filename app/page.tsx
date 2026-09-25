@@ -6,6 +6,9 @@ import { Training } from "@/components/training";
 import { Contact } from "@/components/contact";
 import { Footer } from "@/components/footer";
 
+// Hero нь шинээр нийтлэгдсэн мэдээний зургийг хүсэлт бүрд татдаг
+export const dynamic = "force-dynamic";
+
 export default function Home() {
   return (
     <div className="min-h-screen bg-background">
