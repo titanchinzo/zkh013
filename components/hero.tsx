@@ -1,6 +1,7 @@
 import { HeroSlideshow, type HeroSlide } from "@/components/hero-slideshow";
 import { connectToDatabase } from "@/lib/mongodb";
 import News from "@/lib/models/News";
+import { isUsableImageUrl } from "@/lib/images";
 
 const BASE_SLIDES: HeroSlide[] = [1, 2, 3, 4].map((n) => ({
   src: `/hero/hero-${n}.jpg`,
@@ -9,16 +10,6 @@ const BASE_SLIDES: HeroSlide[] = [1, 2, 3, 4].map((n) => ({
 
 // Hero-д ээлжлэн гарах нийтлэгдсэн мэдээний зургийн дээд тоо
 const MAX_NEWS_SLIDES = 5;
-
-function isUsableImageUrl(url: string) {
-  if (url.startsWith("/")) return true;
-  try {
-    const { protocol } = new URL(url);
-    return protocol === "https:" || protocol === "http:";
-  } catch {
-    return false;
-  }
-}
 
 async function getNewsSlides(): Promise<HeroSlide[]> {
   try {

@@ -1,14 +1,17 @@
 import { notFound } from "next/navigation";
+import Image from "next/image";
 import { Nav } from "@/components/nav";
 import { Footer } from "@/components/footer";
 import { connectToDatabase } from "@/lib/mongodb";
 import News from "@/lib/models/News";
+import { canOptimizeImage, isUsableImageUrl } from "@/lib/images";
 
 export const dynamic = "force-dynamic";
 
 type NewsDoc = {
   title: string;
   content: string;
+  imageUrl?: string;
   status: string;
   createdAt: string;
 };
@@ -37,6 +40,19 @@ export default async function NewsDetailPage({ params }: { params: Promise<{ id:
           <p className="text-sm text-muted-foreground mb-8">
             {new Date(news.createdAt).toLocaleDateString("mn-MN")}
           </p>
+          {isUsableImageUrl(news.imageUrl) && (
+            <div className="relative aspect-video w-full overflow-hidden rounded-md border border-border mb-8">
+              <Image
+                src={news.imageUrl}
+                alt={news.title}
+                fill
+                preload
+                sizes="(max-width: 768px) 100vw, 768px"
+                unoptimized={!canOptimizeImage(news.imageUrl)}
+                className="object-cover"
+              />
+            </div>
+          )}
           <div className="prose prose-invert max-w-none text-muted-foreground whitespace-pre-wrap leading-relaxed">
             {news.content}
           </div>

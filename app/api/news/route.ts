@@ -3,6 +3,7 @@ import { currentUser } from "@clerk/nextjs/server";
 import { connectToDatabase } from "@/lib/mongodb";
 import News from "@/lib/models/News";
 import { getCurrentRole } from "@/lib/auth-role";
+import { isUsableImageUrl } from "@/lib/images";
 
 export async function GET(req: NextRequest) {
   await connectToDatabase();
@@ -27,6 +28,9 @@ export async function POST(req: NextRequest) {
 
   if (!title || !excerpt || !content) {
     return NextResponse.json({ error: "Гарчиг, товч тайлбар, агуулгыг бөглөнө үү" }, { status: 400 });
+  }
+  if (imageUrl && !isUsableImageUrl(imageUrl)) {
+    return NextResponse.json({ error: "Зургийн холбоос буруу байна" }, { status: 400 });
   }
 
   await connectToDatabase();

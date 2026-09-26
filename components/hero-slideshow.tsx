@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { canOptimizeImage } from "@/lib/images";
 
 export type HeroSlide = {
   src: string;
@@ -37,8 +38,8 @@ export function HeroSlideshow({ slides }: { slides: HeroSlide[] }) {
             fill
             sizes="100vw"
             preload={i === 0}
-            // Мэдээний зураг гадны хаягаас ирдэг тул optimize хийхгүй шууд үзүүлнэ
-            unoptimized={!slide.src.startsWith("/")}
+            // Upload хийсэн (Vercel Blob) зургийг optimize хийнэ, бусад гадны хаягийг шууд үзүүлнэ
+            unoptimized={!canOptimizeImage(slide.src)}
             className={`object-cover transition-opacity duration-1000 ease-in-out ${
               i === active ? "opacity-100" : "opacity-0"
             }`}

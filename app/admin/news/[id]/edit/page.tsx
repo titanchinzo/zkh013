@@ -3,6 +3,7 @@
 import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import { Input, Textarea } from "@/components/ui/input";
+import { ImageUploadField } from "@/components/image-upload-field";
 
 type NewsItem = {
   title: string;
@@ -18,6 +19,7 @@ export default function EditNewsPage({ params }: { params: Promise<{ id: string 
   const [item, setItem] = useState<NewsItem | null>(null);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     fetch(`/api/news/${id}`)
@@ -59,8 +61,12 @@ export default function EditNewsPage({ params }: { params: Promise<{ id: string 
           <Input name="excerpt" defaultValue={item.excerpt} required />
         </div>
         <div>
-          <label className="block text-sm font-semibold text-foreground mb-2">Зургийн URL (заавал биш)</label>
-          <Input name="imageUrl" defaultValue={item.imageUrl} placeholder="https://..." />
+          <label className="block text-sm font-semibold text-foreground mb-2">Зураг (заавал биш)</label>
+          <ImageUploadField
+            name="imageUrl"
+            defaultValue={item.imageUrl ?? ""}
+            onUploadingChange={setUploading}
+          />
         </div>
         <div>
           <label className="block text-sm font-semibold text-foreground mb-2">Агуулга</label>
@@ -81,7 +87,7 @@ export default function EditNewsPage({ params }: { params: Promise<{ id: string 
         {error && <p className="text-sm text-red-400">{error}</p>}
         <button
           type="submit"
-          disabled={submitting}
+          disabled={submitting || uploading}
           className="px-6 h-10 rounded-md bg-primary text-primary-foreground font-semibold disabled:opacity-50"
         >
           {submitting ? "Хадгалж байна..." : "Хадгалах"}

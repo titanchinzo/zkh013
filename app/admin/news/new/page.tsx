@@ -3,11 +3,13 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Input, Textarea } from "@/components/ui/input";
+import { ImageUploadField } from "@/components/image-upload-field";
 
 export default function NewNewsPage() {
   const router = useRouter();
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -44,8 +46,8 @@ export default function NewNewsPage() {
           <Input name="excerpt" required />
         </div>
         <div>
-          <label className="block text-sm font-semibold text-foreground mb-2">Зургийн URL (заавал биш)</label>
-          <Input name="imageUrl" placeholder="https://..." />
+          <label className="block text-sm font-semibold text-foreground mb-2">Зураг (заавал биш)</label>
+          <ImageUploadField name="imageUrl" onUploadingChange={setUploading} />
         </div>
         <div>
           <label className="block text-sm font-semibold text-foreground mb-2">Агуулга</label>
@@ -54,7 +56,7 @@ export default function NewNewsPage() {
         {error && <p className="text-sm text-red-400">{error}</p>}
         <button
           type="submit"
-          disabled={submitting}
+          disabled={submitting || uploading}
           className="px-6 h-10 rounded-md bg-primary text-primary-foreground font-semibold disabled:opacity-50"
         >
           {submitting ? "Илгээж байна..." : "Илгээх"}
