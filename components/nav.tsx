@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { UserButton } from "@clerk/nextjs";
-import { auth } from "@clerk/nextjs/server";
+import { getCurrentRole } from "@/lib/auth-role";
 
 const links = [
   { href: "#hero", label: "Нүүр" },
@@ -12,7 +12,9 @@ const links = [
 ];
 
 export async function Nav() {
-  const { userId } = await auth();
+  // Уншигчид нэвтрэх шаардлагагүй тул Админ товч нийтэд харагдахгүй.
+  // Ажилтнууд /admin хаягаар шууд орж нэвтэрнэ; нэвтэрсэн админ/хянагчид л товч харагдана.
+  const role = await getCurrentRole();
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur border-b border-border">
@@ -31,7 +33,7 @@ export async function Nav() {
                 {link.label}
               </Link>
             ))}
-            {userId ? (
+            {role && (
               <>
                 <Link
                   href="/admin"
@@ -43,13 +45,6 @@ export async function Nav() {
                   <UserButton />
                 </div>
               </>
-            ) : (
-              <Link
-                href="/sign-in"
-                className="ml-2 px-4 py-2 text-sm font-medium bg-primary hover:bg-primary/90 text-primary-foreground rounded-md transition-all"
-              >
-                Админ
-              </Link>
             )}
           </div>
         </div>
