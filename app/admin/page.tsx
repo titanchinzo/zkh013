@@ -1,22 +1,26 @@
 import { connectToDatabase } from "@/lib/mongodb";
 import News from "@/lib/models/News";
 import ContactMessage from "@/lib/models/ContactMessage";
+import TrainingMaterial from "@/lib/models/TrainingMaterial";
 import { getCurrentRole } from "@/lib/auth-role";
 
 export default async function AdminDashboard() {
   const role = await getCurrentRole();
   await connectToDatabase();
 
-  const [pending, published, messages] = await Promise.all([
+  const isAdmin = role === "admin";
+  const [pending, published, messages, materials] = await Promise.all([
     News.countDocuments({ status: "pending" }),
     News.countDocuments({ status: "published" }),
-    role === "admin" ? ContactMessage.countDocuments({}) : Promise.resolve(null),
+    isAdmin ? ContactMessage.countDocuments({}) : Promise.resolve(null),
+    isAdmin ? TrainingMaterial.countDocuments({}) : Promise.resolve(null),
   ]);
 
   const stats = [
     { label: "Хяналт хүлээж буй мэдээ", value: pending },
     { label: "Нийтлэгдсэн мэдээ", value: published },
     ...(messages !== null ? [{ label: "Ирсэн зурвас", value: messages }] : []),
+    ...(materials !== null ? [{ label: "Сургалтын материал", value: materials }] : []),
   ];
 
   return (
@@ -30,7 +34,7 @@ export default async function AdminDashboard() {
         </p>
       </div>
 
-      <div className="grid sm:grid-cols-3 gap-4">
+      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map((s) => (
           <div key={s.label} className="rounded-xl border border-border bg-card p-6">
             <p className="text-3xl font-bold text-primary">{s.value}</p>

@@ -18,7 +18,6 @@ export function Footer() {
             <h3 className="text-foreground font-bold mb-4">Холбоосууд</h3>
             <ul className="space-y-2">
               <li><Link href="#about" className="text-sm text-muted-foreground hover:text-primary transition-colors">Тухай</Link></li>
-              <li><Link href="#equipment" className="text-sm text-muted-foreground hover:text-primary transition-colors">Техник</Link></li>
               <li><Link href="#training" className="text-sm text-muted-foreground hover:text-primary transition-colors">Сургалт</Link></li>
               <li><Link href="#contact" className="text-sm text-muted-foreground hover:text-primary transition-colors">Холбоо барих</Link></li>
             </ul>

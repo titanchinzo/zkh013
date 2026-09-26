@@ -4,15 +4,12 @@ import { useRef, useState } from "react";
 import Image from "next/image";
 import { upload } from "@vercel/blob/client";
 import { Input } from "@/components/ui/input";
-import { canOptimizeImage, isUsableImageUrl } from "@/lib/images";
-
-const ALLOWED_TYPES: Record<string, string> = {
-  "image/jpeg": "jpg",
-  "image/png": "png",
-  "image/webp": "webp",
-  "image/gif": "gif",
-};
-const MAX_MB = 15;
+import {
+  canOptimizeImage,
+  isUsableImageUrl,
+  NEWS_IMAGE_MAX_MB as MAX_MB,
+  NEWS_IMAGE_TYPES as ALLOWED_TYPES,
+} from "@/lib/images";
 
 type Props = {
   name: string;

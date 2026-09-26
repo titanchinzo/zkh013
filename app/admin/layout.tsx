@@ -13,7 +13,12 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const links = [
     { href: "/admin", label: "Хянах самбар" },
     { href: "/admin/news", label: role === "admin" ? "Мэдээ удирдах" : "Хянах жагсаалт" },
-    ...(role === "admin" ? [{ href: "/admin/users", label: "Хэрэглэгч, эрх" }] : []),
+    ...(role === "admin"
+      ? [
+          { href: "/admin/training", label: "Сургалтын материал" },
+          { href: "/admin/users", label: "Хэрэглэгч, эрх" },
+        ]
+      : []),
   ];
 
   return (

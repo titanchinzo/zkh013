@@ -1,29 +1,47 @@
-import { FileText, Clipboard, BookOpen, Users } from "lucide-react";
+import {
+  Download,
+  ExternalLink,
+  FileSpreadsheet,
+  FileText,
+  Link2,
+  Presentation,
+  type LucideIcon,
+} from "lucide-react";
+import { connectToDatabase } from "@/lib/mongodb";
+import TrainingMaterial from "@/lib/models/TrainingMaterial";
+import { TRAINING_FILE_TYPES, formatFileSize, type TrainingFileExt } from "@/lib/training";
 
-const materials = [
-  {
-    icon: FileText,
-    title: "3 үеийн намтар бичих заавар",
-    text: "Хувийн болон гэр бүлийн 3 үеийн түүхийг бүртгэх, баримт бичгийг бүрдүүлэх заавар",
-  },
-  {
-    icon: Clipboard,
-    title: "Төрийн албан хаагчийн маягт",
-    text: "Төрийн албанд ажиллахад шаардлагатай бүх төрлийн маягт, баримт бичгийн загварууд",
-  },
-  {
-    icon: BookOpen,
-    title: "Бичих заавар",
-    text: "Албан ёсны бичиг баримт, тайлан, тушаал, захирамж зэрэг баримтын бичих дүрэм журам",
-  },
-  {
-    icon: Users,
-    title: "Телеграфийн дамжаа",
-    text: "Цэргийн телеграф, кодлох арга, нууцлал хадгалах, мэдээлэл дамжуулах заавар",
-  },
-];
+type Material = {
+  _id: unknown;
+  title: string;
+  description: string;
+  kind: "file" | "link";
+  url: string;
+  fileExt: string;
+  fileSize: number;
+};
 
-export function Training() {
+const ICONS: Record<string, LucideIcon> = {
+  ppt: Presentation,
+  pptx: Presentation,
+  xls: FileSpreadsheet,
+  xlsx: FileSpreadsheet,
+};
+
+async function getMaterials(): Promise<Material[]> {
+  try {
+    await connectToDatabase();
+    return (await TrainingMaterial.find().sort({ createdAt: -1 }).lean()) as unknown as Material[];
+  } catch (err) {
+    // Өгөгдөл уншиж чадахгүй бол нүүр хуудсыг унагахгүй
+    console.error("[training] материал татаж чадсангүй:", err);
+    return [];
+  }
+}
+
+export async function Training() {
+  const materials = await getMaterials();
+
   return (
     <section id="training" className="py-20 md:py-32 bg-muted/30 tactical-grid">
       <div className="container mx-auto px-4">
@@ -38,26 +56,52 @@ export function Training() {
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-6">
-            {materials.map(({ icon: Icon, title, text }) => (
-              <div
-                key={title}
-                className="border border-border bg-card hover:border-primary transition-all duration-300 metallic group cursor-pointer rounded-xl"
-              >
-                <div className="p-6 md:p-8 flex items-start gap-4">
-                  <div className="w-14 h-14 flex-shrink-0 border-2 border-primary bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                    <Icon className="w-7 h-7 text-primary" />
-                  </div>
-                  <div className="flex-1 space-y-2">
-                    <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors">
-                      {title}
-                    </h3>
-                    <p className="text-muted-foreground leading-relaxed text-sm">{text}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+          {materials.length === 0 ? (
+            <p className="text-center text-muted-foreground">Одоогоор сургалтын материал алга байна.</p>
+          ) : (
+            <div className="grid md:grid-cols-2 gap-6">
+              {materials.map((m) => {
+                const isLink = m.kind === "link";
+                const Icon = isLink ? Link2 : (ICONS[m.fileExt] ?? FileText);
+                const ActionIcon = isLink ? ExternalLink : Download;
+                const typeLabel = isLink
+                  ? "Холбоос"
+                  : (TRAINING_FILE_TYPES[m.fileExt as TrainingFileExt]?.label ?? m.fileExt.toUpperCase());
+                return (
+                  <a
+                    key={String(m._id)}
+                    href={m.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block border border-border bg-card hover:border-primary transition-all duration-300 metallic group rounded-xl"
+                  >
+                    <div className="p-6 md:p-8 flex items-start gap-4">
+                      <div className="w-14 h-14 flex-shrink-0 border-2 border-primary bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                        <Icon className="w-7 h-7 text-primary" />
+                      </div>
+                      <div className="flex-1 min-w-0 space-y-2">
+                        <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors">
+                          {m.title}
+                        </h3>
+                        {m.description && (
+                          <p className="text-muted-foreground leading-relaxed text-sm">{m.description}</p>
+                        )}
+                        <p className="flex items-center gap-2 text-xs font-semibold text-primary">
+                          <ActionIcon className="w-3.5 h-3.5" />
+                          {typeLabel}
+                          {m.fileSize > 0 && (
+                            <span className="font-normal text-muted-foreground">
+                              {formatFileSize(m.fileSize)}
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  </a>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     </section>

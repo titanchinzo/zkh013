@@ -5,7 +5,6 @@ import { getCurrentRole } from "@/lib/auth-role";
 const links = [
   { href: "#hero", label: "Нүүр" },
   { href: "#about", label: "Тухай" },
-  { href: "#equipment", label: "Техник" },
   { href: "#training", label: "Сургалт" },
   { href: "/news", label: "Мэдээ" },
   { href: "#contact", label: "Холбоо барих" },
