@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/mongodb";
 import News from "@/lib/models/News";
 import { getCurrentRole } from "@/lib/auth-role";
-import { isUsableImageUrl } from "@/lib/images";
+import { isUsableImageUrl, parseImageList } from "@/lib/images";
 import { MEDIA_URL_ERROR } from "@/lib/media";
 import { prepareMediaUrl } from "@/lib/media-server";
 
@@ -32,7 +32,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (imageUrl && !isUsableImageUrl(imageUrl)) {
     return NextResponse.json({ error: "Зургийн холбоос буруу байна" }, { status: 400 });
   }
-  // mediaUrl ирээгүй бол (хуучин клиент) одоогийн утгыг нь хэвээр үлдээнэ
+  // images, mediaUrl ирээгүй бол (хуучин клиент) одоогийн утгыг нь хэвээр үлдээнэ
+  const images = body?.images === undefined ? undefined : parseImageList(body.images);
+  if (images === null) {
+    return NextResponse.json({ error: "Зургийн цомгийн холбоос буруу байна" }, { status: 400 });
+  }
   const mediaUrl = body?.mediaUrl === undefined ? undefined : await prepareMediaUrl(body.mediaUrl);
   if (mediaUrl === null) {
     return NextResponse.json({ error: MEDIA_URL_ERROR }, { status: 400 });
@@ -46,6 +50,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       excerpt,
       content,
       imageUrl,
+      ...(images !== undefined ? { images } : {}),
       ...(mediaUrl !== undefined ? { mediaUrl } : {}),
       ...(status ? { status } : {}),
     },

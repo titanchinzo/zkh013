@@ -6,6 +6,8 @@ const NewsSchema = new Schema(
     excerpt: { type: String, required: true },
     content: { type: String, required: true },
     imageUrl: { type: String, default: "" },
+    // Мэдээний зургийн цомог (нүүр зургаас гадна)
+    images: { type: [String], default: [] },
     // YouTube эсвэл Facebook-ийн видео/постын холбоос (мэдээн дотор embed хийж харуулна)
     mediaUrl: { type: String, default: "" },
     status: {

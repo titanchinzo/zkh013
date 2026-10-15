@@ -14,6 +14,15 @@ export const NEWS_IMAGE_TYPES: Record<string, string> = {
   "image/gif": "gif",
 };
 export const NEWS_IMAGE_MAX_MB = 15;
+// Нэг мэдээний зургийн цомогт оруулах дээд тоо
+export const NEWS_MAX_IMAGES = 30;
+
+/** Мэдээний зургийн цомгийн жагсаалтыг шалгана: ирээгүй бол [], буруу бол null */
+export function parseImageList(raw: unknown): string[] | null {
+  if (raw == null) return [];
+  if (!Array.isArray(raw) || raw.length > NEWS_MAX_IMAGES) return null;
+  return raw.every((url) => typeof url === "string" && isUsableImageUrl(url)) ? raw : null;
+}
 
 /** next/image-д дамжуулж болох хаяг эсэх (буруу хаяг хуудсыг унагахаас сэргийлнэ) */
 export function isUsableImageUrl(url: string | null | undefined): url is string {

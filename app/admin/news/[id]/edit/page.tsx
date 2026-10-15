@@ -4,6 +4,7 @@ import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import { Input, Textarea } from "@/components/ui/input";
 import { ImageUploadField } from "@/components/image-upload-field";
+import { GalleryUploadField } from "@/components/gallery-upload-field";
 import { MediaLinkField } from "@/components/media-link-field";
 import { autoFillImage } from "@/lib/media";
 
@@ -12,6 +13,7 @@ type NewsItem = {
   excerpt: string;
   content: string;
   imageUrl?: string;
+  images?: string[];
   mediaUrl?: string;
   status: string;
 };
@@ -22,8 +24,10 @@ export default function EditNewsPage({ params }: { params: Promise<{ id: string 
   const [item, setItem] = useState<NewsItem | null>(null);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [uploading, setUploading] = useState(false);
+  const [coverUploading, setCoverUploading] = useState(false);
+  const [galleryUploading, setGalleryUploading] = useState(false);
   const [imageUrl, setImageUrl] = useState("");
+  const [images, setImages] = useState<string[]>([]);
 
   useEffect(() => {
     fetch(`/api/news/${id}`)
@@ -31,6 +35,7 @@ export default function EditNewsPage({ params }: { params: Promise<{ id: string 
       .then((data) => {
         setItem(data.news);
         setImageUrl(data.news?.imageUrl ?? "");
+        setImages(data.news?.images ?? []);
       });
   }, [id]);
 
@@ -42,7 +47,7 @@ export default function EditNewsPage({ params }: { params: Promise<{ id: string 
     const res = await fetch(`/api/news/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(Object.fromEntries(form)),
+      body: JSON.stringify({ ...Object.fromEntries(form), images }),
     });
     setSubmitting(false);
     if (!res.ok) {
@@ -78,12 +83,22 @@ export default function EditNewsPage({ params }: { params: Promise<{ id: string 
           />
         </div>
         <div>
-          <label className="block text-sm font-semibold text-foreground mb-2">Зураг (заавал биш)</label>
+          <label className="block text-sm font-semibold text-foreground mb-2">Нүүр зураг (заавал биш)</label>
           <ImageUploadField
             name="imageUrl"
             value={imageUrl}
             onChange={setImageUrl}
-            onUploadingChange={setUploading}
+            onUploadingChange={setCoverUploading}
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-semibold text-foreground mb-2">Зургийн цомог (заавал биш)</label>
+          <GalleryUploadField
+            value={images}
+            onChange={setImages}
+            onUploadingChange={setGalleryUploading}
+            coverUrl={imageUrl}
+            onSetCover={setImageUrl}
           />
         </div>
         <div>
@@ -105,7 +120,7 @@ export default function EditNewsPage({ params }: { params: Promise<{ id: string 
         {error && <p className="text-sm text-red-400">{error}</p>}
         <button
           type="submit"
-          disabled={submitting || uploading}
+          disabled={submitting || coverUploading || galleryUploading}
           className="px-6 h-10 rounded-md bg-primary text-primary-foreground font-semibold disabled:opacity-50"
         >
           {submitting ? "Хадгалж байна..." : "Хадгалах"}

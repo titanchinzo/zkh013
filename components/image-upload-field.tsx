@@ -2,14 +2,9 @@
 
 import { useRef, useState } from "react";
 import Image from "next/image";
-import { upload } from "@vercel/blob/client";
 import { Input } from "@/components/ui/input";
-import {
-  canOptimizeImage,
-  isUsableImageUrl,
-  NEWS_IMAGE_MAX_MB as MAX_MB,
-  NEWS_IMAGE_TYPES as ALLOWED_TYPES,
-} from "@/lib/images";
+import { canOptimizeImage, isUsableImageUrl } from "@/lib/images";
+import { NEWS_IMAGE_ACCEPT, newsImageError, uploadNewsImage } from "@/lib/news-image-upload";
 
 type Props = {
   name: string;
@@ -31,26 +26,13 @@ export function ImageUploadField({ name, value: url, onChange: setUrl, onUploadi
   }
 
   async function handleFile(file: File) {
-    setError("");
-    const ext = ALLOWED_TYPES[file.type];
-    if (!ext) {
-      setError("Зөвхөн JPG, PNG, WEBP, GIF зураг оруулна уу");
-      return;
-    }
-    if (file.size > MAX_MB * 1024 * 1024) {
-      setError(`Зургийн хэмжээ ${MAX_MB}MB-аас ихгүй байх ёстой`);
-      return;
-    }
+    const invalid = newsImageError(file);
+    setError(invalid ?? "");
+    if (invalid) return;
 
     setUploading(true);
     try {
-      const blob = await upload(`news/${Date.now()}.${ext}`, file, {
-        access: "public",
-        handleUploadUrl: "/api/upload",
-        contentType: file.type,
-        onUploadProgress: ({ percentage }) => setProgress(Math.round(percentage)),
-      });
-      setUrl(blob.url);
+      setUrl(await uploadNewsImage(file, setProgress));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Зураг оруулахад алдаа гарлаа");
     } finally {
@@ -67,7 +49,7 @@ export function ImageUploadField({ name, value: url, onChange: setUrl, onUploadi
       <input
         ref={fileInput}
         type="file"
-        accept={Object.keys(ALLOWED_TYPES).join(",")}
+        accept={NEWS_IMAGE_ACCEPT}
         className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0];

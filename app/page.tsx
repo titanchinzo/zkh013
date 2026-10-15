@@ -1,11 +1,12 @@
 import { Nav } from "@/components/nav";
 import { Hero } from "@/components/hero";
+import { LatestNews } from "@/components/latest-news";
 import { About } from "@/components/about";
 import { Training } from "@/components/training";
 import { Contact } from "@/components/contact";
 import { Footer } from "@/components/footer";
 
-// Hero-ийн мэдээний зураг болон сургалтын материалыг хүсэлт бүрд өгөгдлийн сангаас татдаг
+// Hero-ийн мэдээний зураг, сүүлийн мэдээ, сургалтын материалыг хүсэлт бүрд өгөгдлийн сангаас татдаг
 export const dynamic = "force-dynamic";
 
 export default function Home() {
@@ -14,6 +15,7 @@ export default function Home() {
       <Nav />
       <main>
         <Hero />
+        <LatestNews />
         <About />
         <Training />
         <Contact />

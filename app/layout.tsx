@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
+import { SITE_NAME, SITE_OG_IMAGE, SITE_URL } from "@/lib/site";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -13,10 +14,26 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const description =
+  "Зэвсэгт хүчний 013 дугаар ангийн албан ёсны вэб сайт. Монгол улсын зэвсэгт хүчин, зэвсэг, 013 анги, цэргийн анги, тоног төхөөрөмж, сургалт.";
+
+// Таб дээрх лого (favicon.ico, icon.png, apple-icon.png) app/ хавтаснаас автоматаар орно
 export const metadata: Metadata = {
-  title: "Зэвсэг | Зэвсэгт хүчин | 013 анги | Зэвсэгт хүчний 013 дугаар анги",
-  description:
-    "Зэвсэгт хүчний 013 дугаар ангийн албан ёсны вэб сайт. Монгол улсын зэвсэгт хүчин, зэвсэг, 013 анги, цэргийн анги, тоног төхөөрөмж, сургалт.",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: "Зэвсэг | Зэвсэгт хүчин | 013 анги | Зэвсэгт хүчний 013 дугаар анги",
+    template: `%s | ${SITE_NAME}`,
+  },
+  description,
+  openGraph: {
+    type: "website",
+    siteName: SITE_NAME,
+    locale: "mn_MN",
+    title: SITE_NAME,
+    description,
+    images: [SITE_OG_IMAGE],
+  },
+  twitter: { card: "summary_large_image", images: [SITE_OG_IMAGE.url] },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

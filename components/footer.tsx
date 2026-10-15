@@ -1,15 +1,17 @@
 import Link from "next/link";
 import { Phone, Mail, MapPin } from "lucide-react";
+import { Brand } from "@/components/brand";
+import { SITE_NAME } from "@/lib/site";
 
 export function Footer() {
   return (
     <footer className="bg-card border-t border-border">
       <div className="container mx-auto px-4 py-12">
-        <div className="grid md:grid-cols-4 gap-8 mb-8">
+        <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-8 mb-8">
           <div className="space-y-4">
-            <div className="font-bold tracking-widest text-foreground">
-              <span className="text-primary">013</span> АНГИ
-            </div>
+            <Link href="/" aria-label="Нүүр хуудас" className="inline-block">
+              <Brand />
+            </Link>
             <p className="text-sm text-muted-foreground leading-relaxed">
               Эх орны бүрэн эрхт байдал, аюулгүй байдлыг хамгаалах үнэнч хамгаалагч
             </p>
@@ -17,9 +19,10 @@ export function Footer() {
           <div>
             <h3 className="text-foreground font-bold mb-4">Холбоосууд</h3>
             <ul className="space-y-2">
-              <li><Link href="#about" className="text-sm text-muted-foreground hover:text-primary transition-colors">Тухай</Link></li>
-              <li><Link href="#training" className="text-sm text-muted-foreground hover:text-primary transition-colors">Сургалт</Link></li>
-              <li><Link href="#contact" className="text-sm text-muted-foreground hover:text-primary transition-colors">Холбоо барих</Link></li>
+              <li><Link href="/#about" className="text-sm text-muted-foreground hover:text-primary transition-colors">Тухай</Link></li>
+              <li><Link href="/news" className="text-sm text-muted-foreground hover:text-primary transition-colors">Мэдээ</Link></li>
+              <li><Link href="/#training" className="text-sm text-muted-foreground hover:text-primary transition-colors">Сургалт</Link></li>
+              <li><Link href="/#contact" className="text-sm text-muted-foreground hover:text-primary transition-colors">Холбоо барих</Link></li>
             </ul>
           </div>
           <div>
@@ -51,8 +54,10 @@ export function Footer() {
         </div>
         <div className="pt-8 border-t border-border">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-            <p className="text-sm text-muted-foreground">© 2025 Цэргийн анги-01. Бүх эрх хуулиар хамгаалагдсан.</p>
-            <span className="text-xs text-muted-foreground font-mono">UNIT-01-MIL</span>
+            <p className="text-sm text-muted-foreground text-center md:text-left">
+              © {new Date().getFullYear()} {SITE_NAME}. Бүх эрх хуулиар хамгаалагдсан.
+            </p>
+            <span className="text-xs text-muted-foreground font-mono">ZKH-013</span>
           </div>
         </div>
       </div>

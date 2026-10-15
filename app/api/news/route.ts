@@ -3,7 +3,7 @@ import { currentUser } from "@clerk/nextjs/server";
 import { connectToDatabase } from "@/lib/mongodb";
 import News from "@/lib/models/News";
 import { getCurrentRole } from "@/lib/auth-role";
-import { isUsableImageUrl } from "@/lib/images";
+import { isUsableImageUrl, parseImageList } from "@/lib/images";
 import { MEDIA_URL_ERROR } from "@/lib/media";
 import { prepareMediaUrl } from "@/lib/media-server";
 
@@ -34,6 +34,10 @@ export async function POST(req: NextRequest) {
   if (imageUrl && !isUsableImageUrl(imageUrl)) {
     return NextResponse.json({ error: "Зургийн холбоос буруу байна" }, { status: 400 });
   }
+  const images = parseImageList(body?.images);
+  if (images === null) {
+    return NextResponse.json({ error: "Зургийн цомгийн холбоос буруу байна" }, { status: 400 });
+  }
   const mediaUrl = await prepareMediaUrl(body?.mediaUrl);
   if (mediaUrl === null) {
     return NextResponse.json({ error: MEDIA_URL_ERROR }, { status: 400 });
@@ -48,6 +52,7 @@ export async function POST(req: NextRequest) {
     excerpt,
     content,
     imageUrl: imageUrl ?? "",
+    images,
     mediaUrl,
     status: "pending",
     authorId: user.id,
