@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Phone, Mail, MapPin } from "lucide-react";
 import { Brand } from "@/components/brand";
+import { CONTACT } from "@/lib/contact";
 import { SITE_NAME } from "@/lib/site";
 
 export function Footer() {
@@ -30,15 +31,19 @@ export function Footer() {
             <ul className="space-y-2">
               <li className="flex items-start gap-2 text-sm text-muted-foreground">
                 <Phone className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
-                <span>+976 7011-2345</span>
+                <a href={CONTACT.phoneHref} className="hover:text-primary transition-colors">
+                  {CONTACT.phone}
+                </a>
               </li>
               <li className="flex items-start gap-2 text-sm text-muted-foreground">
                 <Mail className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
-                <span>info@unit01.mil.mn</span>
+                <a href={`mailto:${CONTACT.email}`} className="break-all hover:text-primary transition-colors">
+                  {CONTACT.email}
+                </a>
               </li>
               <li className="flex items-start gap-2 text-sm text-muted-foreground">
                 <MapPin className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
-                <span>Улаанбаатар, Сүхбаатар дүүрэг</span>
+                <span>{CONTACT.address}</span>
               </li>
             </ul>
           </div>

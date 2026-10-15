@@ -3,12 +3,13 @@
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input, Textarea } from "@/components/ui/input";
-import { MapPin, Phone, Mail, Clock } from "lucide-react";
+import { MapPin, Phone, Mail, Clock, type LucideIcon } from "lucide-react";
+import { CONTACT } from "@/lib/contact";
 
-const infoCards = [
-  { icon: MapPin, title: "Хаяг", text: "Улаанбаатар хот, Сүхбаатар дүүрэг, Цэргийн хороолол-1" },
-  { icon: Phone, title: "Утас", text: "+976 7011-2345 / +976 7011-2346" },
-  { icon: Mail, title: "И-мэйл", text: "info@unit01.mil.mn" },
+const infoCards: { icon: LucideIcon; title: string; text: string; href?: string }[] = [
+  { icon: MapPin, title: "Хаяг", text: CONTACT.address },
+  { icon: Phone, title: "Утас", text: CONTACT.phone, href: CONTACT.phoneHref },
+  { icon: Mail, title: "И-мэйл", text: CONTACT.email, href: `mailto:${CONTACT.email}` },
   { icon: Clock, title: "Цагийн хуваарь", text: "Даваа - Баасан: 09:00 - 18:00" },
 ];
 
@@ -17,16 +18,18 @@ export function Contact() {
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    // await-ийн дараа e.currentTarget нь null болдог тул формыг урьдчилан авна
+    // (өмнө нь амжилттай илгээсэн ч reset() алдаа өгч "Алдаа гарлаа" гэж харуулдаг байсан)
+    const formElement = e.currentTarget;
     setStatus("sending");
-    const form = new FormData(e.currentTarget);
     try {
       const res = await fetch("/api/contact", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(Object.fromEntries(form)),
+        body: JSON.stringify(Object.fromEntries(new FormData(formElement))),
       });
+      if (res.ok) formElement.reset();
       setStatus(res.ok ? "sent" : "error");
-      if (res.ok) e.currentTarget.reset();
     } catch {
       setStatus("error");
     }
@@ -48,15 +51,21 @@ export function Contact() {
 
           <div className="grid lg:grid-cols-2 gap-12">
             <div className="space-y-4">
-              {infoCards.map(({ icon: Icon, title, text }) => (
+              {infoCards.map(({ icon: Icon, title, text, href }) => (
                 <Card key={title} className="hover:border-primary transition-colors">
                   <CardContent className="flex items-start gap-4">
                     <div className="w-12 h-12 border border-primary bg-primary/10 flex items-center justify-center flex-shrink-0">
                       <Icon className="w-6 h-6 text-primary" />
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <h3 className="text-lg font-bold text-foreground mb-1">{title}</h3>
-                      <p className="text-muted-foreground">{text}</p>
+                      {href ? (
+                        <a href={href} className="break-all text-muted-foreground hover:text-primary transition-colors">
+                          {text}
+                        </a>
+                      ) : (
+                        <p className="text-muted-foreground">{text}</p>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
