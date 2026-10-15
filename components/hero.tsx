@@ -61,11 +61,15 @@ export async function Hero() {
       </div>
       <div className="relative z-30 container mx-auto px-4 text-center">
         <div className="max-w-4xl mx-auto space-y-6 animate-fade-in-up">
-          <div className="inline-block px-4 py-1 border border-primary bg-primary/20 text-white text-sm font-semibold tracking-widest mb-4">
+          {/* Дарахад "Ангийн тухай" хэсэгт Р.Гаваагийн намтар нээгдэнэ (components/unit-history.tsx) */}
+          <a
+            href="#hun-gavaa"
+            className="inline-block px-4 py-1 border border-primary bg-primary/20 hover:bg-primary/35 transition-colors text-white text-sm font-semibold tracking-widest mb-4"
+          >
             ХОШУУЧ ГЕНЕРАЛ Р.ГАВААГИЙН НЭРЭМЖИТ
-          </div>
+          </a>
           <h1 className="text-3xl md:text-5xl font-bold tracking-tight text-white text-balance drop-shadow-[0_4px_12px_rgba(0,0,0,1)]">
-            БАЙЛДААНЫ ГАВЯАНЫ УЛААН ТУГИЙН БОЛОН АЛТАН ГАДАС ОДОНТ
+            ЦЭРГИЙН ГАВЬЯАНЫ УЛААН ТУГ, АЛТАН ГАДАС ОДОНТ
             <span className="block text-primary mt-2 drop-shadow-[0_4px_12px_rgba(0,0,0,1)]">
               ЗЭВСЭГТ ХҮЧНИЙ 013 ДУГААР АНГИ
             </span>
