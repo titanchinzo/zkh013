@@ -3,6 +3,8 @@
 // Vercel Blob-д upload хийсэн нийтийн файлууд энэ домэйн дээр байрладаг.
 // next.config.ts-ийн images.remotePatterns-д бүртгэсэн тул Next.js optimize хийж чадна.
 const BLOB_HOST_SUFFIX = ".public.blob.vercel-storage.com";
+// YouTube видеоны зураг (мэдээнд YouTube холбоос оруулахад автоматаар бөглөгдөнө)
+const YOUTUBE_THUMB_HOST = "i.ytimg.com";
 
 // Мэдээний зурагт зөвшөөрөгдөх төрлүүд (MIME -> өргөтгөл)
 export const NEWS_IMAGE_TYPES: Record<string, string> = {
@@ -39,8 +41,14 @@ export function isVercelBlobUrl(url: string) {
   }
 }
 
-/** Next.js-ээр optimize хийж болох эсэх: өөрийн /public зураг эсвэл Vercel Blob */
+/** Next.js-ээр optimize хийж болох эсэх: өөрийн /public зураг, Vercel Blob эсвэл YouTube-ийн зураг */
 export function canOptimizeImage(url: string) {
   if (url.startsWith("/") && !url.startsWith("//")) return true;
-  return isVercelBlobUrl(url);
+  if (isVercelBlobUrl(url)) return true;
+  try {
+    const { protocol, hostname } = new URL(url);
+    return protocol === "https:" && hostname === YOUTUBE_THUMB_HOST;
+  } catch {
+    return false;
+  }
 }

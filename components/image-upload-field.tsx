@@ -13,13 +13,14 @@ import {
 
 type Props = {
   name: string;
-  defaultValue?: string;
+  // Видеоны холбоосоос зургийг автоматаар бөглөх боломжтой байхаар утгыг эцэг компонент удирдана
+  value: string;
+  onChange: (url: string) => void;
   // Upload явагдаж байх үед формыг илгээхээс сэргийлэхийн тулд эцэг компонентод мэдэгдэнэ
   onUploadingChange?: (uploading: boolean) => void;
 };
 
-export function ImageUploadField({ name, defaultValue = "", onUploadingChange }: Props) {
-  const [url, setUrl] = useState(defaultValue);
+export function ImageUploadField({ name, value: url, onChange: setUrl, onUploadingChange }: Props) {
   const [progress, setProgress] = useState<number | null>(null);
   const [error, setError] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);

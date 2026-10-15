@@ -4,6 +4,8 @@ import { connectToDatabase } from "@/lib/mongodb";
 import News from "@/lib/models/News";
 import { getCurrentRole } from "@/lib/auth-role";
 import { isUsableImageUrl } from "@/lib/images";
+import { MEDIA_URL_ERROR } from "@/lib/media";
+import { prepareMediaUrl } from "@/lib/media-server";
 
 export async function GET(req: NextRequest) {
   await connectToDatabase();
@@ -32,6 +34,10 @@ export async function POST(req: NextRequest) {
   if (imageUrl && !isUsableImageUrl(imageUrl)) {
     return NextResponse.json({ error: "Зургийн холбоос буруу байна" }, { status: 400 });
   }
+  const mediaUrl = await prepareMediaUrl(body?.mediaUrl);
+  if (mediaUrl === null) {
+    return NextResponse.json({ error: MEDIA_URL_ERROR }, { status: 400 });
+  }
 
   await connectToDatabase();
 
@@ -42,6 +48,7 @@ export async function POST(req: NextRequest) {
     excerpt,
     content,
     imageUrl: imageUrl ?? "",
+    mediaUrl,
     status: "pending",
     authorId: user.id,
     authorName: user.fullName ?? user.primaryEmailAddress?.emailAddress ?? "Тодорхойгүй",

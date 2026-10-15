@@ -3,6 +3,8 @@ import { connectToDatabase } from "@/lib/mongodb";
 import News from "@/lib/models/News";
 import { getCurrentRole } from "@/lib/auth-role";
 import { isUsableImageUrl } from "@/lib/images";
+import { MEDIA_URL_ERROR } from "@/lib/media";
+import { prepareMediaUrl } from "@/lib/media-server";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -30,11 +32,23 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (imageUrl && !isUsableImageUrl(imageUrl)) {
     return NextResponse.json({ error: "Зургийн холбоос буруу байна" }, { status: 400 });
   }
+  // mediaUrl ирээгүй бол (хуучин клиент) одоогийн утгыг нь хэвээр үлдээнэ
+  const mediaUrl = body?.mediaUrl === undefined ? undefined : await prepareMediaUrl(body.mediaUrl);
+  if (mediaUrl === null) {
+    return NextResponse.json({ error: MEDIA_URL_ERROR }, { status: 400 });
+  }
 
   await connectToDatabase();
   const news = await News.findByIdAndUpdate(
     id,
-    { title, excerpt, content, imageUrl, ...(status ? { status } : {}) },
+    {
+      title,
+      excerpt,
+      content,
+      imageUrl,
+      ...(mediaUrl !== undefined ? { mediaUrl } : {}),
+      ...(status ? { status } : {}),
+    },
     { new: true }
   );
 

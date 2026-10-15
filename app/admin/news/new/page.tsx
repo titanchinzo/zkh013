@@ -4,12 +4,15 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Input, Textarea } from "@/components/ui/input";
 import { ImageUploadField } from "@/components/image-upload-field";
+import { MediaLinkField } from "@/components/media-link-field";
+import { autoFillImage } from "@/lib/media";
 
 export default function NewNewsPage() {
   const router = useRouter();
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [imageUrl, setImageUrl] = useState("");
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -46,8 +49,22 @@ export default function NewNewsPage() {
           <Input name="excerpt" required />
         </div>
         <div>
+          <label className="block text-sm font-semibold text-foreground mb-2">
+            YouTube / Facebook холбоос (заавал биш)
+          </label>
+          <MediaLinkField
+            name="mediaUrl"
+            onThumbnailChange={(thumb) => setImageUrl((current) => autoFillImage(current, thumb))}
+          />
+        </div>
+        <div>
           <label className="block text-sm font-semibold text-foreground mb-2">Зураг (заавал биш)</label>
-          <ImageUploadField name="imageUrl" onUploadingChange={setUploading} />
+          <ImageUploadField
+            name="imageUrl"
+            value={imageUrl}
+            onChange={setImageUrl}
+            onUploadingChange={setUploading}
+          />
         </div>
         <div>
           <label className="block text-sm font-semibold text-foreground mb-2">Агуулга</label>

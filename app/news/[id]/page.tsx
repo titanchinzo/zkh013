@@ -4,7 +4,9 @@ import { Nav } from "@/components/nav";
 import { Footer } from "@/components/footer";
 import { connectToDatabase } from "@/lib/mongodb";
 import News from "@/lib/models/News";
+import { NewsMediaEmbed } from "@/components/news-media";
 import { canOptimizeImage, isUsableImageUrl } from "@/lib/images";
+import { parseMediaUrl } from "@/lib/media";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +14,7 @@ type NewsDoc = {
   title: string;
   content: string;
   imageUrl?: string;
+  mediaUrl?: string;
   status: string;
   createdAt: string;
 };
@@ -31,6 +34,9 @@ export default async function NewsDetailPage({ params }: { params: Promise<{ id:
     notFound();
   }
 
+  // Видео/пост хавсаргасан бол зургийн оронд түүнийг харуулна (зураг нь жагсаалт, нүүр хуудсанд гарна)
+  const media = parseMediaUrl(news.mediaUrl);
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <Nav />
@@ -40,7 +46,11 @@ export default async function NewsDetailPage({ params }: { params: Promise<{ id:
           <p className="text-sm text-muted-foreground mb-8">
             {new Date(news.createdAt).toLocaleDateString("mn-MN")}
           </p>
-          {isUsableImageUrl(news.imageUrl) && (
+          {media ? (
+            <div className="mb-8">
+              <NewsMediaEmbed media={media} title={news.title} />
+            </div>
+          ) : isUsableImageUrl(news.imageUrl) && (
             <div className="relative aspect-video w-full overflow-hidden rounded-md border border-border mb-8">
               <Image
                 src={news.imageUrl}

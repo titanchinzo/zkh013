@@ -5,7 +5,9 @@ import { Footer } from "@/components/footer";
 import { Card, CardContent } from "@/components/ui/card";
 import { connectToDatabase } from "@/lib/mongodb";
 import News from "@/lib/models/News";
+import { Play } from "lucide-react";
 import { canOptimizeImage, isUsableImageUrl } from "@/lib/images";
+import { parseMediaUrl, youTubeThumbnail } from "@/lib/media";
 
 export const dynamic = "force-dynamic";
 
@@ -14,8 +16,16 @@ type NewsItem = {
   title: string;
   excerpt: string;
   imageUrl?: string;
+  mediaUrl?: string;
   createdAt: string;
 };
+
+/** Жагсаалтад харагдах зураг: оруулсан зураг, эсвэл YouTube видеоны зураг */
+function coverImage(item: NewsItem) {
+  if (isUsableImageUrl(item.imageUrl)) return item.imageUrl;
+  const media = parseMediaUrl(item.mediaUrl);
+  return media?.provider === "youtube" ? youTubeThumbnail(media.videoId) : null;
+}
 
 export default async function NewsPage() {
   await connectToDatabase();
@@ -37,33 +47,51 @@ export default async function NewsPage() {
             <p className="text-center text-muted-foreground">Одоогоор мэдээ алга байна.</p>
           ) : (
             <div className="space-y-6">
-              {items.map((item) => (
-                <Link key={item._id} href={`/news/${item._id}`} className="block">
-                  <Card className="hover:border-primary transition-colors">
-                    <CardContent className="flex flex-col sm:flex-row gap-4">
-                      {isUsableImageUrl(item.imageUrl) && (
-                        <div className="relative aspect-video w-full sm:w-48 shrink-0 overflow-hidden rounded-md">
-                          <Image
-                            src={item.imageUrl}
-                            alt={item.title}
-                            fill
-                            sizes="(max-width: 640px) 100vw, 192px"
-                            unoptimized={!canOptimizeImage(item.imageUrl)}
-                            className="object-cover"
-                          />
+              {items.map((item) => {
+                const cover = coverImage(item);
+                const media = parseMediaUrl(item.mediaUrl);
+                return (
+                  <Link key={item._id} href={`/news/${item._id}`} className="block">
+                    <Card className="hover:border-primary transition-colors">
+                      <CardContent className="flex flex-col sm:flex-row gap-4">
+                        {(cover || media) && (
+                          <div className="relative aspect-video w-full sm:w-48 shrink-0 overflow-hidden rounded-md bg-muted">
+                            {cover && (
+                              <Image
+                                src={cover}
+                                alt={item.title}
+                                fill
+                                sizes="(max-width: 640px) 100vw, 192px"
+                                unoptimized={!canOptimizeImage(cover)}
+                                className="object-cover"
+                              />
+                            )}
+                            {media?.kind === "video" && (
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <span className="flex h-12 w-12 items-center justify-center rounded-full bg-black/60 text-white">
+                                  <Play className="h-5 w-5 translate-x-0.5" fill="currentColor" />
+                                </span>
+                              </div>
+                            )}
+                            {!cover && media?.kind === "post" && (
+                              <div className="absolute inset-0 flex items-center justify-center text-xs font-semibold tracking-widest text-muted-foreground">
+                                FACEBOOK
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <h2 className="text-xl font-bold text-foreground mb-2">{item.title}</h2>
+                          <p className="text-muted-foreground text-sm mb-3">{item.excerpt}</p>
+                          <p className="text-xs text-muted-foreground/70">
+                            {new Date(item.createdAt).toLocaleDateString("mn-MN")}
+                          </p>
                         </div>
-                      )}
-                      <div className="min-w-0">
-                        <h2 className="text-xl font-bold text-foreground mb-2">{item.title}</h2>
-                        <p className="text-muted-foreground text-sm mb-3">{item.excerpt}</p>
-                        <p className="text-xs text-muted-foreground/70">
-                          {new Date(item.createdAt).toLocaleDateString("mn-MN")}
-                        </p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </Link>
-              ))}
+                      </CardContent>
+                    </Card>
+                  </Link>
+                );
+              })}
             </div>
           )}
         </div>

@@ -4,12 +4,15 @@ import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import { Input, Textarea } from "@/components/ui/input";
 import { ImageUploadField } from "@/components/image-upload-field";
+import { MediaLinkField } from "@/components/media-link-field";
+import { autoFillImage } from "@/lib/media";
 
 type NewsItem = {
   title: string;
   excerpt: string;
   content: string;
   imageUrl?: string;
+  mediaUrl?: string;
   status: string;
 };
 
@@ -20,11 +23,15 @@ export default function EditNewsPage({ params }: { params: Promise<{ id: string 
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [imageUrl, setImageUrl] = useState("");
 
   useEffect(() => {
     fetch(`/api/news/${id}`)
       .then((r) => r.json())
-      .then((data) => setItem(data.news));
+      .then((data) => {
+        setItem(data.news);
+        setImageUrl(data.news?.imageUrl ?? "");
+      });
   }, [id]);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -61,10 +68,21 @@ export default function EditNewsPage({ params }: { params: Promise<{ id: string 
           <Input name="excerpt" defaultValue={item.excerpt} required />
         </div>
         <div>
+          <label className="block text-sm font-semibold text-foreground mb-2">
+            YouTube / Facebook холбоос (заавал биш)
+          </label>
+          <MediaLinkField
+            name="mediaUrl"
+            defaultValue={item.mediaUrl ?? ""}
+            onThumbnailChange={(thumb) => setImageUrl((current) => autoFillImage(current, thumb))}
+          />
+        </div>
+        <div>
           <label className="block text-sm font-semibold text-foreground mb-2">Зураг (заавал биш)</label>
           <ImageUploadField
             name="imageUrl"
-            defaultValue={item.imageUrl ?? ""}
+            value={imageUrl}
+            onChange={setImageUrl}
             onUploadingChange={setUploading}
           />
         </div>
