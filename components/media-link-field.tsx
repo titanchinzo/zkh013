@@ -67,20 +67,12 @@ export function MediaLinkField({ name, defaultValue = "", onThumbnailChange }: P
       />
       <p className="text-xs text-muted-foreground">
         YouTube эсвэл Facebook-ийн видео, постын холбоосыг хуулж оруулахад мэдээн дотор тухайн видео/пост
-        гарч ирнэ. YouTube видеоны зураг автоматаар нэмэгдэнэ.
+        гарч ирнэ. Зураг хоосон бол видео/постын зураг автоматаар нүүр зураг болно.
       </p>
       {checking && <p className="text-sm text-muted-foreground">Холбоосыг шалгаж байна...</p>}
       {error && <p className="text-sm text-red-400">{error}</p>}
       {preview && !checking && (
-        <div className="space-y-2">
-          <NewsMediaEmbed media={preview} title="Урьдчилан харах" />
-          {preview.provider === "facebook" && (
-            <p className="text-xs text-muted-foreground">
-              Facebook-ийн зургийг автоматаар татах боломжгүй. Мэдээний жагсаалт болон нүүр хуудсанд харагдах
-              зураг хэрэгтэй бол доороос зураг оруулна уу.
-            </p>
-          )}
-        </div>
+        <NewsMediaEmbed media={preview} title="Урьдчилан харах" />
       )}
     </div>
   );

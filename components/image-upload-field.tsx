@@ -4,7 +4,15 @@ import { useRef, useState } from "react";
 import Image from "next/image";
 import { Input } from "@/components/ui/input";
 import { canOptimizeImage, isUsableImageUrl } from "@/lib/images";
-import { NEWS_IMAGE_ACCEPT, newsImageError, uploadNewsImage } from "@/lib/news-image-upload";
+import { isFacebookUrl } from "@/lib/media";
+import {
+  imageFromFacebookLink,
+  NEWS_IMAGE_ACCEPT,
+  newsImageError,
+  uploadNewsImage,
+} from "@/lib/news-image-upload";
+
+const LINK_DEBOUNCE_MS = 500;
 
 type Props = {
   name: string;
@@ -18,7 +26,10 @@ type Props = {
 export function ImageUploadField({ name, value: url, onChange: setUrl, onUploadingChange }: Props) {
   const [progress, setProgress] = useState<number | null>(null);
   const [error, setError] = useState("");
+  const [resolving, setResolving] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+  const linkTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const linkRequest = useRef(0);
 
   function setUploading(value: boolean) {
     setProgress(value ? 0 : null);
@@ -39,6 +50,37 @@ export function ImageUploadField({ name, value: url, onChange: setUrl, onUploadi
       setUploading(false);
       if (fileInput.current) fileInput.current.value = "";
     }
+  }
+
+  // Facebook зургийн/постын холбоос оруулбал жинхэнэ зургийг нь олж харуулна
+  function handleLink(value: string) {
+    setUrl(value);
+    setError("");
+    clearTimeout(linkTimer.current);
+    const id = ++linkRequest.current;
+    if (!isFacebookUrl(value.trim())) {
+      if (resolving) {
+        setResolving(false);
+        onUploadingChange?.(false);
+      }
+      return;
+    }
+
+    setResolving(true);
+    onUploadingChange?.(true);
+    linkTimer.current = setTimeout(async () => {
+      try {
+        const image = await imageFromFacebookLink(value.trim());
+        if (id === linkRequest.current) setUrl(image);
+      } catch (err) {
+        if (id === linkRequest.current) setError(err instanceof Error ? err.message : "Зургийг олж чадсангүй");
+      } finally {
+        if (id === linkRequest.current) {
+          setResolving(false);
+          onUploadingChange?.(false);
+        }
+      }
+    }, LINK_DEBOUNCE_MS);
   }
 
   const uploading = progress !== null;
@@ -98,10 +140,16 @@ export function ImageUploadField({ name, value: url, onChange: setUrl, onUploadi
       <Input
         name={name}
         value={url}
-        onChange={(e) => setUrl(e.target.value)}
-        placeholder="эсвэл зургийн холбоос (https://...)"
+        onChange={(e) => handleLink(e.target.value)}
+        placeholder="эсвэл зургийн / Facebook зургийн холбоос (https://...)"
         disabled={uploading}
       />
+      {resolving && <p className="text-sm text-muted-foreground">Facebook-ээс зургийг татаж байна...</p>}
+      {!resolving && !error && isFacebookUrl(url) && (
+        <p className="text-xs text-muted-foreground">
+          Facebook-ийн холбоос — хадгалах үед зургийг нь автоматаар татаж хадгална.
+        </p>
+      )}
       {error && <p className="text-sm text-red-400">{error}</p>}
     </div>
   );

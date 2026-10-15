@@ -1,4 +1,5 @@
 import "server-only";
+import { isFacebookCdnUrl } from "@/lib/images";
 import {
   isFacebookShortLink,
   isFacebookUrl,
@@ -61,6 +62,30 @@ export async function resolveMedia(media: NewsMedia): Promise<NewsMedia> {
     console.warn("[media] Facebook холбоосыг задалж чадсангүй:", err);
   }
   return media;
+}
+
+// Facebook нь Twitterbot-д зураг, видео, reel, постын og:image-ийг өгдөг (facebookexternalhit-д өгдөггүй)
+const PREVIEW_UA = "Mozilla/5.0 (compatible; Twitterbot/1.0)";
+
+/**
+ * Facebook видео, reel, зураг, постын нүүр зургийн хаяг (fbcdn). Хаяг нь хэд хоногийн дараа
+ * хүчингүй болдог тул хадгалахдаа lib/image-import.ts-ээр Blob руу хуулна.
+ */
+export async function facebookPreviewImage(href: string): Promise<string | null> {
+  try {
+    const res = await fetch(href, {
+      headers: { "User-Agent": PREVIEW_UA },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+    if (!res.ok) return null;
+    const html = await res.text();
+    const raw = html.match(/<meta property="og:image" content="([^"]+)"/)?.[1];
+    const image = raw ? decodeHtml(raw) : null;
+    return image && isFacebookCdnUrl(image) ? image : null;
+  } catch (err) {
+    console.warn("[media] Facebook-ийн зургийг олж чадсангүй:", err);
+    return null;
+  }
 }
 
 /** YouTube видеоны хамгийн том thumbnail (maxresdefault бүх видеонд байдаггүй) */

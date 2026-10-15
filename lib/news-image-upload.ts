@@ -24,3 +24,15 @@ export async function uploadNewsImage(file: File, onProgress?: (percent: number)
 }
 
 export const NEWS_IMAGE_ACCEPT = Object.keys(NEWS_IMAGE_TYPES).join(",");
+
+/**
+ * Facebook-ийн зураг/пост/видеоны холбоосоос зургийг нь олно. Буцаасан хаяг нь түр (fbcdn)
+ * бөгөөд мэдээг хадгалахад сервер манай Blob руу хуулна.
+ */
+export async function imageFromFacebookLink(url: string) {
+  const res = await fetch(`/api/media/preview?url=${encodeURIComponent(url)}`);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error ?? "Холбоосыг шалгаж чадсангүй");
+  if (!data.thumbnailUrl) throw new Error("Энэ холбоосноос зураг олдсонгүй. Пост нь Public эсэхийг шалгана уу.");
+  return data.thumbnailUrl as string;
+}

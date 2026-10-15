@@ -3,8 +3,15 @@
 import { useRef, useState } from "react";
 import Image from "next/image";
 import { ImagePlus, Star, X } from "lucide-react";
-import { canOptimizeImage, NEWS_MAX_IMAGES } from "@/lib/images";
-import { NEWS_IMAGE_ACCEPT, newsImageError, uploadNewsImage } from "@/lib/news-image-upload";
+import { Input } from "@/components/ui/input";
+import { canOptimizeImage, isUsableImageUrl, NEWS_MAX_IMAGES } from "@/lib/images";
+import { isFacebookUrl } from "@/lib/media";
+import {
+  imageFromFacebookLink,
+  NEWS_IMAGE_ACCEPT,
+  newsImageError,
+  uploadNewsImage,
+} from "@/lib/news-image-upload";
 
 type Props = {
   value: string[];
@@ -19,8 +26,41 @@ type Props = {
 export function GalleryUploadField({ value, onChange, onUploadingChange, coverUrl, onSetCover }: Props) {
   const [status, setStatus] = useState<{ done: number; total: number; percent: number } | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
+  const [link, setLink] = useState("");
+  const [addingLink, setAddingLink] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const remaining = NEWS_MAX_IMAGES - value.length;
+
+  const append = (url: string) => onChange((current) => (current.includes(url) ? current : [...current, url]));
+
+  // Зургийн шууд холбоос эсвэл Facebook зургийн/постын холбоосоор цомогт нэмнэ
+  async function addLink() {
+    const url = link.trim();
+    if (!url) return;
+    setErrors([]);
+    if (remaining <= 0) {
+      setErrors([`Нэг мэдээнд ${NEWS_MAX_IMAGES}-аас олон зураг оруулах боломжгүй`]);
+      return;
+    }
+    if (isFacebookUrl(url)) {
+      setAddingLink(true);
+      onUploadingChange?.(true);
+      try {
+        append(await imageFromFacebookLink(url));
+        setLink("");
+      } catch (err) {
+        setErrors([err instanceof Error ? err.message : "Зургийг олж чадсангүй"]);
+      } finally {
+        setAddingLink(false);
+        onUploadingChange?.(false);
+      }
+    } else if (isUsableImageUrl(url)) {
+      append(url);
+      setLink("");
+    } else {
+      setErrors(["Зургийн эсвэл Facebook зургийн холбоос оруулна уу"]);
+    }
+  }
 
   async function handleFiles(fileList: FileList) {
     const files = Array.from(fileList);
@@ -44,7 +84,7 @@ export function GalleryUploadField({ value, onChange, onUploadingChange, coverUr
       setStatus({ done: i, total: valid.length, percent: 0 });
       try {
         const url = await uploadNewsImage(file, (percent) => setStatus({ done: i, total: valid.length, percent }));
-        onChange((current) => [...current, url]);
+        append(url);
       } catch (err) {
         const message = err instanceof Error ? err.message : "Зураг оруулахад алдаа гарлаа";
         setErrors((current) => [...current, `${file.name}: ${message}`]);
@@ -128,6 +168,28 @@ export function GalleryUploadField({ value, onChange, onUploadingChange, coverUr
             ? "Зураг нэмэх"
             : "Зургууд сонгох"}
       </button>
+      <div className="flex gap-2">
+        <Input
+          value={link}
+          onChange={(e) => setLink(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault(); // формыг илгээхгүй
+              addLink();
+            }
+          }}
+          placeholder="эсвэл Facebook зургийн / зургийн холбоос буулгах"
+          disabled={addingLink}
+        />
+        <button
+          type="button"
+          onClick={addLink}
+          disabled={addingLink || !link.trim()}
+          className="shrink-0 px-4 h-10 rounded-md border border-border text-sm font-semibold text-foreground hover:border-primary hover:text-primary disabled:opacity-50"
+        >
+          {addingLink ? "Татаж байна..." : "Нэмэх"}
+        </button>
+      </div>
       <p className="text-xs text-muted-foreground">
         Олон зургийг нэг дор сонгож болно ({value.length}/{NEWS_MAX_IMAGES}). Мэдээн дотор цомог хэлбэрээр
         харагдана.{onSetCover && " ☆ дарж нүүр зураг болгоно."}

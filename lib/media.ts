@@ -1,6 +1,8 @@
 // Мэдээнд хавсаргах YouTube / Facebook холбоосыг задлах туслах функцууд
 // (server болон client аль алинд ажиллана)
 
+import { isFacebookCdnUrl } from "@/lib/images";
+
 export type NewsMedia =
   | {
       provider: "youtube";
@@ -15,7 +17,8 @@ export type NewsMedia =
       kind: "video" | "post";
       href: string;
       embedSrc: string; // зөвхөн видеонд ашиглагдана, пост нь SDK-аар гарна
-      portrait: boolean; // Reel бол босоо
+      // Reel хэвтээ ч, босоо ч байж болох тул Facebook видеог үргэлж 16:9 хүрээнд харуулна
+      portrait: false;
     };
 
 export const MEDIA_URL_ERROR = "Зөвхөн YouTube эсвэл Facebook-ийн видео/постын холбоос оруулна уу";
@@ -61,9 +64,9 @@ export function youTubeThumbnail(videoId: string, size: "hqdefault" | "maxresdef
   return `https://i.ytimg.com/vi/${videoId}/${size}.jpg`;
 }
 
-/** Холбоосоос автоматаар бөглөгдсөн YouTube thumbnail эсэх */
-export function isYouTubeThumbnail(url: string) {
-  return url.startsWith("https://i.ytimg.com/vi/");
+/** Холбоосоос автоматаар бөглөгдсөн зураг эсэх (YouTube thumbnail эсвэл хадгалаагүй Facebook зураг) */
+function isAutoThumbnail(url: string) {
+  return url.startsWith("https://i.ytimg.com/vi/") || isFacebookCdnUrl(url);
 }
 
 /**
@@ -71,7 +74,7 @@ export function isYouTubeThumbnail(url: string) {
  * зургийг дарахгүй, зөвхөн хоосон эсвэл өмнө нь автоматаар бөглөгдсөн бол солино.
  */
 export function autoFillImage(current: string, thumbnailUrl: string | null) {
-  return !current || isYouTubeThumbnail(current) ? (thumbnailUrl ?? "") : current;
+  return !current || isAutoThumbnail(current) ? (thumbnailUrl ?? "") : current;
 }
 
 /** fb.watch болон share/... хэлбэрийн богино холбоосыг server дээр бүтэн хаяг руу нь хөрвүүлэх шаардлагатай */
@@ -164,6 +167,6 @@ function parseFacebook(url: URL, host: string): NewsMedia | null {
     kind,
     href,
     embedSrc: `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(href)}&show_text=false`,
-    portrait: /\/reel\//.test(href) || /^\/share\/r\//.test(path),
+    portrait: false,
   };
 }

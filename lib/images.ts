@@ -17,18 +17,25 @@ export const NEWS_IMAGE_MAX_MB = 15;
 // Нэг мэдээний зургийн цомогт оруулах дээд тоо
 export const NEWS_MAX_IMAGES = 30;
 
-/** Мэдээний зургийн цомгийн жагсаалтыг шалгана: ирээгүй бол [], буруу бол null */
-export function parseImageList(raw: unknown): string[] | null {
-  if (raw == null) return [];
-  if (!Array.isArray(raw) || raw.length > NEWS_MAX_IMAGES) return null;
-  return raw.every((url) => typeof url === "string" && isUsableImageUrl(url)) ? raw : null;
-}
+// Зураг биш, вэб хуудасны домэйнууд — Facebook/YouTube-ийн хуудасны холбоосыг зураг гэж
+// харуулбал эвдэрсэн зураг гардаг тул ялгана
+const WEB_PAGE_HOST = /(^|\.)(facebook\.com|fb\.com|fb\.watch|youtube\.com|youtu\.be|instagram\.com)$/i;
 
 /** next/image-д дамжуулж болох хаяг эсэх (буруу хаяг хуудсыг унагахаас сэргийлнэ) */
 export function isUsableImageUrl(url: string | null | undefined): url is string {
   if (!url) return false;
   if (url.startsWith("/") && !url.startsWith("//")) return true;
-  return isHttpUrl(url);
+  return isHttpUrl(url) && !WEB_PAGE_HOST.test(new URL(url).hostname);
+}
+
+/** Facebook-ийн зургийн CDN (хаяг нь хэд хоногийн дараа хүчингүй болдог тул хадгалахдаа хуулна) */
+export function isFacebookCdnUrl(url: string) {
+  try {
+    const { protocol, hostname } = new URL(url);
+    return protocol === "https:" && hostname.endsWith(".fbcdn.net");
+  } catch {
+    return false;
+  }
 }
 
 export function isHttpUrl(url: string) {
