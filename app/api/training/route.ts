@@ -4,6 +4,7 @@ import { connectToDatabase } from "@/lib/mongodb";
 import TrainingMaterial from "@/lib/models/TrainingMaterial";
 import { getCurrentRole } from "@/lib/auth-role";
 import { parseTrainingInput } from "@/lib/training";
+import { warmMgl } from "@/lib/mgl/convert";
 
 export async function GET() {
   await connectToDatabase();
@@ -25,5 +26,7 @@ export async function POST(req: NextRequest) {
 
   await connectToDatabase();
   const material = await TrainingMaterial.create({ ...parsed.data, createdBy: user.id });
+  // Монгол бичгийн хувилбарыг хариу илгээсний дараа бэлдэнэ
+  warmMgl([material.title, material.description ?? ""]);
   return NextResponse.json({ material }, { status: 201 });
 }

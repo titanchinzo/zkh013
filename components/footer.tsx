@@ -1,10 +1,23 @@
+import Image from "next/image";
 import Link from "next/link";
 import { Phone, Mail, MapPin } from "lucide-react";
+import logo from "@/public/logo.png";
 import { Brand } from "@/components/brand";
 import { CONTACT } from "@/lib/contact";
+import { getTranslator, type Translate } from "@/lib/mgl/server";
 import { SITE_NAME } from "@/lib/site";
 
-export function Footer() {
+const FOOTER_LINKS = [
+  { href: "/#about", label: "Тухай" },
+  { href: "/news", label: "Мэдээ" },
+  { href: "/#training", label: "Сургалт" },
+  { href: "/#contact", label: "Холбоо барих" },
+];
+
+export async function Footer() {
+  const { script, t } = await getTranslator();
+  if (script === "mgl") return <MglFooter t={t} />;
+
   return (
     <footer className="bg-card border-t border-border">
       <div className="container mx-auto px-4 py-12">
@@ -20,10 +33,13 @@ export function Footer() {
           <div>
             <h3 className="text-foreground font-bold mb-4">Холбоосууд</h3>
             <ul className="space-y-2">
-              <li><Link href="/#about" className="text-sm text-muted-foreground hover:text-primary transition-colors">Тухай</Link></li>
-              <li><Link href="/news" className="text-sm text-muted-foreground hover:text-primary transition-colors">Мэдээ</Link></li>
-              <li><Link href="/#training" className="text-sm text-muted-foreground hover:text-primary transition-colors">Сургалт</Link></li>
-              <li><Link href="/#contact" className="text-sm text-muted-foreground hover:text-primary transition-colors">Холбоо барих</Link></li>
+              {FOOTER_LINKS.map((link) => (
+                <li key={link.href}>
+                  <Link href={link.href} className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
             </ul>
           </div>
           <div>
@@ -63,6 +79,73 @@ export function Footer() {
               © {new Date().getFullYear()} {SITE_NAME}. Бүх эрх хуулиар хамгаалагдсан.
             </p>
             <span className="text-xs text-muted-foreground font-mono">ZKH-013</span>
+          </div>
+        </div>
+      </div>
+    </footer>
+  );
+}
+
+/** Монгол бичгийн горимын footer: бүлэг бүр босоо гарчиг, босоо мөрүүдтэй, зүүнээс баруун тийш эгнэнэ */
+function MglFooter({ t }: { t: Translate }) {
+  const group = "flex shrink-0 flex-row gap-3 border-l border-border pl-5 first:border-0 first:pl-0";
+  const heading = "mgl-v text-base text-foreground";
+  const item = "mgl-v text-sm text-muted-foreground transition-colors hover:text-primary";
+
+  return (
+    <footer className="bg-card border-t border-border">
+      <div className="container mx-auto px-4 py-12">
+        <div className="mgl-scroll flex h-72 flex-row gap-6 pb-2">
+          <div className={group}>
+            <Link href="/" aria-label="Нүүр хуудас" className="flex shrink-0 flex-col items-center gap-3">
+              <Image src={logo} alt="Зэвсэгт хүчний 013 дугаар ангийн лого" sizes="48px" className="h-14 w-auto" />
+              <span className="mgl-v text-base text-foreground">
+                {t("ЗЭВСЭГТ ХҮЧНИЙ")} <span className="text-primary">013</span>
+              </span>
+            </Link>
+            <p className="mgl-v text-sm leading-relaxed text-muted-foreground">
+              {t("Эх орны бүрэн эрхт байдал, аюулгүй байдлыг хамгаалах үнэнч хамгаалагч")}
+            </p>
+          </div>
+
+          <div className={group}>
+            <h3 className={heading}>{t("Холбоосууд")}</h3>
+            {FOOTER_LINKS.map((link) => (
+              <Link key={link.href} href={link.href} className={item}>
+                {t(link.label)}
+              </Link>
+            ))}
+          </div>
+
+          <div className={group}>
+            <h3 className={heading}>{t("Холбоо барих")}</h3>
+            <a href={CONTACT.phoneHref} className={`${item} inline-flex items-center gap-2`}>
+              <Phone className="h-4 w-4 text-primary" />
+              {CONTACT.phone}
+            </a>
+            <a href={`mailto:${CONTACT.email}`} className={`${item} inline-flex items-center gap-2`}>
+              <Mail className="h-4 w-4 text-primary" />
+              {CONTACT.email}
+            </a>
+            <span className={`${item} inline-flex items-center gap-2`}>
+              <MapPin className="h-4 w-4 text-primary" />
+              {t(CONTACT.address)}
+            </span>
+          </div>
+
+          <div className={group}>
+            <h3 className={heading}>{t("Цагийн хуваарь")}</h3>
+            <span className="mgl-v text-sm text-muted-foreground">{t("Даваа - Баасан")}</span>
+            <span className="mgl-v text-sm text-primary">09:00 - 18:00</span>
+            <span className="mgl-v text-sm text-muted-foreground">{t("Бямба - Ням")}</span>
+            <span className="mgl-v text-sm text-muted-foreground">{t("Амралтын өдөр")}</span>
+          </div>
+
+          <div className={group}>
+            <p className="mgl-v text-xs leading-relaxed text-muted-foreground">
+              © {new Date().getFullYear()} {t(SITE_NAME)}. {t("Бүх эрх хуулиар хамгаалагдсан.")}
+            </p>
+            <span className="mgl-v font-mono text-xs text-muted-foreground">ZKH-013</span>
           </div>
         </div>
       </div>

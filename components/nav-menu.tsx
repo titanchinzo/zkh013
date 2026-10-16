@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
 import { Menu, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ScriptToggle } from "@/components/script-toggle";
 
 type NavLink = { href: string; label: string };
 
@@ -45,17 +46,23 @@ export function NavMenu({ links, showAdmin }: { links: NavLink[]; showAdmin: boo
             </div>
           </>
         )}
+        <div className="ml-3">
+          <ScriptToggle script="mn" />
+        </div>
       </div>
 
-      <button
-        type="button"
-        onClick={() => setOpen((value) => !value)}
-        aria-expanded={open}
-        aria-label={open ? "Цэс хаах" : "Цэс нээх"}
-        className="md:hidden -mr-2 flex h-10 w-10 items-center justify-center rounded-md text-foreground hover:bg-muted"
-      >
-        {open ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-      </button>
+      <div className="md:hidden flex items-center gap-2">
+        <ScriptToggle script="mn" />
+        <button
+          type="button"
+          onClick={() => setOpen((value) => !value)}
+          aria-expanded={open}
+          aria-label={open ? "Цэс хаах" : "Цэс нээх"}
+          className="-mr-2 flex h-10 w-10 items-center justify-center rounded-md text-foreground hover:bg-muted"
+        >
+          {open ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+        </button>
+      </div>
 
       {open && (
         <div className="md:hidden absolute inset-x-0 top-16 border-b border-border bg-background shadow-xl shadow-black/50">

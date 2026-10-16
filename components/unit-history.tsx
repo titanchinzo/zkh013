@@ -2,55 +2,61 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import { ArrowLeft, ArrowRight, ChevronLeft, ChevronRight, ExternalLink, FileText, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, ChevronLeft, ChevronRight, FileText, X } from "lucide-react";
 import { Reveal } from "@/components/reveal";
+import { DialogHeader, Medal, Portrait, Sources, type HistoryData, type OpenFn } from "@/components/history-parts";
+import { AwardsMgl, EventDetailsMgl, PeopleMgl, PersonDetailsMgl, TimelineMgl } from "@/components/unit-history-mgl";
+import type { Script } from "@/lib/mgl/shared";
 import { cn } from "@/lib/utils";
-import {
-  HISTORY_EVENTS,
-  HISTORY_PEOPLE,
-  UNIT_AWARDS,
-  type HistoryDocument,
-  type HistoryEvent,
-  type HistoryImage,
-  type HistoryPerson,
-  type Source,
-} from "@/lib/unit-history";
+import type { HistoryDocument, HistoryEvent, HistoryLabels, HistoryPerson, UnitAward } from "@/lib/unit-history";
 
 type Active = { kind: "event"; item: HistoryEvent } | { kind: "person"; item: HistoryPerson } | null;
-type OpenFn = (id: string) => void;
 type Viewer = { documents: HistoryDocument[]; index: number } | null;
 
-function findById(id: string): Active {
-  const event = HISTORY_EVENTS.find((item) => item.id === id);
-  if (event) return { kind: "event", item: event };
-  const person = HISTORY_PEOPLE.find((item) => item.id === id);
-  return person ? { kind: "person", item: person } : null;
-}
-
-const personById = (id?: string) => (id ? HISTORY_PEOPLE.find((person) => person.id === id) : undefined);
+const DIALOG_CLASS = {
+  mn: "history-dialog m-auto max-h-[88vh] w-[min(44rem,calc(100vw-2rem))] overflow-y-auto rounded-2xl border border-border bg-card p-0 text-foreground shadow-2xl shadow-black/60 backdrop:bg-black/80 backdrop:backdrop-blur-sm",
+  // Монгол бичиг: өндөр нь тогтмол, босоо бичвэр зүүнээс баруун тийш гүйнэ
+  mgl: "history-dialog m-auto h-[86vh] w-[min(76rem,calc(100vw-1.5rem))] max-w-none overflow-hidden rounded-2xl border border-border bg-card p-0 text-foreground shadow-2xl shadow-black/60 backdrop:bg-black/80 backdrop:backdrop-blur-sm",
+};
 
 /**
  * Ангийн түүхэн замнал, түүхэн хүмүүс, шагнал. Үйл явдал/хүн дээр дарахад дэлгэрэнгүй цонх
  * нээгдэж, хаяг нь холбоос болно (жишээ нь /#tuukh-1936, /#hun-gavaa) — хуваалцаж болно.
+ * Бичвэрүүд серверээс сонгосон горимоор (MN/MGL) орчуулагдаж ирнэ.
  */
-export function UnitHistory() {
+export function UnitHistory({ data, script }: { data: HistoryData; script: Script }) {
+  const { events, people, awards, labels } = data;
+  const mgl = script === "mgl";
   const [active, setActive] = useState<Active>(null);
   const [viewer, setViewer] = useState<Viewer>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
 
-  const open = useCallback<OpenFn>((id) => {
-    const next = findById(id);
-    if (!next) return;
-    setActive(next);
-    window.history.replaceState(null, "", `#${id}`);
-  }, []);
+  const find = useCallback(
+    (id: string): Active => {
+      const event = events.find((item) => item.id === id);
+      if (event) return { kind: "event", item: event };
+      const person = people.find((item) => item.id === id);
+      return person ? { kind: "person", item: person } : null;
+    },
+    [events, people]
+  );
+
+  const open = useCallback<OpenFn>(
+    (id) => {
+      const next = find(id);
+      if (!next) return;
+      setActive(next);
+      window.history.replaceState(null, "", `#${id}`);
+    },
+    [find]
+  );
 
   const close = useCallback(() => dialogRef.current?.close(), []);
 
   // Холбоосоор орж ирсэн (/#hun-gavaa) эсвэл хуудсан дээрх #... холбоос дарсан үед нээнэ
   useEffect(() => {
     const openFromHash = () => {
-      const next = findById(decodeURIComponent(window.location.hash.slice(1)));
+      const next = find(decodeURIComponent(window.location.hash.slice(1)));
       if (next) setActive(next);
     };
     const frame = requestAnimationFrame(openFromHash);
@@ -59,13 +65,14 @@ export function UnitHistory() {
       cancelAnimationFrame(frame);
       window.removeEventListener("hashchange", openFromHash);
     };
-  }, []);
+  }, [find]);
 
   useEffect(() => {
     const dialog = dialogRef.current;
     if (!active || !dialog) return;
     if (!dialog.open) dialog.showModal();
     dialog.scrollTop = 0;
+    dialog.querySelector<HTMLElement>("[data-dialog-scroll]")?.scrollTo({ left: 0, top: 0 });
   }, [active]);
 
   function handleClose(e: React.SyntheticEvent<HTMLDialogElement>) {
@@ -78,11 +85,24 @@ export function UnitHistory() {
     }
   }
 
+  const viewDocument = (person: HistoryPerson) => (index: number) =>
+    setViewer({ documents: person.documents ?? [], index });
+
   return (
     <>
-      <Timeline onOpen={open} />
-      <People onOpen={open} />
-      <Awards onOpen={open} />
+      {mgl ? (
+        <>
+          <TimelineMgl events={events} people={people} labels={labels} onOpen={open} />
+          <PeopleMgl people={people} labels={labels} onOpen={open} />
+          <AwardsMgl awards={awards} labels={labels} onOpen={open} />
+        </>
+      ) : (
+        <>
+          <Timeline events={events} people={people} labels={labels} onOpen={open} />
+          <People people={people} labels={labels} onOpen={open} />
+          <Awards awards={awards} labels={labels} onOpen={open} />
+        </>
+      )}
 
       <dialog
         ref={dialogRef}
@@ -90,19 +110,23 @@ export function UnitHistory() {
         // Цонхны гадна (бүдгэрсэн хэсэг) дарахад хаагдана
         onClick={(e) => e.target === e.currentTarget && close()}
         aria-labelledby="history-dialog-title"
-        className="history-dialog m-auto max-h-[88vh] w-[min(44rem,calc(100vw-2rem))] overflow-y-auto rounded-2xl border border-border bg-card p-0 text-foreground shadow-2xl shadow-black/60 backdrop:bg-black/80 backdrop:backdrop-blur-sm"
+        className={DIALOG_CLASS[script]}
       >
-        {active?.kind === "event" && <EventDetails event={active.item} onOpen={open} onClose={close} />}
-        {active?.kind === "person" && (
-          <PersonDetails
-            person={active.item}
-            onClose={close}
-            onViewDocument={(index) => setViewer({ documents: active.item.documents ?? [], index })}
-          />
-        )}
+        {active?.kind === "event" &&
+          (mgl ? (
+            <EventDetailsMgl event={active.item} events={events} people={people} labels={labels} onOpen={open} onClose={close} />
+          ) : (
+            <EventDetails event={active.item} events={events} people={people} labels={labels} onOpen={open} onClose={close} />
+          ))}
+        {active?.kind === "person" &&
+          (mgl ? (
+            <PersonDetailsMgl person={active.item} labels={labels} onClose={close} onViewDocument={viewDocument(active.item)} />
+          ) : (
+            <PersonDetails person={active.item} labels={labels} onClose={close} onViewDocument={viewDocument(active.item)} />
+          ))}
       </dialog>
 
-      <DocumentViewer viewer={viewer} onChange={setViewer} />
+      <DocumentViewer viewer={viewer} onChange={setViewer} closeLabel={labels.close} vertical={mgl} />
     </>
   );
 }
@@ -117,63 +141,11 @@ function SectionTitle({ eyebrow, title }: { eyebrow: string; title: string }) {
   );
 }
 
-/* ---------------------------------- Зураг ---------------------------------- */
-
-const PORTRAIT_SIZES = {
-  sm: { box: "h-14 w-11 rounded-md", sizes: "44px" },
-  md: { box: "h-44 w-36 rounded-xl", sizes: "144px" },
-  lg: { box: "h-40 w-32 sm:h-48 sm:w-40 rounded-xl", sizes: "160px" },
-};
-
-/** Хөрөг зураг — хулганаар заахад гэрэл гулсаж өнгөрнө */
-function Portrait({ person, size = "md" }: { person: HistoryPerson; size?: keyof typeof PORTRAIT_SIZES }) {
-  const { box, sizes } = PORTRAIT_SIZES[size];
-  return (
-    <span
-      className={cn(
-        "relative block shrink-0 overflow-hidden border border-primary/40 bg-muted shadow-lg shadow-black/40",
-        box
-      )}
-    >
-      <Image
-        src={person.photo.src}
-        alt={person.photo.alt}
-        fill
-        sizes={sizes}
-        placeholder="blur"
-        className="object-cover object-top transition-transform duration-700 group-hover:scale-105"
-      />
-      <span aria-hidden className="absolute inset-0 bg-linear-to-t from-black/45 via-transparent to-transparent" />
-      <span aria-hidden className="portrait-shine pointer-events-none absolute inset-0" />
-    </span>
-  );
-}
-
-/** Одонгийн тунгалаг зураг, ард нь алтан гэрэл */
-function Medal({ image, className, float }: { image: HistoryImage; className?: string; float?: boolean }) {
-  return (
-    <span className={cn("relative block shrink-0", className)}>
-      <span
-        aria-hidden
-        className="absolute inset-[12%] rounded-full bg-amber-300/20 blur-2xl transition-colors duration-500 group-hover:bg-amber-300/35"
-      />
-      <Image
-        src={image.src}
-        alt={image.alt}
-        fill
-        sizes="(max-width: 640px) 120px, 176px"
-        className={cn(
-          "object-contain drop-shadow-[0_10px_18px_rgba(0,0,0,0.55)] transition-transform duration-700 group-hover:scale-110 group-hover:rotate-[8deg]",
-          float && "medal-float"
-        )}
-      />
-    </span>
-  );
-}
-
 /* ---------------------------------- Түүхэн замнал ---------------------------------- */
 
-function Timeline({ onOpen }: { onOpen: OpenFn }) {
+type TimelineProps = { events: HistoryEvent[]; people: HistoryPerson[]; labels: HistoryLabels; onOpen: OpenFn };
+
+function Timeline({ events, people, labels, onOpen }: TimelineProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Гүйлгэх тусам шугам зурагдаж, давсан үйл явдлын цэг гэрэлтэнэ
@@ -209,7 +181,7 @@ function Timeline({ onOpen }: { onOpen: OpenFn }) {
 
   return (
     <div className="mt-24">
-      <SectionTitle eyebrow="1929 – ӨНӨӨ" title="ТҮҮХЭН ЗАМНАЛ" />
+      <SectionTitle eyebrow={labels.timelineEyebrow} title={labels.timelineTitle} />
       <div ref={containerRef} className="relative mt-14">
         <div aria-hidden className="absolute bottom-0 top-0 left-4 w-0.5 -translate-x-1/2 bg-border md:left-1/2" />
         <div
@@ -217,8 +189,15 @@ function Timeline({ onOpen }: { onOpen: OpenFn }) {
           className="timeline-progress absolute bottom-0 top-0 left-4 w-0.5 -translate-x-1/2 origin-top bg-linear-to-b from-primary via-primary to-primary/30 md:left-1/2"
         />
         <ol className="space-y-8 md:space-y-10">
-          {HISTORY_EVENTS.map((event, index) => (
-            <TimelineItem key={event.id} event={event} index={index} onOpen={onOpen} />
+          {events.map((event, index) => (
+            <TimelineItem
+              key={event.id}
+              event={event}
+              index={index}
+              person={people.find((person) => person.id === event.personId)}
+              moreLabel={labels.more}
+              onOpen={onOpen}
+            />
           ))}
         </ol>
       </div>
@@ -226,10 +205,21 @@ function Timeline({ onOpen }: { onOpen: OpenFn }) {
   );
 }
 
-function TimelineItem({ event, index, onOpen }: { event: HistoryEvent; index: number; onOpen: OpenFn }) {
+function TimelineItem({
+  event,
+  index,
+  person,
+  moreLabel,
+  onOpen,
+}: {
+  event: HistoryEvent;
+  index: number;
+  person?: HistoryPerson;
+  moreLabel: string;
+  onOpen: OpenFn;
+}) {
   // Том дэлгэцэнд картууд зүүн, баруун талаар ээлжилнэ
   const cardLeft = index % 2 === 0;
-  const person = personById(event.personId);
 
   return (
     <li id={event.id} className="timeline-item relative scroll-mt-28 md:grid md:grid-cols-[1fr_5rem_1fr] md:items-center">
@@ -270,7 +260,7 @@ function TimelineItem({ event, index, onOpen }: { event: HistoryEvent; index: nu
             </span>
             <span className="mt-2 block text-sm leading-relaxed text-muted-foreground">{event.summary}</span>
             <span className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-primary">
-              Дэлгэрэнгүй
+              {moreLabel}
               <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
             </span>
           </span>
@@ -287,12 +277,12 @@ function TimelineItem({ event, index, onOpen }: { event: HistoryEvent; index: nu
 
 /* ---------------------------------- Түүхэн хүмүүс ---------------------------------- */
 
-function People({ onOpen }: { onOpen: OpenFn }) {
+function People({ people, labels, onOpen }: { people: HistoryPerson[]; labels: HistoryLabels; onOpen: OpenFn }) {
   return (
     <div className="mt-24">
-      <SectionTitle eyebrow="АНГИЙН БАХАРХАЛ" title="ТҮҮХЭН ХҮМҮҮС" />
+      <SectionTitle eyebrow={labels.peopleEyebrow} title={labels.peopleTitle} />
       <div className="mt-12 grid gap-6 md:grid-cols-2">
-        {HISTORY_PEOPLE.map((person, index) => (
+        {people.map((person, index) => (
           <Reveal key={person.id} delay={index * 120}>
             <button
               id={person.id}
@@ -311,7 +301,7 @@ function People({ onOpen }: { onOpen: OpenFn }) {
                 </span>
                 <span className="mt-3 block text-sm leading-relaxed text-foreground/80">{person.tagline}</span>
                 <span className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-primary">
-                  Намтар үзэх
+                  {labels.biography}
                   <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                 </span>
               </span>
@@ -325,12 +315,12 @@ function People({ onOpen }: { onOpen: OpenFn }) {
 
 /* ---------------------------------- Шагнал ---------------------------------- */
 
-function Awards({ onOpen }: { onOpen: OpenFn }) {
+function Awards({ awards, labels, onOpen }: { awards: UnitAward[]; labels: HistoryLabels; onOpen: OpenFn }) {
   return (
     <div className="mt-24">
-      <SectionTitle eyebrow="ТӨРИЙН ДЭЭД ШАГНАЛ" title="ШАГНАЛ, ОДОН" />
+      <SectionTitle eyebrow={labels.awardsEyebrow} title={labels.awardsTitle} />
       <div className="mt-12 grid gap-6 md:grid-cols-2">
-        {UNIT_AWARDS.map((award, index) => (
+        {awards.map((award, index) => (
           <Reveal key={award.eventId} delay={index * 120}>
             <button
               type="button"
@@ -345,7 +335,7 @@ function Awards({ onOpen }: { onOpen: OpenFn }) {
                 </span>
                 <span className="mt-2 block text-sm leading-relaxed text-muted-foreground">{award.reason}</span>
                 <span className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-primary">
-                  Дэлгэрэнгүй
+                  {labels.more}
                   <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                 </span>
               </span>
@@ -359,54 +349,28 @@ function Awards({ onOpen }: { onOpen: OpenFn }) {
 
 /* ---------------------------------- Дэлгэрэнгүй цонх ---------------------------------- */
 
-function DialogHeader({ eyebrow, onClose }: { eyebrow: string; onClose: () => void }) {
-  return (
-    <div className="sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-border bg-card/95 px-6 py-3 backdrop-blur sm:px-8">
-      <span className="text-xs font-bold tracking-widest text-primary">{eyebrow}</span>
-      <button
-        type="button"
-        onClick={onClose}
-        aria-label="Хаах"
-        className="-mr-2 flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
-      >
-        <X className="h-5 w-5" />
-      </button>
-    </div>
-  );
-}
+type EventDetailsProps = {
+  event: HistoryEvent;
+  events: HistoryEvent[];
+  people: HistoryPerson[];
+  labels: HistoryLabels;
+  onOpen: OpenFn;
+  onClose: () => void;
+};
 
-function Sources({ sources }: { sources: Source[] }) {
-  return (
-    <div className="mt-8 border-t border-border pt-4">
-      <p className="text-xs font-semibold text-muted-foreground">Эх сурвалж:</p>
-      <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
-        {sources.map((source) => (
-          <li key={source.url}>
-            <a
-              href={source.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary"
-            >
-              {source.label}
-              <ExternalLink className="h-3 w-3" />
-            </a>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function EventDetails({ event, onOpen, onClose }: { event: HistoryEvent; onOpen: OpenFn; onClose: () => void }) {
-  const index = HISTORY_EVENTS.findIndex((item) => item.id === event.id);
-  const previous = HISTORY_EVENTS[index - 1];
-  const next = HISTORY_EVENTS[index + 1];
-  const person = personById(event.personId);
+function EventDetails({ event, events, people, labels, onOpen, onClose }: EventDetailsProps) {
+  const index = events.findIndex((item) => item.id === event.id);
+  const previous = events[index - 1];
+  const next = events[index + 1];
+  const person = people.find((item) => item.id === event.personId);
 
   return (
     <article>
-      <DialogHeader eyebrow={`ТҮҮХЭН ЗАМНАЛ · ${index + 1}/${HISTORY_EVENTS.length}`} onClose={onClose} />
+      <DialogHeader
+        eyebrow={`${labels.timelineTitle} · ${index + 1}/${events.length}`}
+        closeLabel={labels.close}
+        onClose={onClose}
+      />
       <div className="px-6 pb-6 pt-6 sm:px-8 sm:pb-8">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
@@ -440,7 +404,7 @@ function EventDetails({ event, onOpen, onClose }: { event: HistoryEvent; onOpen:
           >
             <Portrait person={person} size="sm" />
             <span className="min-w-0 flex-1">
-              <span className="block text-xs font-semibold tracking-wider text-primary">НАМТАР</span>
+              <span className="block text-xs font-semibold tracking-wider text-primary">{labels.biographyLabel}</span>
               <span className="block font-bold text-foreground">
                 {person.rank} {person.shortName}
               </span>
@@ -449,9 +413,9 @@ function EventDetails({ event, onOpen, onClose }: { event: HistoryEvent; onOpen:
           </button>
         )}
 
-        <Sources sources={event.sources} />
+        <Sources sources={event.sources} label={labels.sources} />
 
-        <nav aria-label="Түүхэн замнал" className="mt-6 flex items-center justify-between gap-3">
+        <nav aria-label={labels.timelineTitle} className="mt-6 flex items-center justify-between gap-3">
           {previous ? (
             <button
               type="button"
@@ -480,18 +444,17 @@ function EventDetails({ event, onOpen, onClose }: { event: HistoryEvent; onOpen:
   );
 }
 
-function PersonDetails({
-  person,
-  onClose,
-  onViewDocument,
-}: {
+type PersonDetailsProps = {
   person: HistoryPerson;
+  labels: HistoryLabels;
   onClose: () => void;
   onViewDocument: (index: number) => void;
-}) {
+};
+
+function PersonDetails({ person, labels, onClose, onViewDocument }: PersonDetailsProps) {
   return (
     <article>
-      <DialogHeader eyebrow={person.role.toUpperCase()} onClose={onClose} />
+      <DialogHeader eyebrow={person.role.toUpperCase()} closeLabel={labels.close} onClose={onClose} />
       <div className="px-6 pb-6 pt-6 sm:px-8 sm:pb-8">
         <div className="group flex items-center gap-5">
           <Portrait person={person} size="lg" />
@@ -520,7 +483,7 @@ function PersonDetails({
           ))}
         </div>
 
-        <h4 className="mt-8 text-xs font-bold tracking-widest text-primary">ОН ДАРААЛАЛ</h4>
+        <h4 className="mt-8 text-xs font-bold tracking-widest text-primary">{labels.chronology}</h4>
         <ol className="mt-4 space-y-3 border-l-2 border-primary/40 pl-5">
           {person.milestones.map((milestone) => (
             <li key={milestone.year + milestone.text} className="relative text-sm leading-relaxed">
@@ -535,7 +498,7 @@ function PersonDetails({
           <section className="mt-8">
             <h4 className="flex items-center gap-2 text-xs font-bold tracking-widest text-primary">
               <FileText className="h-4 w-4" />
-              ТҮҮХЭН БАРИМТ
+              {labels.documents}
             </h4>
             <div className="mt-4 grid grid-cols-3 gap-3">
               {person.documents.map((doc, index) => (
@@ -563,7 +526,7 @@ function PersonDetails({
             </div>
             {person.documentsSource && (
               <p className="mt-3 text-xs text-muted-foreground">
-                Баримтын эх сурвалж:{" "}
+                {labels.documentsSource}{" "}
                 <a
                   href={person.documentsSource.url}
                   target="_blank"
@@ -577,14 +540,24 @@ function PersonDetails({
           </section>
         )}
 
-        <Sources sources={person.sources} />
+        <Sources sources={person.sources} label={labels.sources} />
       </div>
     </article>
   );
 }
 
 /** Баримт бичгийг бүтэн дэлгэцээр томруулж үзэх цонх (намтрын цонхны дээр нээгдэнэ) */
-function DocumentViewer({ viewer, onChange }: { viewer: Viewer; onChange: (viewer: Viewer) => void }) {
+function DocumentViewer({
+  viewer,
+  onChange,
+  closeLabel,
+  vertical,
+}: {
+  viewer: Viewer;
+  onChange: (viewer: Viewer) => void;
+  closeLabel: string;
+  vertical: boolean;
+}) {
   const ref = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
@@ -608,24 +581,29 @@ function DocumentViewer({ viewer, onChange }: { viewer: Viewer; onChange: (viewe
         if (e.key === "ArrowRight") show(viewer.index + 1);
         if (e.key === "ArrowLeft") show(viewer.index - 1);
       }}
-      aria-label="Түүхэн баримт"
+      aria-label={current?.caption}
       className="history-dialog m-auto h-[92vh] w-[min(60rem,calc(100vw-1rem))] max-w-none overflow-visible bg-transparent p-0 backdrop:bg-black/90"
     >
       {current && viewer && (
-        <figure className="flex h-full flex-col" onClick={(e) => e.target === e.currentTarget && ref.current?.close()}>
-          <div className="relative min-h-0 flex-1">
+        <figure
+          className={cn("flex h-full", vertical ? "flex-row gap-3" : "flex-col")}
+          onClick={(e) => e.target === e.currentTarget && ref.current?.close()}
+        >
+          <div className="relative min-h-0 min-w-0 flex-1">
             <Image src={current.src} alt={current.caption} fill sizes="(max-width: 960px) 100vw, 960px" className="object-contain" />
           </div>
-          <figcaption className="mt-3 text-center text-sm text-gray-200">
+          <figcaption
+            className={cn("text-sm text-gray-200", vertical ? "mgl-v order-first self-center" : "mt-3 text-center")}
+          >
             {current.caption}
-            <span className="ml-2 text-gray-400">
+            <span className={cn("text-gray-400", vertical ? "mt-2" : "ml-2")}>
               {viewer.index + 1} / {count}
             </span>
           </figcaption>
           <button
             type="button"
             onClick={() => ref.current?.close()}
-            aria-label="Хаах"
+            aria-label={closeLabel}
             className="absolute right-0 top-0 flex h-11 w-11 items-center justify-center rounded-full bg-black/60 text-white hover:bg-primary hover:text-primary-foreground"
           >
             <X className="h-6 w-6" />
@@ -635,7 +613,7 @@ function DocumentViewer({ viewer, onChange }: { viewer: Viewer; onChange: (viewe
               <button
                 type="button"
                 onClick={() => show(viewer.index - 1)}
-                aria-label="Өмнөх баримт"
+                aria-label="←"
                 className="absolute left-0 top-1/2 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-white hover:bg-primary hover:text-primary-foreground"
               >
                 <ChevronLeft className="h-7 w-7" />
@@ -643,7 +621,7 @@ function DocumentViewer({ viewer, onChange }: { viewer: Viewer; onChange: (viewe
               <button
                 type="button"
                 onClick={() => show(viewer.index + 1)}
-                aria-label="Дараагийн баримт"
+                aria-label="→"
                 className="absolute right-0 top-1/2 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-white hover:bg-primary hover:text-primary-foreground"
               >
                 <ChevronRight className="h-7 w-7" />

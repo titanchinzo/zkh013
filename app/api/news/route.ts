@@ -6,6 +6,7 @@ import { getCurrentRole } from "@/lib/auth-role";
 import { createImagePreparer } from "@/lib/image-import";
 import { MEDIA_URL_ERROR } from "@/lib/media";
 import { prepareMediaUrl } from "@/lib/media-server";
+import { warmMgl } from "@/lib/mgl/convert";
 
 export async function GET(req: NextRequest) {
   await connectToDatabase();
@@ -58,5 +59,7 @@ export async function POST(req: NextRequest) {
     authorName: user.fullName ?? user.primaryEmailAddress?.emailAddress ?? "Тодорхойгүй",
   });
 
+  // Монгол бичгийн хувилбарыг хариу илгээсний дараа бэлдэнэ
+  warmMgl([title, excerpt, content]);
   return NextResponse.json({ news }, { status: 201 });
 }

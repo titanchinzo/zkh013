@@ -1,38 +1,77 @@
-"use client";
-
-import { useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input, Textarea } from "@/components/ui/input";
 import { MapPin, Phone, Mail, Clock, type LucideIcon } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { ContactForm } from "@/components/contact-form";
+import { MglHeading } from "@/components/mgl/mgl-heading";
 import { CONTACT } from "@/lib/contact";
+import { getTranslator } from "@/lib/mgl/server";
 
-const infoCards: { icon: LucideIcon; title: string; text: string; href?: string }[] = [
-  { icon: MapPin, title: "Хаяг", text: CONTACT.address },
-  { icon: Phone, title: "Утас", text: CONTACT.phone, href: CONTACT.phoneHref },
-  { icon: Mail, title: "И-мэйл", text: CONTACT.email, href: `mailto:${CONTACT.email}` },
-  { icon: Clock, title: "Цагийн хуваарь", text: "Даваа - Баасан: 09:00 - 18:00" },
-];
+export async function Contact() {
+  const { script, t } = await getTranslator();
+  const mgl = script === "mgl";
 
-export function Contact() {
-  const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const infoCards: { icon: LucideIcon; title: string; text: string; href?: string }[] = [
+    { icon: MapPin, title: t("Хаяг"), text: t(CONTACT.address) },
+    { icon: Phone, title: t("Утас"), text: CONTACT.phone, href: CONTACT.phoneHref },
+    { icon: Mail, title: t("И-мэйл"), text: CONTACT.email, href: `mailto:${CONTACT.email}` },
+    { icon: Clock, title: t("Цагийн хуваарь"), text: t("Даваа - Баасан: 09:00 - 18:00") },
+  ];
+  const labels = {
+    name: t("Нэр"),
+    email: t("И-мэйл"),
+    subject: t("Гарчиг"),
+    message: t("Мессеж"),
+    namePlaceholder: t("Таны нэр"),
+    subjectPlaceholder: t("Асуулт эсвэл санал"),
+    messagePlaceholder: t("Таны мессеж..."),
+    submit: t("Мессеж илгээх"),
+    sending: t("Илгээж байна..."),
+    sent: t("Мессеж амжилттай илгээгдлээ."),
+    error: t("Алдаа гарлаа. Дахин оролдоно уу."),
+  };
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    // await-ийн дараа e.currentTarget нь null болдог тул формыг урьдчилан авна
-    // (өмнө нь амжилттай илгээсэн ч reset() алдаа өгч "Алдаа гарлаа" гэж харуулдаг байсан)
-    const formElement = e.currentTarget;
-    setStatus("sending");
-    try {
-      const res = await fetch("/api/contact", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(Object.fromEntries(new FormData(formElement))),
-      });
-      if (res.ok) formElement.reset();
-      setStatus(res.ok ? "sent" : "error");
-    } catch {
-      setStatus("error");
-    }
+  if (mgl) {
+    return (
+      <section id="contact" className="py-20 md:py-32 bg-background">
+        <div className="container mx-auto px-4">
+          <div className="max-w-6xl mx-auto flex flex-col gap-10 lg:flex-row">
+            <div className="flex shrink-0 flex-row gap-4">
+              <MglHeading title={t("ХОЛБОО БАРИХ")} />
+              <p className="mgl-v h-72 text-base leading-relaxed text-muted-foreground">
+                {t("Бидэнтэй холбогдох, асуулт тавих, санал хүсэлтээ илгээх")}
+              </p>
+            </div>
+            <div className="grid min-w-0 flex-1 gap-6 xl:grid-cols-[auto_minmax(0,1fr)]">
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 xl:grid-cols-2">
+                {infoCards.map(({ icon: Icon, title, text, href }) => (
+                  <Card key={title} className="transition-colors hover:border-primary">
+                    <CardContent className="flex h-56 flex-col items-center gap-3 p-4">
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center border border-primary bg-primary/10">
+                        <Icon className="h-5 w-5 text-primary" />
+                      </span>
+                      <span className="flex min-h-0 flex-1 flex-row gap-2">
+                        <span className="mgl-v text-sm text-foreground">{title}</span>
+                        {href ? (
+                          <a href={href} className="mgl-v text-sm text-muted-foreground transition-colors hover:text-primary">
+                            {text}
+                          </a>
+                        ) : (
+                          <span className="mgl-v text-sm text-muted-foreground">{text}</span>
+                        )}
+                      </span>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+              <Card>
+                <CardContent>
+                  <ContactForm labels={labels} vertical />
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </div>
+      </section>
+    );
   }
 
   return (
@@ -40,9 +79,7 @@ export function Contact() {
       <div className="container mx-auto px-4">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-16 animate-fade-in-up">
-            <h2 className="text-4xl md:text-5xl font-bold tracking-tight text-foreground mb-4">
-              ХОЛБОО БАРИХ
-            </h2>
+            <h2 className="text-4xl md:text-5xl font-bold tracking-tight text-foreground mb-4">ХОЛБОО БАРИХ</h2>
             <div className="w-20 h-1 bg-primary mx-auto mb-6" />
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
               Бидэнтэй холбогдох, асуулт тавих, санал хүсэлтээ илгээх
@@ -74,37 +111,7 @@ export function Contact() {
 
             <Card>
               <CardContent>
-                <form className="space-y-6" onSubmit={handleSubmit}>
-                  <div>
-                    <label className="block text-sm font-semibold text-foreground mb-2">Нэр</label>
-                    <Input name="name" placeholder="Таны нэр" required />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-foreground mb-2">И-мэйл</label>
-                    <Input type="email" name="email" placeholder="your@email.com" required />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-foreground mb-2">Гарчиг</label>
-                    <Input name="subject" placeholder="Асуулт эсвэл санал" required />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-foreground mb-2">Мессеж</label>
-                    <Textarea name="message" placeholder="Таны мессеж..." required />
-                  </div>
-                  <button
-                    type="submit"
-                    disabled={status === "sending"}
-                    className="w-full h-10 rounded-md bg-primary hover:bg-primary/90 text-primary-foreground font-semibold disabled:opacity-50"
-                  >
-                    {status === "sending" ? "Илгээж байна..." : "Мессеж илгээх"}
-                  </button>
-                  {status === "sent" && (
-                    <p className="text-sm text-primary text-center">Мессеж амжилттай илгээгдлээ.</p>
-                  )}
-                  {status === "error" && (
-                    <p className="text-sm text-red-400 text-center">Алдаа гарлаа. Дахин оролдоно уу.</p>
-                  )}
-                </form>
+                <ContactForm labels={labels} />
               </CardContent>
             </Card>
           </div>

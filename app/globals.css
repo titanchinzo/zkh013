@@ -31,6 +31,31 @@ body {
   color: var(--foreground);
 }
 
+/* ---------- Монгол бичгийн (MGL) горим: <html data-script="mgl"> ---------- */
+
+/* mgl:… — зөвхөн MGL горимд хэрэглэгдэх Tailwind class */
+@custom-variant mgl (&:where([data-script="mgl"], [data-script="mgl"] *));
+
+[data-script="mgl"] body {
+  font-family: var(--font-mongolian), var(--font-geist-sans), "Mongolian Baiti", sans-serif;
+}
+
+/* Босоо бичвэр: дээрээс доош бичиж, мөр (багана) нь зүүнээс баруун тийш урсана */
+.mgl-v {
+  writing-mode: vertical-lr;
+  text-orientation: mixed;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+/* Урт босоо бичвэрийн хэвтээ гүйлгэгч */
+.mgl-scroll {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(34, 197, 94, 0.5) transparent;
+}
+
 .tactical-grid {
   background-image:
     linear-gradient(rgba(34, 197, 94, 0.08) 1px, transparent 1px),
@@ -96,6 +121,11 @@ body {
 /* Түүхэн замнал: гүйлгэх тусам шугам зурагдаж, давсан цэг гэрэлтэнэ */
 .timeline-progress {
   transform: scaleY(var(--progress, 0));
+}
+
+/* MGL горимын хэвтээ түүхэн замнал: хэвтээ гүйлгэх тусам шугам зурагдана */
+.timeline-progress-x {
+  transform: scaleX(var(--progress, 0));
 }
 
 .timeline-dot {

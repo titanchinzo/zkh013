@@ -2,6 +2,8 @@ import { HeroSlideshow, type HeroSlide } from "@/components/hero-slideshow";
 import { connectToDatabase } from "@/lib/mongodb";
 import News from "@/lib/models/News";
 import { isUsableImageUrl } from "@/lib/images";
+import { toMgl } from "@/lib/mgl/convert";
+import { getTranslator, type Translate } from "@/lib/mgl/server";
 
 const BASE_SLIDES: HeroSlide[] = [1, 2, 3, 4].map((n) => ({
   src: `/hero/hero-${n}.jpg`,
@@ -36,20 +38,26 @@ async function getNewsSlides(): Promise<HeroSlide[]> {
 }
 
 export async function Hero() {
-  const newsSlides = await getNewsSlides();
+  const [newsSlides, { script, t }] = await Promise.all([getNewsSlides(), getTranslator()]);
   const seen = new Set<string>();
-  const slides = [...newsSlides, ...BASE_SLIDES].filter((slide) => {
+  let slides = [...newsSlides, ...BASE_SLIDES].filter((slide) => {
     if (seen.has(slide.src)) return false;
     seen.add(slide.src);
     return true;
   });
+  const mgl = script === "mgl";
+  if (mgl) {
+    // Мэдээний гарчгийг монгол бичигт хөрвүүлнэ
+    const titles = await toMgl(slides.map((slide) => slide.newsTitle ?? ""));
+    slides = slides.map((slide, i) => (slide.newsTitle ? { ...slide, newsTitle: titles[i] } : slide));
+  }
 
   return (
     <section
       id="hero"
       className="relative min-h-screen flex items-center justify-center overflow-hidden tactical-grid bg-black"
     >
-      <HeroSlideshow slides={slides} />
+      <HeroSlideshow slides={slides} newsLabel={t("МЭДЭЭ")} vertical={mgl} />
       <div className="absolute inset-0 bg-black/65 z-20" />
       <div className="absolute inset-0 flex items-center justify-center opacity-10 z-25">
         <div className="relative w-[600px] h-[600px]">
@@ -59,6 +67,9 @@ export async function Hero() {
           <div className="absolute top-1/2 left-1/2 w-1/2 h-0.5 bg-gradient-to-r from-primary/50 to-transparent origin-left radar-sweep" />
         </div>
       </div>
+      {mgl ? (
+        <MglHeroContent t={t} />
+      ) : (
       <div className="relative z-30 container mx-auto px-4 text-center">
         <div className="max-w-4xl mx-auto space-y-6 animate-fade-in-up">
           {/* Дарахад "Ангийн тухай" хэсэгт Р.Гаваагийн намтар нээгдэнэ (components/unit-history.tsx) */}
@@ -94,6 +105,49 @@ export async function Hero() {
           </div>
         </div>
       </div>
+      )}
     </section>
+  );
+}
+
+/**
+ * Монгол бичгийн горим: гарчиг, тэмдэг, товчнууд зүүнээс баруун тийш эгнэсэн босоо баганууд.
+ * Утас, таблет дээр багтахгүй тул товчнууд баганын доор шилжинэ.
+ */
+function MglHeroContent({ t }: { t: Translate }) {
+  return (
+    <div className="relative z-30 flex w-full justify-center px-4 py-24 lg:py-28">
+      <div className="flex max-w-full flex-col items-center gap-6 animate-fade-in-up lg:h-[min(68vh,560px)] lg:flex-row lg:items-stretch lg:gap-7">
+        <div className="flex h-[min(56vh,460px)] max-w-full flex-row items-stretch gap-3 overflow-x-auto sm:gap-7 lg:h-auto">
+          <a
+            href="#hun-gavaa"
+            className="mgl-v self-center border border-primary bg-primary/20 px-2 py-4 text-sm leading-relaxed text-white transition-colors hover:bg-primary/35 sm:text-base"
+          >
+            {t("ХОШУУЧ ГЕНЕРАЛ Р.ГАВААГИЙН НЭРЭМЖИТ")}
+          </a>
+          <h1 className="mgl-v text-2xl leading-[1.45] text-white drop-shadow-[0_4px_12px_rgba(0,0,0,1)] sm:text-3xl lg:text-4xl xl:text-5xl">
+            {t("ЦЭРГИЙН ГАВЬЯАНЫ УЛААН ТУГ, АЛТАН ГАДАС ОДОНТ")}
+            <span className="block text-primary">{t("ЗЭВСЭГТ ХҮЧНИЙ 013 ДУГААР АНГИ")}</span>
+          </h1>
+          <p className="mgl-v text-base leading-relaxed text-gray-200 drop-shadow-[0_4px_8px_rgba(0,0,0,1)] sm:text-lg xl:text-xl">
+            {t("Эх орны бүрэн эрхт байдал, аюулгүй байдлыг хамгаалах, иргэдийн амь нас, эд хөрөнгийг хамгаалахад зориулагдсан.")}
+          </p>
+        </div>
+        <div className="flex flex-row items-center gap-3 lg:self-center">
+          <a
+            href="#contact"
+            className="mgl-v rounded-md bg-primary px-3 py-5 text-base text-primary-foreground transition-all hover:bg-primary/90 sm:text-lg lg:py-6"
+          >
+            {t("Холбоо барих")}
+          </a>
+          <a
+            href="#about"
+            className="mgl-v rounded-md border border-primary bg-black/40 px-3 py-5 text-base text-primary transition-all hover:bg-primary/10 sm:text-lg lg:py-6"
+          >
+            {t("Дэлгэрэнгүй")}
+          </a>
+        </div>
+      </div>
+    </div>
   );
 }

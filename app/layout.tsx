@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Noto_Sans_Mongolian } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import { SITE_NAME, SITE_OG_IMAGE, SITE_URL } from "@/lib/site";
+import { getScript } from "@/lib/mgl/server";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -12,6 +13,14 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+});
+
+// Монгол бичгийн (MGL) горимын фонт — зөвхөн тэр горимд ашиглагдах үед татагдана
+const mongolian = Noto_Sans_Mongolian({
+  variable: "--font-mongolian",
+  weight: "400",
+  subsets: ["mongolian"],
+  preload: false,
 });
 
 const description =
@@ -36,12 +45,16 @@ export const metadata: Metadata = {
   twitter: { card: "summary_large_image", images: [SITE_OG_IMAGE.url] },
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  // MN — кирилл, MGL — монгол бичиг (босоо). Цэсний MN/MGL товчоор солигдоно.
+  const script = await getScript();
+
   return (
     <ClerkProvider>
       <html
-        lang="mn"
-        className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+        lang={script === "mgl" ? "mn-Mong" : "mn"}
+        data-script={script}
+        className={`${geistSans.variable} ${geistMono.variable} ${mongolian.variable} h-full antialiased`}
       >
         <body className="min-h-full flex flex-col">{children}</body>
       </html>

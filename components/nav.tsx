@@ -1,13 +1,20 @@
 import Link from "next/link";
 import { getCurrentRole } from "@/lib/auth-role";
+import { getTranslator } from "@/lib/mgl/server";
 import { NAV_LINKS } from "@/lib/site";
 import { Brand } from "@/components/brand";
 import { NavMenu } from "@/components/nav-menu";
+import { MglNav } from "@/components/mgl/mgl-nav";
 
 export async function Nav() {
   // Уншигчид нэвтрэх шаардлагагүй тул Админ товч нийтэд харагдахгүй.
   // Ажилтнууд /admin хаягаар шууд орж нэвтэрнэ; нэвтэрсэн админ/хянагчид л товч харагдана.
-  const role = await getCurrentRole();
+  const [role, { script, t }] = await Promise.all([getCurrentRole(), getTranslator()]);
+
+  if (script === "mgl") {
+    const links = NAV_LINKS.map((link) => ({ ...link, label: t(link.label) }));
+    return <MglNav links={links} showAdmin={Boolean(role)} adminLabel={t("Админ")} />;
+  }
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-background/85 backdrop-blur border-b border-border">

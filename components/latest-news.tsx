@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { NewsCard } from "@/components/news-card";
+import { NewsCard, NewsCardMgl } from "@/components/news-card";
+import { MglHeading } from "@/components/mgl/mgl-heading";
 import { getLatestNews, type NewsSummary } from "@/lib/news";
+import { mglNewsSummaries } from "@/lib/mgl/news";
+import { getTranslator } from "@/lib/mgl/server";
 
 async function loadLatest(): Promise<NewsSummary[]> {
   try {
@@ -15,8 +18,35 @@ async function loadLatest(): Promise<NewsSummary[]> {
 
 /** Нүүр хуудсын "Сүүлийн мэдээ" хэсэг */
 export async function LatestNews() {
-  const items = await loadLatest();
+  const [items, { script, t }] = await Promise.all([loadLatest(), getTranslator()]);
   if (items.length === 0) return null;
+
+  if (script === "mgl") {
+    const mglItems = await mglNewsSummaries(items);
+    return (
+      <section id="news" className="py-20 md:py-28 bg-background">
+        <div className="container mx-auto px-4">
+          <div className="max-w-6xl mx-auto flex flex-col gap-10 lg:flex-row">
+            <div className="flex shrink-0 flex-row items-start gap-6 lg:flex-col">
+              <MglHeading title={t("СҮҮЛИЙН МЭДЭЭ")} />
+              <Link
+                href="/news"
+                className="mgl-v inline-flex items-center gap-2 rounded-md border border-primary px-2 py-4 text-sm text-primary hover:bg-primary/10"
+              >
+                {t("Бүх мэдээ")}
+                <ArrowRight className="h-4 w-4 rotate-90" />
+              </Link>
+            </div>
+            <div className="grid flex-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {mglItems.map((item) => (
+                <NewsCardMgl key={item.id} item={item} />
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section id="news" className="py-20 md:py-28 bg-background">

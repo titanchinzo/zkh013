@@ -4,8 +4,11 @@ import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { Nav } from "@/components/nav";
 import { Footer } from "@/components/footer";
 import { Input } from "@/components/ui/input";
-import { NewsCard, NewsLeadCard } from "@/components/news-card";
+import { NewsCard, NewsCardMgl, NewsLeadCard, NewsLeadCardMgl } from "@/components/news-card";
+import { MglHeading } from "@/components/mgl/mgl-heading";
 import { getPublishedNews } from "@/lib/news";
+import { mglNewsSummaries } from "@/lib/mgl/news";
+import { getTranslator } from "@/lib/mgl/server";
 import { SITE_NAME } from "@/lib/site";
 import { cn } from "@/lib/utils";
 
@@ -32,13 +35,98 @@ export default async function NewsPage({ searchParams }: PageProps<"/news">) {
   const params = await searchParams;
   const q = (typeof params.q === "string" ? params.q : "").trim();
   const page = Math.max(1, Number.parseInt(typeof params.page === "string" ? params.page : "1", 10) || 1);
-  const { items, total, totalPages } = await getPublishedNews({ q, page, perPage: PER_PAGE });
+  const [{ items: found, total, totalPages }, { script, t }] = await Promise.all([
+    getPublishedNews({ q, page, perPage: PER_PAGE }),
+    getTranslator(),
+  ]);
+  const mgl = script === "mgl";
+  const items = mgl ? await mglNewsSummaries(found) : found;
 
   // Эхний хуудсанд (хайлтгүй үед) хамгийн сүүлийн мэдээг онцолж харуулна
   const featured = !q && page === 1;
   const lead = featured ? items[0] : undefined;
   const side = featured ? items.slice(1, 3) : [];
   const rest = featured ? items.slice(3) : items;
+  const emptyText = q
+    ? t("Хайлтад тохирох мэдээ олдсонгүй.")
+    : page > 1
+      ? t("Энэ хуудсанд мэдээ алга.")
+      : t("Одоогоор мэдээ алга байна.");
+
+  if (mgl) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col md:pl-24">
+        <Nav />
+        <main className="flex-1 pt-24 md:pt-12 pb-20">
+          <div className="container mx-auto px-4 max-w-6xl">
+            <header className="mb-10 flex flex-row flex-wrap items-end gap-8">
+              <MglHeading as="h1" eyebrow={t(SITE_NAME)} title={t("МЭДЭЭ")} />
+              <form action="/news" role="search" className="flex items-stretch gap-2">
+                <div className="relative w-56 sm:w-72">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input name="q" type="search" defaultValue={q} aria-label="Мэдээ хайх" className="h-full min-h-12 pl-9" />
+                </div>
+                <button
+                  type="submit"
+                  className="mgl-v rounded-md bg-primary px-2 py-3 text-sm text-primary-foreground hover:bg-primary/90"
+                >
+                  {t("Хайх")}
+                </button>
+              </form>
+              {q && (
+                <div className="flex flex-row items-start gap-2 text-sm text-muted-foreground">
+                  <span className="mgl-v text-foreground">&ldquo;{q}&rdquo;</span>
+                  <span className="mgl-v">
+                    {t("хайлтаар")} {total} {t("мэдээ олдлоо")}
+                  </span>
+                  <Link href="/news" className="mgl-v text-primary hover:underline">
+                    {t("Бүх мэдээ")}
+                  </Link>
+                </div>
+              )}
+            </header>
+
+            {items.length === 0 ? (
+              <div className="flex flex-row gap-4 rounded-xl border border-border bg-card p-10">
+                <p className="mgl-v h-48 text-muted-foreground">{emptyText}</p>
+                {(q || page > 1) && (
+                  <Link href="/news" className="mgl-v text-sm text-primary hover:underline">
+                    {t("Бүх мэдээ рүү буцах")}
+                  </Link>
+                )}
+              </div>
+            ) : (
+              <>
+                {lead && (
+                  <div className="mb-6 grid gap-6 lg:grid-cols-3">
+                    <div className={side.length > 0 ? "lg:col-span-2" : "lg:col-span-3"}>
+                      <NewsLeadCardMgl item={lead} label={t("ОНЦЛОХ")} />
+                    </div>
+                    {side.length > 0 && (
+                      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-1">
+                        {side.map((item) => (
+                          <NewsCardMgl key={item.id} item={item} excerpt={false} />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {rest.length > 0 && (
+                  <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                    {rest.map((item) => (
+                      <NewsCardMgl key={item.id} item={item} />
+                    ))}
+                  </div>
+                )}
+                <Pagination page={page} totalPages={totalPages} q={q} />
+              </>
+            )}
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -83,9 +171,7 @@ export default async function NewsPage({ searchParams }: PageProps<"/news">) {
 
           {items.length === 0 ? (
             <div className="rounded-xl border border-border bg-card py-20 text-center">
-              <p className="text-muted-foreground">
-                {q ? "Хайлтад тохирох мэдээ олдсонгүй." : page > 1 ? "Энэ хуудсанд мэдээ алга." : "Одоогоор мэдээ алга байна."}
-              </p>
+              <p className="text-muted-foreground">{emptyText}</p>
               {(q || page > 1) && (
                 <Link href="/news" className="mt-4 inline-block text-sm text-primary hover:underline">
                   Бүх мэдээ рүү буцах
@@ -117,7 +203,7 @@ export default async function NewsPage({ searchParams }: PageProps<"/news">) {
                 </div>
               )}
 
-              <Pagination page={page} totalPages={totalPages} q={q} />
+              <Pagination page={page} totalPages={totalPages} q={q} labels={{ previous: "Өмнөх", next: "Дараах" }} />
             </>
           )}
         </div>
@@ -127,7 +213,18 @@ export default async function NewsPage({ searchParams }: PageProps<"/news">) {
   );
 }
 
-function Pagination({ page, totalPages, q }: { page: number; totalPages: number; q: string }) {
+function Pagination({
+  page,
+  totalPages,
+  q,
+  labels,
+}: {
+  page: number;
+  totalPages: number;
+  q: string;
+  // Монгол бичгийн горимд зөвхөн сум харагдана
+  labels?: { previous: string; next: string };
+}) {
   if (totalPages <= 1) return null;
 
   // 1 … 4 5 [6] 7 8 … 20
@@ -142,7 +239,7 @@ function Pagination({ page, totalPages, q }: { page: number; totalPages: number;
       {page > 1 && (
         <Link href={pageHref(page - 1, q)} className={cn(itemClass, "hover:border-primary hover:text-primary")}>
           <ChevronLeft className="h-4 w-4" />
-          <span className="ml-1 hidden sm:inline">Өмнөх</span>
+          {labels && <span className="ml-1 hidden sm:inline">{labels.previous}</span>}
         </Link>
       )}
       {pages.map((p, i) => (
@@ -164,7 +261,7 @@ function Pagination({ page, totalPages, q }: { page: number; totalPages: number;
       ))}
       {page < totalPages && (
         <Link href={pageHref(page + 1, q)} className={cn(itemClass, "hover:border-primary hover:text-primary")}>
-          <span className="mr-1 hidden sm:inline">Дараах</span>
+          {labels && <span className="mr-1 hidden sm:inline">{labels.next}</span>}
           <ChevronRight className="h-4 w-4" />
         </Link>
       )}

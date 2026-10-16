@@ -5,6 +5,7 @@ import { getCurrentRole } from "@/lib/auth-role";
 import { createImagePreparer } from "@/lib/image-import";
 import { MEDIA_URL_ERROR } from "@/lib/media";
 import { prepareMediaUrl } from "@/lib/media-server";
+import { warmMgl } from "@/lib/mgl/convert";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -57,6 +58,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   );
 
   if (!news) return NextResponse.json({ error: "Олдсонгүй" }, { status: 404 });
+  // Монгол бичгийн хувилбарыг хариу илгээсний дараа бэлдэнэ
+  warmMgl([news.title, news.excerpt, news.content]);
   return NextResponse.json({ news });
 }
 

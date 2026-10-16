@@ -5,6 +5,7 @@ import TrainingMaterial from "@/lib/models/TrainingMaterial";
 import { getCurrentRole } from "@/lib/auth-role";
 import { isVercelBlobUrl } from "@/lib/images";
 import { parseTrainingInput } from "@/lib/training";
+import { warmMgl } from "@/lib/mgl/convert";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -50,6 +51,8 @@ export async function PUT(req: NextRequest, { params }: Params) {
   material.set(parsed.data);
   await material.save();
   if (previousUrl !== material.url) await deleteBlobFile(previousUrl);
+  // Монгол бичгийн хувилбарыг хариу илгээсний дараа бэлдэнэ
+  warmMgl([material.title, material.description ?? ""]);
 
   return NextResponse.json({ material });
 }

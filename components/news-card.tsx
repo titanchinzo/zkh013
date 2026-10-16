@@ -116,3 +116,67 @@ export function NewsCompactCard({ item }: { item: NewsSummary }) {
     </Link>
   );
 }
+
+/* ---------- Монгол бичгийн (MGL) горим: гарчиг, тайлбар босоо, баганууд зүүнээс баруун тийш ---------- */
+
+/** Энгийн мэдээний карт — зураг дээр, доор нь огноо, гарчиг, тайлбар босоо */
+export function NewsCardMgl({ item, excerpt = true }: { item: NewsSummary; excerpt?: boolean }) {
+  return (
+    <Link
+      href={`/news/${item.id}`}
+      className="group flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card metallic transition-colors hover:border-primary/60"
+    >
+      <NewsThumb
+        item={item}
+        className="relative aspect-video"
+        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 380px"
+      />
+      <div className={cn("flex flex-row gap-3 p-4", excerpt ? "h-64" : "h-52")}>
+        <time dateTime={item.createdAt.toISOString()} className="mgl-v shrink-0 text-xs text-primary">
+          {formatShortDate(item.createdAt)}
+        </time>
+        <h3 className="mgl-v line-clamp-4 shrink-0 text-lg leading-snug text-foreground transition-colors group-hover:text-primary">
+          {item.title}
+        </h3>
+        {excerpt && (
+          <p className="mgl-v line-clamp-4 min-w-0 text-sm leading-relaxed text-muted-foreground">{item.excerpt}</p>
+        )}
+      </div>
+    </Link>
+  );
+}
+
+/** Онцлох мэдээ — том зураг, зүүн талд нь босоо гарчиг */
+export function NewsLeadCardMgl({ item, label }: { item: NewsSummary; label: string }) {
+  return (
+    <Link
+      href={`/news/${item.id}`}
+      className="group relative block h-full min-h-[360px] sm:min-h-[460px] overflow-hidden rounded-xl border border-border"
+    >
+      <NewsThumb item={item} className="absolute inset-0" sizes="(max-width: 1024px) 100vw, 760px" preload />
+      <div className="pointer-events-none absolute inset-0 bg-linear-to-r from-black via-black/60 to-transparent" />
+      <div className="absolute inset-y-0 left-0 flex max-w-[78%] flex-row gap-4 overflow-hidden p-6 md:p-8">
+        <span className="mgl-v shrink-0 self-start bg-primary px-1 py-2 text-xs text-primary-foreground">{label}</span>
+        <h2 className="mgl-v line-clamp-4 shrink-0 text-2xl leading-snug text-white transition-colors group-hover:text-primary md:text-4xl">
+          {item.title}
+        </h2>
+        <p className="mgl-v line-clamp-4 min-w-0 text-base leading-relaxed text-gray-200">{item.excerpt}</p>
+        <time dateTime={item.createdAt.toISOString()} className="mgl-v shrink-0 text-sm text-gray-300">
+          {formatShortDate(item.createdAt)}
+        </time>
+      </div>
+    </Link>
+  );
+}
+
+/** Жижиг карт (хажуугийн жагсаалтад) — зураг, хажууд нь босоо гарчиг */
+export function NewsCompactCardMgl({ item }: { item: NewsSummary }) {
+  return (
+    <Link href={`/news/${item.id}`} className="group flex h-32 gap-3">
+      <NewsThumb item={item} className="relative aspect-video w-28 shrink-0 self-start rounded-md" sizes="112px" badges={false} />
+      <h3 className="mgl-v line-clamp-3 min-w-0 text-sm leading-snug text-foreground transition-colors group-hover:text-primary">
+        {item.title}
+      </h3>
+    </Link>
+  );
+}

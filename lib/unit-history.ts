@@ -331,6 +331,26 @@ export const UNIT_AWARDS: UnitAward[] = [
   },
 ];
 
+// Түүхийн хэсгийн товч, гарчгийн бичвэрүүд (MGL горимд монгол бичгээр солигдоно)
+export const HISTORY_LABELS = {
+  timelineEyebrow: "1929 – ӨНӨӨ",
+  timelineTitle: "ТҮҮХЭН ЗАМНАЛ",
+  peopleEyebrow: "АНГИЙН БАХАРХАЛ",
+  peopleTitle: "ТҮҮХЭН ХҮМҮҮС",
+  awardsEyebrow: "ТӨРИЙН ДЭЭД ШАГНАЛ",
+  awardsTitle: "ШАГНАЛ, ОДОН",
+  more: "Дэлгэрэнгүй",
+  biography: "Намтар үзэх",
+  biographyLabel: "НАМТАР",
+  sources: "Эх сурвалж:",
+  chronology: "ОН ДАРААЛАЛ",
+  documents: "ТҮҮХЭН БАРИМТ",
+  documentsSource: "Баримтын эх сурвалж:",
+  close: "Хаах",
+};
+
+export type HistoryLabels = typeof HISTORY_LABELS;
+
 // Ангийн тухай хэсгийн тоон үзүүлэлтүүд
 export const UNIT_STATS = (currentYear: number) => [
   { value: currentYear - FOUNDED_YEAR, label: "жилийн түүх" },

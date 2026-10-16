@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background mgl:md:pl-24">
       <Nav />
       <main>
         <Hero />

@@ -15,7 +15,14 @@ export type HeroSlide = {
 
 const INTERVAL_MS = 6000;
 
-export function HeroSlideshow({ slides }: { slides: HeroSlide[] }) {
+type Props = {
+  slides: HeroSlide[];
+  newsLabel?: string;
+  // Монгол бичгийн горимд мэдээний гарчиг баруун талд босоо харагдана
+  vertical?: boolean;
+};
+
+export function HeroSlideshow({ slides, newsLabel = "МЭДЭЭ", vertical = false }: Props) {
   const [active, setActive] = useState(0);
 
   useEffect(() => {
@@ -47,14 +54,25 @@ export function HeroSlideshow({ slides }: { slides: HeroSlide[] }) {
         ))}
       </div>
 
+      {vertical && current?.newsTitle && current.newsHref && (
+        <Link
+          href={current.newsHref}
+          // Жижиг дэлгэцэд hero-ийн баганууд бүх өргөнийг эзэлдэг тул зөвхөн том дэлгэцэд харуулна
+          className="mgl-v absolute bottom-20 right-8 z-30 hidden max-h-[42vh] overflow-hidden border border-primary/40 bg-black/55 px-2 py-3 text-sm leading-relaxed text-white transition-colors hover:border-primary xl:block"
+        >
+          <span className="mb-2 text-primary">{newsLabel}</span>
+          {current.newsTitle}
+        </Link>
+      )}
+
       {slides.length > 1 && (
         <div className="absolute bottom-8 left-0 right-0 z-30 flex flex-col items-center gap-3 px-4">
-          {current?.newsTitle && current.newsHref && (
+          {!vertical && current?.newsTitle && current.newsHref && (
             <Link
               href={current.newsHref}
               className="max-w-xl truncate px-3 py-1 text-sm text-white bg-black/50 border border-primary/40 hover:border-primary transition-colors"
             >
-              <span className="text-primary font-semibold mr-2">МЭДЭЭ</span>
+              <span className="text-primary font-semibold mr-2">{newsLabel}</span>
               {current.newsTitle}
             </Link>
           )}
