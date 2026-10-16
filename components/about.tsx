@@ -93,11 +93,12 @@ export async function About() {
               <Reveal key={stat.label} delay={index * 100}>
                 {mgl ? (
                   <div className="flex h-full flex-row items-start justify-center gap-4 rounded-xl border border-border bg-card metallic p-5">
-                    <p className="text-4xl md:text-5xl font-bold tabular-nums text-primary">
-                      <CountUp value={stat.value} />
+                    {/* Монгол цифр босоо урсана (латин тоо хажуу тийшээ хэвтдэг) */}
+                    <p className="mgl-v text-4xl leading-none text-primary md:text-5xl">
+                      <CountUp value={stat.value} mongolian />
                     </p>
                     <p className="mgl-v h-32 text-sm leading-relaxed text-foreground">{t(stat.label)}</p>
-                    {stat.note && <p className="mgl-v h-32 text-xs text-muted-foreground">{stat.note}</p>}
+                    {stat.note && <p className="mgl-v h-32 text-xs text-muted-foreground">{t(stat.note)}</p>}
                   </div>
                 ) : (
                   <div className="h-full rounded-xl border border-border bg-card metallic p-5 text-center">

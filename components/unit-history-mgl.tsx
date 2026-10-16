@@ -8,6 +8,7 @@ import { MglHeading } from "@/components/mgl/mgl-heading";
 import { UlziiKnot } from "@/components/mgl/mgl-ornaments";
 import { useWheelToHorizontal } from "@/components/mgl/mgl-scroller";
 import { Medal, Portrait, Sources, type OpenFn } from "@/components/history-parts";
+import { mglDigits } from "@/lib/mgl/shared";
 import type { HistoryEvent, HistoryLabels, HistoryPerson, UnitAward } from "@/lib/unit-history";
 
 // Ангийн түүхийн хэсгийн монгол бичгийн (босоо) харагдац. Бичвэрүүд серверээс монгол бичгээр ирнэ.
@@ -214,9 +215,9 @@ export function AwardsMgl({ awards, labels, onOpen }: { awards: UnitAward[]; lab
 function MglDialogBar({ counter, closeLabel, onClose }: { counter?: string; closeLabel: string; onClose: () => void }) {
   return (
     <div className="flex h-12 shrink-0 items-center justify-between gap-4 border-b border-border px-5">
-      <span className="inline-flex items-center gap-2 text-xs font-bold text-primary">
+      <span className="inline-flex items-center gap-2 text-xs text-primary">
         <UlziiKnot className="h-5 w-5 text-gold" />
-        {counter}
+        {counter && <span className="mgl-v">{mglDigits(counter)}</span>}
       </span>
       <button
         type="button"

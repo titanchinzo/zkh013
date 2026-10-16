@@ -6,7 +6,7 @@ import { ArrowLeft, ArrowRight, ChevronLeft, ChevronRight, FileText, X } from "l
 import { Reveal } from "@/components/reveal";
 import { DialogHeader, Medal, Portrait, Sources, type HistoryData, type OpenFn } from "@/components/history-parts";
 import { AwardsMgl, EventDetailsMgl, PeopleMgl, PersonDetailsMgl, TimelineMgl } from "@/components/unit-history-mgl";
-import type { Script } from "@/lib/mgl/shared";
+import { mglDigits, type Script } from "@/lib/mgl/shared";
 import { cn } from "@/lib/utils";
 import type { HistoryDocument, HistoryEvent, HistoryLabels, HistoryPerson, UnitAward } from "@/lib/unit-history";
 
@@ -597,7 +597,7 @@ function DocumentViewer({
           >
             {current.caption}
             <span className={cn("text-gray-400", vertical ? "mt-2" : "ml-2")}>
-              {viewer.index + 1} / {count}
+              {vertical ? mglDigits(`${viewer.index + 1} / ${count}`) : `${viewer.index + 1} / ${count}`}
             </span>
           </figcaption>
           <button

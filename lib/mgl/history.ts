@@ -40,7 +40,7 @@ export function translateHistory(t: Translate) {
     tagline: t(person.tagline),
     facts: person.facts.map((fact) => ({ label: t(fact.label), value: t(fact.value) })),
     bio: person.bio.map(t),
-    milestones: person.milestones.map((milestone) => ({ year: milestone.year, text: t(milestone.text) })),
+    milestones: person.milestones.map((milestone) => ({ year: t(milestone.year), text: t(milestone.text) })),
     documents: person.documents?.map((doc) => ({ ...doc, caption: t(doc.caption) })),
     documentsSource: person.documentsSource
       ? { ...person.documentsSource, label: t(person.documentsSource.label) }
@@ -50,6 +50,7 @@ export function translateHistory(t: Translate) {
 
   const awards = UNIT_AWARDS.map((award) => ({
     ...award,
+    year: t(award.year),
     name: t(award.name),
     reason: t(award.reason),
     image: image(t, award.image),

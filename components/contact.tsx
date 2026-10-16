@@ -5,6 +5,7 @@ import { MglHeading } from "@/components/mgl/mgl-heading";
 import { MglBand } from "@/components/mgl/mgl-ornaments";
 import { CONTACT } from "@/lib/contact";
 import { getTranslator } from "@/lib/mgl/server";
+import { mglDigits } from "@/lib/mgl/shared";
 
 export async function Contact() {
   const { script, t } = await getTranslator();
@@ -12,7 +13,7 @@ export async function Contact() {
 
   const infoCards: { icon: LucideIcon; title: string; text: string; href?: string }[] = [
     { icon: MapPin, title: t("Хаяг"), text: t(CONTACT.address) },
-    { icon: Phone, title: t("Утас"), text: CONTACT.phone, href: CONTACT.phoneHref },
+    { icon: Phone, title: t("Утас"), text: mgl ? mglDigits(CONTACT.phone) : CONTACT.phone, href: CONTACT.phoneHref },
     { icon: Mail, title: t("И-мэйл"), text: CONTACT.email, href: `mailto:${CONTACT.email}` },
     { icon: Clock, title: t("Цагийн хуваарь"), text: t("Даваа - Баасан: 09:00 - 18:00") },
   ];

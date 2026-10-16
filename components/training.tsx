@@ -14,6 +14,7 @@ import { MglHeading } from "@/components/mgl/mgl-heading";
 import { MglBand } from "@/components/mgl/mgl-ornaments";
 import { toMgl } from "@/lib/mgl/convert";
 import { getTranslator } from "@/lib/mgl/server";
+import { mglDigits } from "@/lib/mgl/shared";
 
 type Material = {
   _id: unknown;
@@ -92,7 +93,7 @@ export async function Training() {
                         <span className="mgl-v inline-flex items-center gap-1 text-xs text-primary">
                           <ActionIcon className="h-3.5 w-3.5" />
                           {typeLabel}
-                          {m.fileSize > 0 && <span className="text-muted-foreground">{formatFileSize(m.fileSize)}</span>}
+                          {m.fileSize > 0 && <span className="text-muted-foreground">{mglDigits(formatFileSize(m.fileSize))}</span>}
                         </span>
                       </span>
                       <span className="mgl-v line-clamp-3 text-lg leading-snug text-foreground transition-colors group-hover:text-primary">

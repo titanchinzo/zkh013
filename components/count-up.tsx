@@ -1,9 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { mglDigits } from "@/lib/mgl/shared";
 
-/** Дэлгэцэнд харагдахад 0-ээс тоо хүртэл өсч гарна (server дээр эцсийн утгаараа зурагдана) */
-export function CountUp({ value, duration = 1600 }: { value: number; duration?: number }) {
+/**
+ * Дэлгэцэнд харагдахад 0-ээс тоо хүртэл өсч гарна (server дээр эцсийн утгаараа зурагдана).
+ * mongolian — монгол бичгийн горимд монгол цифрээр (᠙᠗).
+ */
+export function CountUp({ value, duration = 1600, mongolian }: { value: number; duration?: number; mongolian?: boolean }) {
   const ref = useRef<HTMLSpanElement>(null);
   const [display, setDisplay] = useState(value);
 
@@ -33,5 +37,5 @@ export function CountUp({ value, duration = 1600 }: { value: number; duration?: 
     };
   }, [value, duration]);
 
-  return <span ref={ref}>{display}</span>;
+  return <span ref={ref}>{mongolian ? mglDigits(String(display)) : display}</span>;
 }

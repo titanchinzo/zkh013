@@ -16,6 +16,7 @@ import { canOptimizeImage } from "@/lib/images";
 import { toMgl } from "@/lib/mgl/convert";
 import { mglNewsSummaries } from "@/lib/mgl/news";
 import { getTranslator, type Translate } from "@/lib/mgl/server";
+import { mglDate, mglDigits } from "@/lib/mgl/shared";
 import {
   formatLongDate,
   formatShortDate,
@@ -279,16 +280,16 @@ async function MglArticle({
                 <div className="flex shrink-0 flex-row gap-3 text-sm text-muted-foreground">
                   <time dateTime={news.createdAt.toISOString()} className="mgl-v inline-flex items-center gap-2">
                     <CalendarDays className="h-4 w-4 text-primary" />
-                    {formatShortDate(news.createdAt)}
+                    {mglDate(formatShortDate(news.createdAt))}
                   </time>
                   <span className="mgl-v inline-flex items-center gap-2">
                     <Clock className="h-4 w-4 text-primary" />
-                    {readingMinutes(news.content)} {t("минут унших")}
+                    {mglDigits(String(readingMinutes(news.content)))} {t("минут унших")}
                   </span>
                   {gallery.length > 0 && (
                     <a href="#gallery" className="mgl-v inline-flex items-center gap-2 hover:text-primary">
                       <Images className="h-4 w-4 text-primary" />
-                      {gallery.length} {t("зураг")}
+                      {mglDigits(String(gallery.length))} {t("зураг")}
                     </a>
                   )}
                 </div>
@@ -326,10 +327,10 @@ async function MglArticle({
                   <h2 className="mgl-v inline-flex shrink-0 items-center gap-2 text-xl text-foreground">
                     <Images className="h-5 w-5 text-primary" />
                     {t("Зургийн цомог")}
-                    <span className="text-base text-muted-foreground">({gallery.length})</span>
+                    <span className="text-base text-muted-foreground">({mglDigits(String(gallery.length))})</span>
                   </h2>
                   <div className="min-w-0 flex-1">
-                    <NewsGallery images={gallery} title={news.title} />
+                    <NewsGallery images={gallery} title={news.title} vertical />
                   </div>
                 </section>
               )}

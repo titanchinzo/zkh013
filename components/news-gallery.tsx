@@ -4,12 +4,16 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { canOptimizeImage } from "@/lib/images";
+import { mglDigits } from "@/lib/mgl/shared";
 import { cn } from "@/lib/utils";
 
 const SWIPE_PX = 50;
 
-/** Мэдээний зургийн цомог: дарахад бүтэн дэлгэцээр (сум, Esc, шударч) гүйлгэж үзнэ */
-export function NewsGallery({ images, title }: { images: string[]; title: string }) {
+/**
+ * Мэдээний зургийн цомог: дарахад бүтэн дэлгэцээр (сум, Esc, шударч) гүйлгэж үзнэ.
+ * vertical — монгол бичгийн горимд зургийн дугаар монгол цифрээр, босоо.
+ */
+export function NewsGallery({ images, title, vertical }: { images: string[]; title: string; vertical?: boolean }) {
   const [index, setIndex] = useState<number | null>(null);
   const touchX = useRef<number | null>(null);
   const count = images.length;
@@ -82,8 +86,8 @@ export function NewsGallery({ images, title }: { images: string[]; title: string
           }}
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95"
         >
-          <span className="absolute left-4 top-4 text-sm text-gray-300">
-            {index + 1} / {count}
+          <span className={cn("absolute left-4 top-4 text-sm text-gray-300", vertical && "mgl-v")}>
+            {vertical ? mglDigits(`${index + 1} / ${count}`) : `${index + 1} / ${count}`}
           </span>
           <button
             type="button"

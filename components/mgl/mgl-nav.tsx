@@ -8,9 +8,13 @@ import { UserButton } from "@clerk/nextjs";
 import { Menu, X } from "lucide-react";
 import logo from "@/public/logo.png";
 import { ScriptToggle } from "@/components/script-toggle";
+import { mglDigits } from "@/lib/mgl/shared";
 import { cn } from "@/lib/utils";
 
 type NavLink = { href: string; label: string };
+
+// Ангийн дугаар монгол цифрээр (᠐᠑᠓) — латин тоо босоо бичигт хажуу тийшээ хэвтдэг
+const UNIT_NUMBER = mglDigits("013");
 
 /**
  * Монгол бичгийн горимын цэс: том дэлгэцэнд зүүн талын босоо самбар, цэсийн нэр бүр босоо;
@@ -35,7 +39,7 @@ export function MglNav({ links, showAdmin, adminLabel }: { links: NavLink[]; sho
         <div aria-hidden className="mgl-band-v pointer-events-none absolute inset-y-0 right-1 text-gold/25" />
         <div className="flex flex-col items-center gap-1 py-5">
           {logoLink("h-12")}
-          <span className="text-xs font-bold text-primary">013</span>
+          <span className="mgl-v text-sm text-primary">{UNIT_NUMBER}</span>
         </div>
         <ul className="flex flex-1 flex-col items-center gap-1 overflow-y-auto border-t border-border py-4">
           {links.map((link) => (
@@ -76,7 +80,7 @@ export function MglNav({ links, showAdmin, adminLabel }: { links: NavLink[]; sho
         <div className="flex h-16 items-center justify-between gap-3 px-4">
           <div className="flex items-center gap-2">
             {logoLink("h-10")}
-            <span className="text-sm font-bold text-primary">013</span>
+            <span className="mgl-v text-sm text-primary">{UNIT_NUMBER}</span>
           </div>
           <div className="flex items-center gap-2">
             <ScriptToggle script="mgl" />

@@ -6,6 +6,7 @@ import { Brand } from "@/components/brand";
 import { MglBand } from "@/components/mgl/mgl-ornaments";
 import { CONTACT } from "@/lib/contact";
 import { getTranslator, type Translate } from "@/lib/mgl/server";
+import { mglDigits } from "@/lib/mgl/shared";
 import { SITE_NAME } from "@/lib/site";
 
 const FOOTER_LINKS = [
@@ -102,7 +103,7 @@ function MglFooter({ t }: { t: Translate }) {
             <Link href="/" aria-label="Нүүр хуудас" className="flex shrink-0 flex-col items-center gap-3">
               <Image src={logo} alt="Зэвсэгт хүчний 013 дугаар ангийн лого" sizes="48px" className="h-14 w-auto" />
               <span className="mgl-v text-base text-foreground">
-                {t("ЗЭВСЭГТ ХҮЧНИЙ")} <span className="text-primary">013</span>
+                {t("ЗЭВСЭГТ ХҮЧНИЙ")} <span className="text-primary">{mglDigits("013")}</span>
               </span>
             </Link>
             <p className="mgl-v text-sm leading-relaxed text-muted-foreground">
@@ -123,7 +124,7 @@ function MglFooter({ t }: { t: Translate }) {
             <h3 className={heading}>{t("Холбоо барих")}</h3>
             <a href={CONTACT.phoneHref} className={`${item} inline-flex items-center gap-2`}>
               <Phone className="h-4 w-4 text-primary" />
-              {CONTACT.phone}
+              {mglDigits(CONTACT.phone)}
             </a>
             <a href={`mailto:${CONTACT.email}`} className={`${item} inline-flex items-center gap-2`}>
               <Mail className="h-4 w-4 text-primary" />
@@ -138,16 +139,15 @@ function MglFooter({ t }: { t: Translate }) {
           <div className={group}>
             <h3 className={heading}>{t("Цагийн хуваарь")}</h3>
             <span className="mgl-v text-sm text-muted-foreground">{t("Даваа - Баасан")}</span>
-            <span className="mgl-v text-sm text-primary">09:00 - 18:00</span>
+            <span className="mgl-v text-sm text-primary">{mglDigits("09:00 - 18:00")}</span>
             <span className="mgl-v text-sm text-muted-foreground">{t("Бямба - Ням")}</span>
             <span className="mgl-v text-sm text-muted-foreground">{t("Амралтын өдөр")}</span>
           </div>
 
           <div className={group}>
             <p className="mgl-v text-xs leading-relaxed text-muted-foreground">
-              © {new Date().getFullYear()} {t(SITE_NAME)}. {t("Бүх эрх хуулиар хамгаалагдсан.")}
+              © {mglDigits(String(new Date().getFullYear()))} {t(SITE_NAME)}. {t("Бүх эрх хуулиар хамгаалагдсан.")}
             </p>
-            <span className="mgl-v font-mono text-xs text-muted-foreground">ZKH-013</span>
           </div>
         </div>
       </div>

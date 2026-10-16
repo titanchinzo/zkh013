@@ -5,6 +5,7 @@ import { connectToDatabase } from "@/lib/mongodb";
 import MglCache from "@/lib/models/MglCache";
 import { kimoConvertLines } from "@/lib/mgl/kimo";
 import { fromDictionary } from "@/lib/mgl/server";
+import { mglDigits } from "@/lib/mgl/shared";
 
 // Өөрчлөгддөг бичвэрийг (мэдээ, сургалтын материал) монгол бичигт хөрвүүлнэ:
 // толь бичиг → MongoDB кэш → Kimo. Мөр (догол мөр) бүрийг тусад нь кэшлэх тул мэдээг засахад
@@ -53,13 +54,13 @@ async function convertAndStore(lines: string[], deadline = Infinity) {
 }
 
 /**
- * Бичвэрүүдийг монгол бичигт хөрвүүлнэ. budgetMs хугацаанд амжаагүй мөрүүдийг кириллээр нь
- * буцааж, хариу илгээсний дараа (after) үргэлжлүүлэн хөрвүүлнэ — дараагийн удаад бэлэн байна.
+ * Бичвэрүүдийг монгол бичигт хөрвүүлнэ (тоог монгол цифрээр). budgetMs хугацаанд амжаагүй мөрүүдийг
+ * кириллээр нь буцааж, хариу илгээсний дараа (after) үргэлжлүүлэн хөрвүүлнэ — дараагийн удаад бэлэн байна.
  */
 export async function toMgl(texts: string[], { budgetMs = 7000 } = {}): Promise<string[]> {
   const split = texts.map((text) => (text ?? "").split("\n"));
   const unique = [...new Set(split.flat().filter((line) => line.trim() && hasCyrillic(line)))];
-  if (unique.length === 0) return texts;
+  if (unique.length === 0) return texts.map((text) => mglDigits(text ?? ""));
 
   let found = new Map<string, string>();
   try {
@@ -77,7 +78,7 @@ export async function toMgl(texts: string[], { budgetMs = 7000 } = {}): Promise<
     console.warn("[mgl] хөрвүүлэлт амжилтгүй:", err instanceof Error ? err.message : err);
   }
 
-  return split.map((lines) => lines.map((line) => found.get(line) ?? line).join("\n"));
+  return split.map((lines) => mglDigits(lines.map((line) => found.get(line) ?? line).join("\n")));
 }
 
 /** Мэдээ хадгалсны дараа монгол бичгийн хувилбарыг урьдчилан бэлдэнэ (хариуг саатуулахгүй) */

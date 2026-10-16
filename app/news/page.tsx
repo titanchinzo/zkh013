@@ -10,6 +10,7 @@ import { MglBand } from "@/components/mgl/mgl-ornaments";
 import { getPublishedNews } from "@/lib/news";
 import { mglNewsSummaries } from "@/lib/mgl/news";
 import { getTranslator } from "@/lib/mgl/server";
+import { mglDigits } from "@/lib/mgl/shared";
 import { SITE_NAME } from "@/lib/site";
 import { cn } from "@/lib/utils";
 
@@ -77,9 +78,9 @@ export default async function NewsPage({ searchParams }: PageProps<"/news">) {
               </form>
               {q && (
                 <div className="flex flex-row items-start gap-2 text-sm text-muted-foreground">
-                  <span className="mgl-v text-foreground">&ldquo;{q}&rdquo;</span>
+                  <span className="mgl-v text-foreground">&ldquo;{mglDigits(q)}&rdquo;</span>
                   <span className="mgl-v">
-                    {t("хайлтаар")} {total} {t("мэдээ олдлоо")}
+                    {t("хайлтаар")} {mglDigits(String(total))} {t("мэдээ олдлоо")}
                   </span>
                   <Link href="/news" className="mgl-v text-primary hover:underline">
                     {t("Бүх мэдээ")}
@@ -120,7 +121,7 @@ export default async function NewsPage({ searchParams }: PageProps<"/news">) {
                     ))}
                   </div>
                 )}
-                <Pagination page={page} totalPages={totalPages} q={q} />
+                <Pagination page={page} totalPages={totalPages} q={q} mgl />
               </>
             )}
           </div>
@@ -220,12 +221,15 @@ function Pagination({
   totalPages,
   q,
   labels,
+  mgl,
 }: {
   page: number;
   totalPages: number;
   q: string;
   // Монгол бичгийн горимд зөвхөн сум харагдана
   labels?: { previous: string; next: string };
+  // Монгол бичгийн горимд хуудасны дугаар монгол цифрээр, босоо
+  mgl?: boolean;
 }) {
   if (totalPages <= 1) return null;
 
@@ -257,7 +261,7 @@ function Pagination({
                 : "text-foreground hover:border-primary hover:text-primary"
             )}
           >
-            {p}
+            {mgl ? <span className="mgl-v">{mglDigits(String(p))}</span> : p}
           </Link>
         </span>
       ))}

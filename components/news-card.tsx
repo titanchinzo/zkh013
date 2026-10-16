@@ -4,6 +4,7 @@ import { Images, Play } from "lucide-react";
 import logo from "@/public/logo.png";
 import { canOptimizeImage } from "@/lib/images";
 import { formatShortDate, type NewsSummary } from "@/lib/news";
+import { mglDate, mglDigits } from "@/lib/mgl/shared";
 import { cn } from "@/lib/utils";
 
 type ThumbProps = {
@@ -12,10 +13,12 @@ type ThumbProps = {
   className?: string;
   preload?: boolean;
   badges?: boolean;
+  // Монгол бичгийн горимд зургийн тоо монгол цифрээр, босоо
+  mgl?: boolean;
 };
 
 /** Мэдээний зураг: видео/цомгийн тэмдэгтэй, зураггүй бол ангийн лого. Байрлалыг (relative/absolute) className-ээр өгнө */
-function NewsThumb({ item, sizes, className, preload, badges = true }: ThumbProps) {
+function NewsThumb({ item, sizes, className, preload, badges = true, mgl }: ThumbProps) {
   return (
     <div className={cn("overflow-hidden bg-muted", className)}>
       {item.cover ? (
@@ -41,9 +44,14 @@ function NewsThumb({ item, sizes, className, preload, badges = true }: ThumbProp
         </span>
       )}
       {badges && item.photoCount > 0 && (
-        <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded bg-black/70 px-2 py-0.5 text-xs font-medium text-white">
+        <span
+          className={cn(
+            "absolute right-2 top-2 inline-flex items-center gap-1 rounded bg-black/70 text-xs font-medium text-white",
+            mgl ? "flex-col px-1 py-1.5" : "px-2 py-0.5"
+          )}
+        >
           <Images className="h-3.5 w-3.5" />
-          {item.photoCount}
+          {mgl ? <span className="mgl-v">{mglDigits(String(item.photoCount))}</span> : item.photoCount}
         </span>
       )}
     </div>
@@ -128,12 +136,13 @@ export function NewsCardMgl({ item, excerpt = true }: { item: NewsSummary; excer
     >
       <NewsThumb
         item={item}
+        mgl
         className="relative aspect-video"
         sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 380px"
       />
       <div className={cn("flex flex-row gap-3 p-4", excerpt ? "h-64" : "h-52")}>
         <time dateTime={item.createdAt.toISOString()} className="mgl-v shrink-0 text-xs text-primary">
-          {formatShortDate(item.createdAt)}
+          {mglDate(formatShortDate(item.createdAt))}
         </time>
         <h3 className="mgl-v line-clamp-4 shrink-0 text-lg leading-snug text-foreground transition-colors group-hover:text-primary">
           {item.title}
@@ -153,7 +162,7 @@ export function NewsLeadCardMgl({ item, label }: { item: NewsSummary; label: str
       href={`/news/${item.id}`}
       className="group relative block h-full min-h-[360px] sm:min-h-[460px] overflow-hidden rounded-xl border border-border"
     >
-      <NewsThumb item={item} className="absolute inset-0" sizes="(max-width: 1024px) 100vw, 760px" preload />
+      <NewsThumb item={item} mgl className="absolute inset-0" sizes="(max-width: 1024px) 100vw, 760px" preload />
       <div className="pointer-events-none absolute inset-0 bg-linear-to-r from-black via-black/60 to-transparent" />
       <div className="absolute inset-y-0 left-0 flex max-w-[78%] flex-row gap-4 overflow-hidden p-6 md:p-8">
         <span className="mgl-v shrink-0 self-start bg-primary px-1 py-2 text-xs text-primary-foreground">{label}</span>
@@ -162,7 +171,7 @@ export function NewsLeadCardMgl({ item, label }: { item: NewsSummary; label: str
         </h2>
         <p className="mgl-v line-clamp-4 min-w-0 text-base leading-relaxed text-gray-200">{item.excerpt}</p>
         <time dateTime={item.createdAt.toISOString()} className="mgl-v shrink-0 text-sm text-gray-300">
-          {formatShortDate(item.createdAt)}
+          {mglDate(formatShortDate(item.createdAt))}
         </time>
       </div>
     </Link>
