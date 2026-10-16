@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Noto_Sans_Mongolian } from "next/font/google";
+import { Geist, Geist_Mono } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import { SITE_NAME, SITE_OG_IMAGE, SITE_URL } from "@/lib/site";
+import { MGL_FONT_URL } from "@/lib/mgl/shared";
 import { getScript } from "@/lib/mgl/server";
 import "./globals.css";
 
@@ -13,14 +14,6 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
-});
-
-// Монгол бичгийн (MGL) горимын фонт — зөвхөн тэр горимд ашиглагдах үед татагдана
-const mongolian = Noto_Sans_Mongolian({
-  variable: "--font-mongolian",
-  weight: "400",
-  subsets: ["mongolian"],
-  preload: false,
 });
 
 const description =
@@ -54,9 +47,15 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       <html
         lang={script === "mgl" ? "mn-Mong" : "mn"}
         data-script={script}
-        className={`${geistSans.variable} ${geistMono.variable} ${mongolian.variable} h-full antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
       >
-        <body className="min-h-full flex flex-col">{children}</body>
+        <body className="min-h-full flex flex-col">
+          {/* Монгол бичгийн фонтыг (globals.css) зөвхөн MGL горимд урьдчилан татна — React <head> руу зөөнө */}
+          {script === "mgl" && (
+            <link rel="preload" href={MGL_FONT_URL} as="font" type="font/ttf" crossOrigin="anonymous" />
+          )}
+          {children}
+        </body>
       </html>
     </ClerkProvider>
   );

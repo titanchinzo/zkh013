@@ -10,6 +10,8 @@
   --muted: #1a231a;
   --muted-foreground: #9aa79a;
   --border: #24322380;
+  /* Монгол бичгийн горимын хээ угалзын алтлаг өнгө */
+  --gold: #d4af5a;
 }
 
 @theme inline {
@@ -22,6 +24,7 @@
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
   --color-border: var(--border);
+  --color-gold: var(--gold);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -36,8 +39,21 @@ body {
 /* mgl:… — зөвхөн MGL горимд хэрэглэгдэх Tailwind class */
 @custom-variant mgl (&:where([data-script="mgl"], [data-script="mgl"] *));
 
+/*
+ * Монгол бичгийн фонт: Bolorsoft-ын "Classical Mongolian Dashtseden" (Т.Жамъянсүрэн).
+ * Bolorsoft-ын үнэгүй фонт — хувийн болон арилжааны зорилгоор түгээж, ашиглаж болно (фонт доторх лиценз).
+ * Зөвхөн монгол бичгийн тэмдэгтэд хэрэглэнэ, латин үсэг, тоо Geist-ээр харагдана.
+ * Хаяг нь lib/mgl/shared.ts-ийн MGL_FONT_URL-тэй ижил байх ёстой (layout.tsx урьдчилан татдаг).
+ */
+@font-face {
+  font-family: "Dashtseden";
+  src: url("/fonts/dashtseden-5.91.ttf") format("truetype");
+  font-display: block;
+  unicode-range: U+1800-18AF, U+200C-200D, U+202F;
+}
+
 [data-script="mgl"] body {
-  font-family: var(--font-mongolian), var(--font-geist-sans), "Mongolian Baiti", sans-serif;
+  font-family: "Dashtseden", var(--font-geist-sans), "Mongolian Baiti", "Noto Sans Mongolian", sans-serif;
 }
 
 /* Босоо бичвэр: дээрээс доош бичиж, мөр (багана) нь зүүнээс баруун тийш урсана */
@@ -46,6 +62,52 @@ body {
   text-orientation: mixed;
   letter-spacing: normal;
   text-transform: none;
+}
+
+@layer components {
+  .mgl-v {
+    /* Windows-ийн Chrome эргүүлсэн (босоо) бичвэрт өнгөт subpixel ирмэг гаргадаг тул opacity < 1-ээр
+       саарал antialiasing-д шилжүүлнэ; уран бичлэгийн нимгэн зураасыг бага зэрэг тодруулна.
+       components layer-т байгаа тул opacity-* utility class давуу эрхтэй хэвээр. */
+    opacity: 0.999;
+    -webkit-text-stroke: 0.25px currentColor;
+  }
+}
+
+/* Алхан хээ — хэсгийн эхлэл, цэсний хүрээ (components/mgl/mgl-ornaments.tsx). Өнгө нь currentColor. */
+.mgl-band,
+.mgl-band-v {
+  background-color: currentColor;
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+}
+
+.mgl-band {
+  height: 12px;
+  -webkit-mask-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12'%3E%3Cpath d='M0 10.5H1.5V1.5H10V7.5H5V10.5H12' fill='none' stroke='black' stroke-width='1.4' stroke-linecap='square'/%3E%3C/svg%3E"),
+    linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+  mask-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12'%3E%3Cpath d='M0 10.5H1.5V1.5H10V7.5H5V10.5H12' fill='none' stroke='black' stroke-width='1.4' stroke-linecap='square'/%3E%3C/svg%3E"),
+    linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+  -webkit-mask-repeat: repeat-x, no-repeat;
+  mask-repeat: repeat-x, no-repeat;
+  -webkit-mask-size: 12px 12px, 100% 100%;
+  mask-size: 12px 12px, 100% 100%;
+}
+
+.mgl-band-v {
+  width: 12px;
+  -webkit-mask-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12'%3E%3Cpath d='M10.5 0V1.5H1.5V10H7.5V5H10.5V12' fill='none' stroke='black' stroke-width='1.4' stroke-linecap='square'/%3E%3C/svg%3E"),
+    linear-gradient(180deg, transparent, #000 8%, #000 92%, transparent);
+  mask-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12'%3E%3Cpath d='M10.5 0V1.5H1.5V10H7.5V5H10.5V12' fill='none' stroke='black' stroke-width='1.4' stroke-linecap='square'/%3E%3C/svg%3E"),
+    linear-gradient(180deg, transparent, #000 8%, #000 92%, transparent);
+  -webkit-mask-repeat: repeat-y, no-repeat;
+  mask-repeat: repeat-y, no-repeat;
+  -webkit-mask-size: 12px 12px, 100% 100%;
+  mask-size: 12px 12px, 100% 100%;
 }
 
 /* Урт босоо бичвэрийн хэвтээ гүйлгэгч */

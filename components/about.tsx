@@ -5,6 +5,7 @@ import { CountUp } from "@/components/count-up";
 import { Reveal } from "@/components/reveal";
 import { UnitHistory } from "@/components/unit-history";
 import { MglHeading } from "@/components/mgl/mgl-heading";
+import { MglBand } from "@/components/mgl/mgl-ornaments";
 import { CONTACT } from "@/lib/contact";
 import { translateHistory } from "@/lib/mgl/history";
 import { getTranslator } from "@/lib/mgl/server";
@@ -26,6 +27,7 @@ export async function About() {
       </noscript>
       <div className="container mx-auto px-4">
         <div className="max-w-6xl mx-auto">
+          {mgl && <MglBand className="mb-12 md:mb-16" />}
           {mgl ? (
             <div className="flex flex-col gap-10 lg:flex-row lg:items-start">
               <Reveal className="flex shrink-0 flex-row gap-4">

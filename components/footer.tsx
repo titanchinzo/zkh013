@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Phone, Mail, MapPin } from "lucide-react";
 import logo from "@/public/logo.png";
 import { Brand } from "@/components/brand";
+import { MglBand } from "@/components/mgl/mgl-ornaments";
 import { CONTACT } from "@/lib/contact";
 import { getTranslator, type Translate } from "@/lib/mgl/server";
 import { SITE_NAME } from "@/lib/site";
@@ -95,6 +96,7 @@ function MglFooter({ t }: { t: Translate }) {
   return (
     <footer className="bg-card border-t border-border">
       <div className="container mx-auto px-4 py-12">
+        <MglBand className="mb-10" />
         <div className="mgl-scroll flex h-72 flex-row gap-6 pb-2">
           <div className={group}>
             <Link href="/" aria-label="Нүүр хуудас" className="flex shrink-0 flex-col items-center gap-3">

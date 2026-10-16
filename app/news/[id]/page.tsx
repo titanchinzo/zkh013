@@ -10,6 +10,7 @@ import { NewsGallery } from "@/components/news-gallery";
 import { NewsCompactCard, NewsCompactCardMgl } from "@/components/news-card";
 import { ShareButtons } from "@/components/share-buttons";
 import { MglHeading } from "@/components/mgl/mgl-heading";
+import { MglBand } from "@/components/mgl/mgl-ornaments";
 import { MglScroller } from "@/components/mgl/mgl-scroller";
 import { canOptimizeImage } from "@/lib/images";
 import { toMgl } from "@/lib/mgl/convert";
@@ -262,6 +263,7 @@ async function MglArticle({
       <Nav />
       <main className="flex-1 pt-24 md:pt-12 pb-20">
         <div className="container mx-auto px-4 max-w-6xl">
+          <MglBand className="mb-8" />
           <Link
             href="/news"
             className="mb-6 inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm text-muted-foreground hover:border-primary hover:text-primary"

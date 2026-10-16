@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { NewsCard, NewsCardMgl } from "@/components/news-card";
 import { MglHeading } from "@/components/mgl/mgl-heading";
+import { MglBand } from "@/components/mgl/mgl-ornaments";
 import { getLatestNews, type NewsSummary } from "@/lib/news";
 import { mglNewsSummaries } from "@/lib/mgl/news";
 import { getTranslator } from "@/lib/mgl/server";
@@ -26,6 +27,7 @@ export async function LatestNews() {
     return (
       <section id="news" className="py-20 md:py-28 bg-background">
         <div className="container mx-auto px-4">
+          <MglBand className="mx-auto mb-12 max-w-6xl md:mb-16" />
           <div className="max-w-6xl mx-auto flex flex-col gap-10 lg:flex-row">
             <div className="flex shrink-0 flex-row items-start gap-6 lg:flex-col">
               <MglHeading title={t("СҮҮЛИЙН МЭДЭЭ")} />

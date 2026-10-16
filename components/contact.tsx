@@ -2,6 +2,7 @@ import { MapPin, Phone, Mail, Clock, type LucideIcon } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { ContactForm } from "@/components/contact-form";
 import { MglHeading } from "@/components/mgl/mgl-heading";
+import { MglBand } from "@/components/mgl/mgl-ornaments";
 import { CONTACT } from "@/lib/contact";
 import { getTranslator } from "@/lib/mgl/server";
 
@@ -33,6 +34,7 @@ export async function Contact() {
     return (
       <section id="contact" className="py-20 md:py-32 bg-background">
         <div className="container mx-auto px-4">
+          <MglBand className="mx-auto mb-12 max-w-6xl md:mb-16" />
           <div className="max-w-6xl mx-auto flex flex-col gap-10 lg:flex-row">
             <div className="flex shrink-0 flex-row gap-4">
               <MglHeading title={t("ХОЛБОО БАРИХ")} />

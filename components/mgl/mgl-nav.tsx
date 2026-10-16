@@ -32,6 +32,7 @@ export function MglNav({ links, showAdmin, adminLabel }: { links: NavLink[]; sho
     <>
       {/* Том дэлгэц: зүүн талын босоо самбар */}
       <nav className="fixed inset-y-0 left-0 z-50 hidden w-24 flex-col items-center border-r border-border bg-background/95 backdrop-blur md:flex">
+        <div aria-hidden className="mgl-band-v pointer-events-none absolute inset-y-0 right-1 text-gold/25" />
         <div className="flex flex-col items-center gap-1 py-5">
           {logoLink("h-12")}
           <span className="text-xs font-bold text-primary">013</span>

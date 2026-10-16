@@ -4,6 +4,7 @@ import News from "@/lib/models/News";
 import { isUsableImageUrl } from "@/lib/images";
 import { toMgl } from "@/lib/mgl/convert";
 import { getTranslator, type Translate } from "@/lib/mgl/server";
+import { MglFrame } from "@/components/mgl/mgl-ornaments";
 
 const BASE_SLIDES: HeroSlide[] = [1, 2, 3, 4].map((n) => ({
   src: `/hero/hero-${n}.jpg`,
@@ -111,29 +112,31 @@ export async function Hero() {
 }
 
 /**
- * Монгол бичгийн горим: гарчиг, тэмдэг, товчнууд зүүнээс баруун тийш эгнэсэн босоо баганууд.
- * Утас, таблет дээр багтахгүй тул товчнууд баганын доор шилжинэ.
+ * Монгол бичгийн горим: гарчиг, тэмдэг нь алхан хээтэй хүрээн доторх босоо баганууд, товчнууд хажууд нь.
+ * Утас, таблет дээр багтахгүй тул товчнууд хүрээний доор шилжинэ.
  */
 function MglHeroContent({ t }: { t: Translate }) {
   return (
     <div className="relative z-30 flex w-full justify-center px-4 py-24 lg:py-28">
-      <div className="flex max-w-full flex-col items-center gap-6 animate-fade-in-up lg:h-[min(68vh,560px)] lg:flex-row lg:items-stretch lg:gap-7">
-        <div className="flex h-[min(56vh,460px)] max-w-full flex-row items-stretch gap-3 overflow-x-auto sm:gap-7 lg:h-auto">
-          <a
-            href="#hun-gavaa"
-            className="mgl-v self-center border border-primary bg-primary/20 px-2 py-4 text-sm leading-relaxed text-white transition-colors hover:bg-primary/35 sm:text-base"
-          >
-            {t("ХОШУУЧ ГЕНЕРАЛ Р.ГАВААГИЙН НЭРЭМЖИТ")}
-          </a>
-          <h1 className="mgl-v text-2xl leading-[1.45] text-white drop-shadow-[0_4px_12px_rgba(0,0,0,1)] sm:text-3xl lg:text-4xl xl:text-5xl">
-            {t("ЦЭРГИЙН ГАВЬЯАНЫ УЛААН ТУГ, АЛТАН ГАДАС ОДОНТ")}
-            <span className="block text-primary">{t("ЗЭВСЭГТ ХҮЧНИЙ 013 ДУГААР АНГИ")}</span>
-          </h1>
-          <p className="mgl-v text-base leading-relaxed text-gray-200 drop-shadow-[0_4px_8px_rgba(0,0,0,1)] sm:text-lg xl:text-xl">
-            {t("Эх орны бүрэн эрхт байдал, аюулгүй байдлыг хамгаалах, иргэдийн амь нас, эд хөрөнгийг хамгаалахад зориулагдсан.")}
-          </p>
-        </div>
-        <div className="flex flex-row items-center gap-3 lg:self-center">
+      <div className="flex max-w-full flex-col items-center gap-6 animate-fade-in-up lg:flex-row lg:gap-8">
+        <MglFrame className="h-[min(58vh,480px)] max-w-full bg-black/40 backdrop-blur-[2px] lg:h-[min(68vh,560px)]">
+          <div className="flex h-full max-w-full flex-row items-stretch gap-2.5 overflow-x-auto px-2.5 py-5 sm:gap-6 sm:px-6 sm:py-7">
+            <a
+              href="#hun-gavaa"
+              className="mgl-v self-center border border-gold/60 bg-gold/10 px-2 py-4 text-sm leading-relaxed text-gold transition-colors hover:bg-gold/20 sm:text-base"
+            >
+              {t("ХОШУУЧ ГЕНЕРАЛ Р.ГАВААГИЙН НЭРЭМЖИТ")}
+            </a>
+            <h1 className="mgl-v text-2xl leading-[1.45] text-white drop-shadow-[0_4px_12px_rgba(0,0,0,1)] sm:text-3xl lg:text-4xl xl:text-5xl">
+              {t("ЦЭРГИЙН ГАВЬЯАНЫ УЛААН ТУГ, АЛТАН ГАДАС ОДОНТ")}
+              <span className="block text-gold">{t("ЗЭВСЭГТ ХҮЧНИЙ 013 ДУГААР АНГИ")}</span>
+            </h1>
+            <p className="mgl-v text-base leading-relaxed text-gray-200 drop-shadow-[0_4px_8px_rgba(0,0,0,1)] sm:text-lg xl:text-xl">
+              {t("Эх орны бүрэн эрхт байдал, аюулгүй байдлыг хамгаалах, иргэдийн амь нас, эд хөрөнгийг хамгаалахад зориулагдсан.")}
+            </p>
+          </div>
+        </MglFrame>
+        <div className="flex flex-row items-center gap-3">
           <a
             href="#contact"
             className="mgl-v rounded-md bg-primary px-3 py-5 text-base text-primary-foreground transition-all hover:bg-primary/90 sm:text-lg lg:py-6"

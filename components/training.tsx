@@ -11,6 +11,7 @@ import { connectToDatabase } from "@/lib/mongodb";
 import TrainingMaterial from "@/lib/models/TrainingMaterial";
 import { TRAINING_FILE_TYPES, formatFileSize, type TrainingFileExt } from "@/lib/training";
 import { MglHeading } from "@/components/mgl/mgl-heading";
+import { MglBand } from "@/components/mgl/mgl-ornaments";
 import { toMgl } from "@/lib/mgl/convert";
 import { getTranslator } from "@/lib/mgl/server";
 
@@ -61,6 +62,7 @@ export async function Training() {
     return (
       <section id="training" className="py-20 md:py-32 bg-muted/30 tactical-grid">
         <div className="container mx-auto px-4">
+          <MglBand className="mx-auto mb-12 max-w-6xl md:mb-16" />
           <div className="max-w-6xl mx-auto flex flex-col gap-10 lg:flex-row">
             <div className="flex shrink-0 flex-row gap-4">
               <MglHeading title={t("СУРГАЛТЫН МАТЕРИАЛ")} />

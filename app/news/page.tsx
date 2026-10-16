@@ -6,6 +6,7 @@ import { Footer } from "@/components/footer";
 import { Input } from "@/components/ui/input";
 import { NewsCard, NewsCardMgl, NewsLeadCard, NewsLeadCardMgl } from "@/components/news-card";
 import { MglHeading } from "@/components/mgl/mgl-heading";
+import { MglBand } from "@/components/mgl/mgl-ornaments";
 import { getPublishedNews } from "@/lib/news";
 import { mglNewsSummaries } from "@/lib/mgl/news";
 import { getTranslator } from "@/lib/mgl/server";
@@ -59,6 +60,7 @@ export default async function NewsPage({ searchParams }: PageProps<"/news">) {
         <Nav />
         <main className="flex-1 pt-24 md:pt-12 pb-20">
           <div className="container mx-auto px-4 max-w-6xl">
+            <MglBand className="mb-10" />
             <header className="mb-10 flex flex-row flex-wrap items-end gap-8">
               <MglHeading as="h1" eyebrow={t(SITE_NAME)} title={t("МЭДЭЭ")} />
               <form action="/news" role="search" className="flex items-stretch gap-2">
