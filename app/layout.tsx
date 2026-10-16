@@ -47,12 +47,19 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       <html
         lang={script === "mgl" ? "mn-Mong" : "mn"}
         data-script={script}
+        // Chrome "mn-Mong"-г танихгүй (хэлийг "und" гэж үздэг) тул MGL хуудсыг орчуулахыг санал болгож,
+        // монгол бичиг болон "MN" товчийг ("Миннесота") эвддэг — кирилл хувилбар нь MN горим
+        translate={script === "mgl" ? "no" : undefined}
         className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
       >
         <body className="min-h-full flex flex-col">
-          {/* Монгол бичгийн фонтыг (globals.css) зөвхөн MGL горимд урьдчилан татна — React <head> руу зөөнө */}
+          {/* MGL горимд: монгол бичгийн фонтыг (globals.css) урьдчилан татна, Chrome-ийн орчуулах саналыг хаана —
+              React эдгээрийг <head> руу зөөнө */}
           {script === "mgl" && (
-            <link rel="preload" href={MGL_FONT_URL} as="font" type="font/ttf" crossOrigin="anonymous" />
+            <>
+              <link rel="preload" href={MGL_FONT_URL} as="font" type="font/ttf" crossOrigin="anonymous" />
+              <meta name="google" content="notranslate" />
+            </>
           )}
           {children}
         </body>

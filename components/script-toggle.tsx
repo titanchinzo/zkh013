@@ -29,6 +29,8 @@ export function ScriptToggle({ script, vertical }: { script: Script; vertical?: 
     <div
       role="group"
       aria-label="Бичгийн горим"
+      // Хөтчийн автомат орчуулга "MN"-ийг "Миннесота" болгодог тул орчуулахгүй
+      translate="no"
       className={cn(
         "inline-flex shrink-0 overflow-hidden rounded-md border border-primary/50 text-xs font-bold",
         vertical ? "flex-col" : "flex-row",
