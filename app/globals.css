@@ -185,11 +185,6 @@ body {
   transform: scaleY(var(--progress, 0));
 }
 
-/* MGL горимын хэвтээ түүхэн замнал: хэвтээ гүйлгэх тусам шугам зурагдана */
-.timeline-progress-x {
-  transform: scaleX(var(--progress, 0));
-}
-
 .timeline-dot {
   transition:
     background-color 0.4s ease,

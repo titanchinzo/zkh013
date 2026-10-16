@@ -2,20 +2,26 @@
 
 import { useEffect, useRef } from "react";
 import Image from "next/image";
-import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, FileText, X } from "lucide-react";
+import { ArrowDown, ArrowUp, FileText, X } from "lucide-react";
 import { Reveal } from "@/components/reveal";
 import { MglHeading } from "@/components/mgl/mgl-heading";
 import { UlziiKnot } from "@/components/mgl/mgl-ornaments";
 import { useWheelToHorizontal } from "@/components/mgl/mgl-scroller";
 import { Medal, Portrait, Sources, type OpenFn } from "@/components/history-parts";
 import { mglDigits } from "@/lib/mgl/shared";
+import { cn } from "@/lib/utils";
 import type { HistoryEvent, HistoryLabels, HistoryPerson, UnitAward } from "@/lib/unit-history";
 
 // Ангийн түүхийн хэсгийн монгол бичгийн (босоо) харагдац. Бичвэрүүд серверээс монгол бичгээр ирнэ.
-// Босоо бичвэрийн багана зүүнээс баруун тийш урсдаг тул түүхэн замнал хэвтээ, цонхнууд хэвтээ гүйлгэгдэнэ.
+// Түүхэн замнал MN горимынх шиг доошоо урсана; дэлгэрэнгүй цонхны урт бичвэр хэвтээ гүйлгэгдэнэ.
 
-/* ---------------------------------- Түүхэн замнал (хэвтээ) ---------------------------------- */
+/* ---------------------------------- Түүхэн замнал ---------------------------------- */
 
+/**
+ * MN горимынх шиг доошоо урсдаг түүхэн замнал: үйл явдал бүр нэг мөр, мөр доторх бичвэр нь босоо баганууд.
+ * Жижиг дэлгэцэнд шугам зүүн талд, том дэлгэцэнд голд нь — картууд хоёр талаар ээлжилж, эсрэг талд нь том он.
+ * Хуудсыг доош гүйлгэх тусам шугам зурагдаж, давсан үйл явдлын цэг, он гэрэлтэнэ.
+ */
 export function TimelineMgl({
   events,
   people,
@@ -27,109 +33,109 @@ export function TimelineMgl({
   labels: HistoryLabels;
   onOpen: OpenFn;
 }) {
-  const scrollerRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  // Хэвтээ гүйлгэх тусам шугам зурагдаж, давсан үйл явдлын цэг гэрэлтэнэ
   useEffect(() => {
-    const scroller = scrollerRef.current;
-    if (!scroller) return;
-    const items = Array.from(scroller.querySelectorAll<HTMLElement>(".timeline-item"));
+    const container = containerRef.current;
+    if (!container) return;
+    const items = Array.from(container.querySelectorAll<HTMLElement>(".timeline-item"));
     let frame = 0;
 
     const update = () => {
       frame = 0;
-      const progress = Math.min(1, (scroller.scrollLeft + scroller.clientWidth * 0.7) / scroller.scrollWidth);
-      scroller.style.setProperty("--progress", progress.toFixed(4));
-      const limit = scroller.getBoundingClientRect().left + scroller.clientWidth * 0.7;
-      for (const item of items) item.toggleAttribute("data-passed", item.getBoundingClientRect().left < limit);
+      const line = window.innerHeight * 0.65;
+      const rect = container.getBoundingClientRect();
+      const progress = Math.min(1, Math.max(0, (line - rect.top) / rect.height));
+      container.style.setProperty("--progress", progress.toFixed(4));
+      for (const item of items) {
+        item.toggleAttribute("data-passed", item.getBoundingClientRect().top + 28 < line);
+      }
     };
     const schedule = () => {
       if (!frame) frame = requestAnimationFrame(update);
     };
 
     update();
-    scroller.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("scroll", schedule, { passive: true });
     window.addEventListener("resize", schedule);
     return () => {
-      scroller.removeEventListener("scroll", schedule);
+      window.removeEventListener("scroll", schedule);
       window.removeEventListener("resize", schedule);
       cancelAnimationFrame(frame);
     };
   }, []);
 
-  const scrollBy = (direction: number) =>
-    scrollerRef.current?.scrollBy({ left: direction * scrollerRef.current.clientWidth * 0.8, behavior: "smooth" });
-
   return (
-    <div className="mt-24 flex flex-col gap-8 lg:flex-row">
+    <div className="mt-24">
       <Reveal>
         <MglHeading eyebrow={labels.timelineEyebrow} title={labels.timelineTitle} as="h3" />
       </Reveal>
-      <div className="min-w-0 flex-1">
-        <div ref={scrollerRef} tabIndex={0} aria-label={labels.timelineTitle} className="mgl-scroll relative pb-4 outline-none">
-          <ol className="relative flex w-max flex-row gap-5 px-1 pt-10">
-            <li aria-hidden className="absolute left-0 right-0 top-4 h-0.5 bg-border" />
-            <li
-              aria-hidden
-              className="timeline-progress-x absolute left-0 right-0 top-4 h-0.5 origin-left bg-linear-to-r from-primary via-primary to-primary/30"
-            />
-            {events.map((event, index) => {
-              const person = people.find((item) => item.id === event.personId);
-              return (
-                <li key={event.id} id={event.id} className="timeline-item relative shrink-0 scroll-ml-4">
-                  <span
-                    aria-hidden
-                    className="timeline-dot absolute -top-8 left-5 block h-4 w-4 rounded-full border-2 border-primary bg-background"
-                  />
-                  <Reveal delay={Math.min(index, 4) * 70}>
-                    <button
-                      type="button"
-                      onClick={() => onOpen(event.id)}
-                      className="group flex h-[24rem] flex-col gap-3 rounded-xl border border-border bg-card metallic p-4 text-left transition duration-300 hover:-translate-y-1 hover:border-primary/70 hover:shadow-lg hover:shadow-primary/10"
-                    >
-                      {event.image ? (
-                        <Medal image={event.image} className="h-14 w-14" />
-                      ) : (
-                        person && <Portrait person={person} size="sm" />
-                      )}
-                      <span className="flex min-h-0 flex-1 flex-row gap-3">
-                        <span className="timeline-year mgl-v text-2xl leading-none">{event.year}</span>
-                        <span className="mgl-v line-clamp-3 text-lg leading-snug text-foreground transition-colors group-hover:text-primary">
-                          {event.title}
-                        </span>
-                        <span className="mgl-v line-clamp-4 text-sm leading-relaxed text-muted-foreground">
-                          {event.summary}
-                        </span>
-                        <span className="mgl-v inline-flex items-center gap-1 text-sm text-primary">
-                          {labels.more}
-                          <ArrowDown className="h-4 w-4 transition-transform group-hover:translate-y-1" />
-                        </span>
-                      </span>
-                    </button>
+      <div ref={containerRef} className="relative mt-12">
+        <div aria-hidden className="absolute bottom-0 left-4 top-0 w-0.5 -translate-x-1/2 bg-border lg:left-1/2" />
+        <div
+          aria-hidden
+          className="timeline-progress absolute bottom-0 left-4 top-0 w-0.5 -translate-x-1/2 origin-top bg-linear-to-b from-primary via-primary to-primary/30 lg:left-1/2"
+        />
+        <ol className="space-y-6 lg:space-y-10">
+          {events.map((event, index) => {
+            const person = people.find((item) => item.id === event.personId);
+            const cardLeft = index % 2 === 0;
+            return (
+              <li
+                key={event.id}
+                id={event.id}
+                className="timeline-item relative scroll-mt-28 pl-12 lg:grid lg:grid-cols-[1fr_4rem_1fr] lg:items-center lg:pl-0"
+              >
+                <span
+                  aria-hidden
+                  className="absolute left-4 top-7 z-10 -translate-x-1/2 lg:static lg:col-start-2 lg:row-start-1 lg:mx-auto lg:translate-x-0"
+                >
+                  <span className="timeline-dot block h-4 w-4 rounded-full border-2 border-primary bg-background" />
+                </span>
+                <div
+                  className={cn(
+                    "hidden lg:row-start-1 lg:flex",
+                    cardLeft ? "lg:col-start-3 lg:justify-start" : "lg:col-start-1 lg:justify-end"
+                  )}
+                >
+                  <Reveal from={cardLeft ? "right" : "left"}>
+                    <span className="timeline-year mgl-v max-h-56 text-5xl leading-tight">{event.year}</span>
                   </Reveal>
-                </li>
-              );
-            })}
-          </ol>
-        </div>
-        <div className="mt-3 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={() => scrollBy(-1)}
-            aria-label="←"
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-border text-foreground hover:border-primary hover:text-primary"
-          >
-            <ChevronLeft className="h-5 w-5" />
-          </button>
-          <button
-            type="button"
-            onClick={() => scrollBy(1)}
-            aria-label="→"
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-border text-foreground hover:border-primary hover:text-primary"
-          >
-            <ChevronRight className="h-5 w-5" />
-          </button>
-        </div>
+                </div>
+                <Reveal
+                  from={cardLeft ? "left" : "right"}
+                  delay={80}
+                  className={cn("lg:row-start-1", cardLeft ? "lg:col-start-1" : "lg:col-start-3")}
+                >
+                  <button
+                    type="button"
+                    onClick={() => onOpen(event.id)}
+                    className="group flex w-full flex-col items-start gap-4 overflow-hidden rounded-xl border border-border bg-card metallic p-5 text-left transition duration-300 hover:-translate-y-1 hover:border-primary/70 hover:shadow-lg hover:shadow-primary/10 sm:flex-row sm:gap-5"
+                  >
+                    {event.image ? (
+                      <Medal image={event.image} className="h-14 w-14 sm:h-16 sm:w-16" />
+                    ) : (
+                      person && <Portrait person={person} size="sm" />
+                    )}
+                    <span className="flex h-52 w-full min-w-0 flex-row gap-4 sm:h-44 sm:gap-5">
+                      <span className="mgl-v shrink-0 text-3xl leading-none text-primary sm:text-4xl">{event.year}</span>
+                      <span className="mgl-v line-clamp-2 shrink-0 text-lg leading-snug text-foreground transition-colors group-hover:text-primary sm:text-xl">
+                        {event.title}
+                      </span>
+                      <span className="mgl-v line-clamp-3 min-w-0 text-sm leading-relaxed text-muted-foreground sm:line-clamp-none lg:line-clamp-4 xl:line-clamp-none">
+                        {event.summary}
+                      </span>
+                      <span className="mgl-v ml-auto inline-flex shrink-0 items-center gap-1 text-sm text-primary">
+                        {labels.more}
+                        <ArrowDown className="h-4 w-4 transition-transform group-hover:translate-y-1" />
+                      </span>
+                    </span>
+                  </button>
+                </Reveal>
+              </li>
+            );
+          })}
+        </ol>
       </div>
     </div>
   );
@@ -150,7 +156,7 @@ export function PeopleMgl({ people, labels, onOpen }: { people: HistoryPerson[];
               id={person.id}
               type="button"
               onClick={() => onOpen(person.id)}
-              className="group flex h-full w-full scroll-mt-28 flex-row items-start gap-5 overflow-hidden rounded-2xl border border-border bg-card metallic p-6 text-left transition duration-300 hover:-translate-y-1 hover:border-primary/70 hover:shadow-lg hover:shadow-primary/10"
+              className="group flex h-full w-full scroll-mt-28 flex-col items-center gap-5 overflow-hidden rounded-2xl border border-border bg-card metallic p-6 text-left transition duration-300 hover:-translate-y-1 hover:border-primary/70 hover:shadow-lg hover:shadow-primary/10 xl:flex-row xl:items-start"
             >
               <Portrait person={person} />
               <span className="flex h-64 min-w-0 flex-row gap-3">
@@ -187,7 +193,7 @@ export function AwardsMgl({ awards, labels, onOpen }: { awards: UnitAward[]; lab
             <button
               type="button"
               onClick={() => onOpen(award.eventId)}
-              className="group flex h-full w-full flex-row items-center gap-5 overflow-hidden rounded-2xl border border-border bg-card metallic p-6 text-left transition duration-300 hover:-translate-y-1 hover:border-primary/70 hover:shadow-lg hover:shadow-primary/10"
+              className="group flex h-full w-full flex-col items-center gap-5 overflow-hidden rounded-2xl border border-border bg-card metallic p-6 text-left transition duration-300 hover:-translate-y-1 hover:border-primary/70 hover:shadow-lg hover:shadow-primary/10 xl:flex-row"
             >
               <Medal image={award.image} className="h-28 w-28 sm:h-36 sm:w-36" />
               <span className="flex h-56 min-w-0 flex-row gap-3">

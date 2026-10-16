@@ -36,7 +36,8 @@ export async function About() {
                   {t("Хошууч генерал Р.Гаваагийн нэрэмжит Цэргийн гавьяаны улаан туг, Алтан гадас одонт Зэвсэгт хүчний 013 дугаар анги")}
                 </p>
               </Reveal>
-              <div className="mgl-scroll flex min-w-0 flex-1 flex-row gap-6 pb-2">
+              {/* Догол мөр бүр босоо багана; багтахгүй бол дараагийн мөрөнд (доошоо) шилжинэ */}
+              <div className="flex min-w-0 flex-1 flex-row flex-wrap gap-x-6 gap-y-10">
                 <Reveal>
                   <p className="mgl-v text-sm text-primary">{t("ТОВЧ НАМТАР")}</p>
                 </Reveal>

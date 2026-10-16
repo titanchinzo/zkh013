@@ -88,9 +88,12 @@ export async function Footer() {
   );
 }
 
-/** Монгол бичгийн горимын footer: бүлэг бүр босоо гарчиг, босоо мөрүүдтэй, зүүнээс баруун тийш эгнэнэ */
+/**
+ * Монгол бичгийн горимын footer: бүлэг бүр босоо гарчиг, босоо мөрүүдтэй, зүүнээс баруун тийш эгнэнэ;
+ * багтахгүй бол дараагийн мөрөнд (доошоо) шилжинэ.
+ */
 function MglFooter({ t }: { t: Translate }) {
-  const group = "flex shrink-0 flex-row gap-3 border-l border-border pl-5 first:border-0 first:pl-0";
+  const group = "flex h-72 shrink-0 flex-row gap-3 border-l border-border pl-5 first:border-0 first:pl-0";
   const heading = "mgl-v text-base text-foreground";
   const item = "mgl-v text-sm text-muted-foreground transition-colors hover:text-primary";
 
@@ -98,7 +101,7 @@ function MglFooter({ t }: { t: Translate }) {
     <footer className="bg-card border-t border-border">
       <div className="container mx-auto px-4 py-12">
         <MglBand className="mb-10" />
-        <div className="mgl-scroll flex h-72 flex-row gap-6 pb-2">
+        <div className="flex flex-row flex-wrap gap-x-6 gap-y-10">
           <div className={group}>
             <Link href="/" aria-label="Нүүр хуудас" className="flex shrink-0 flex-col items-center gap-3">
               <Image src={logo} alt="Зэвсэгт хүчний 013 дугаар ангийн лого" sizes="48px" className="h-14 w-auto" />
