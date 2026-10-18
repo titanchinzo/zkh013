@@ -23,6 +23,9 @@ const NewsSchema = new Schema(
   { timestamps: true }
 );
 
+// Нэвтрээгүй хүнд API-аар харуулахгүй талбарууд (зохиогч, хянагчийн нэр/и-мэйл, Clerk ID)
+export const STAFF_ONLY_FIELDS = "-authorId -authorName -reviewedBy -reviewedAt";
+
 export type News = InferSchemaType<typeof NewsSchema>;
 
 export default models.News || model("News", NewsSchema);

@@ -8,7 +8,8 @@ import { warmMgl } from "@/lib/mgl/convert";
 
 export async function GET() {
   await connectToDatabase();
-  const materials = await TrainingMaterial.find().sort({ createdAt: -1 }).lean();
+  // createdBy (оруулсан ажилтны Clerk ID)-г нийтэд харуулахгүй
+  const materials = await TrainingMaterial.find().sort({ createdAt: -1 }).select("-createdBy").lean();
   return NextResponse.json({ materials });
 }
 

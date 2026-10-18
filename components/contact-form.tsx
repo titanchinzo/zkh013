@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Input, Textarea } from "@/components/ui/input";
+import { CONTACT_LIMITS } from "@/lib/contact";
 import { cn } from "@/lib/utils";
 
 export type ContactLabels = {
@@ -41,23 +42,48 @@ export function ContactForm({ labels, vertical }: { labels: ContactLabels; verti
   }
 
   const fields = [
-    { label: labels.name, control: <Input name="name" placeholder={vertical ? undefined : labels.namePlaceholder} required /> },
-    { label: labels.email, control: <Input type="email" name="email" placeholder="your@email.com" required /> },
+    {
+      label: labels.name,
+      control: (
+        <Input name="name" maxLength={CONTACT_LIMITS.name} placeholder={vertical ? undefined : labels.namePlaceholder} required />
+      ),
+    },
+    {
+      label: labels.email,
+      control: <Input type="email" name="email" maxLength={CONTACT_LIMITS.email} placeholder="your@email.com" required />,
+    },
     {
       label: labels.subject,
-      control: <Input name="subject" placeholder={vertical ? undefined : labels.subjectPlaceholder} required />,
+      control: (
+        <Input
+          name="subject"
+          maxLength={CONTACT_LIMITS.subject}
+          placeholder={vertical ? undefined : labels.subjectPlaceholder}
+          required
+        />
+      ),
     },
     {
       label: labels.message,
-      control: <Textarea name="message" placeholder={vertical ? undefined : labels.messagePlaceholder} required />,
+      control: (
+        <Textarea
+          name="message"
+          maxLength={CONTACT_LIMITS.message}
+          placeholder={vertical ? undefined : labels.messagePlaceholder}
+          required
+        />
+      ),
     },
   ];
+  // Спам бот илрүүлэх нууц талбар — хүнд харагдахгүй, бөглөгдвөл сервер зурвасыг хадгалахгүй
+  const honeypot = <input type="text" name="website" tabIndex={-1} autoComplete="off" aria-hidden className="hidden" />;
   const statusText =
     status === "sent" ? labels.sent : status === "error" ? labels.error : null;
 
   if (vertical) {
     return (
       <form className="flex flex-row gap-4" onSubmit={handleSubmit}>
+        {honeypot}
         <div className="flex min-w-0 flex-1 flex-col gap-4">
           {fields.map((field) => (
             <label key={field.label} className="flex min-h-24 flex-row items-center gap-3">
@@ -84,6 +110,7 @@ export function ContactForm({ labels, vertical }: { labels: ContactLabels; verti
 
   return (
     <form className="space-y-6" onSubmit={handleSubmit}>
+      {honeypot}
       {fields.map((field) => (
         <div key={field.label}>
           <label className="block text-sm font-semibold text-foreground mb-2">{field.label}</label>

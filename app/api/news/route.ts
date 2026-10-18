@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { currentUser } from "@clerk/nextjs/server";
 import { connectToDatabase } from "@/lib/mongodb";
-import News from "@/lib/models/News";
+import News, { STAFF_ONLY_FIELDS } from "@/lib/models/News";
 import { getCurrentRole } from "@/lib/auth-role";
 import { createImagePreparer } from "@/lib/image-import";
 import { MEDIA_URL_ERROR } from "@/lib/media";
@@ -14,7 +14,8 @@ export async function GET(req: NextRequest) {
   const wantsAll = req.nextUrl.searchParams.get("all") === "1";
 
   const filter = wantsAll && role ? {} : { status: "published" };
-  const news = await News.find(filter).sort({ createdAt: -1 }).lean();
+  const query = News.find(filter).sort({ createdAt: -1 });
+  const news = await (role ? query : query.select(STAFF_ONLY_FIELDS)).lean();
   return NextResponse.json({ news });
 }
 

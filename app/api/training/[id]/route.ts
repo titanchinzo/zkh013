@@ -31,7 +31,10 @@ async function findMaterial(id: string) {
 export async function GET(_req: NextRequest, { params }: Params) {
   const material = await findMaterial((await params).id);
   if (!material) return NextResponse.json({ error: "Олдсонгүй" }, { status: 404 });
-  return NextResponse.json({ material });
+  // createdBy (оруулсан ажилтны Clerk ID)-г нийтэд харуулахгүй
+  const data = material.toObject();
+  delete data.createdBy;
+  return NextResponse.json({ material: data });
 }
 
 export async function PUT(req: NextRequest, { params }: Params) {

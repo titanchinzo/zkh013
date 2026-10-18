@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isValidObjectId } from "mongoose";
 import { connectToDatabase } from "@/lib/mongodb";
-import News from "@/lib/models/News";
+import News, { STAFF_ONLY_FIELDS } from "@/lib/models/News";
 import { getCurrentRole } from "@/lib/auth-role";
 import { createImagePreparer } from "@/lib/image-import";
 import { MEDIA_URL_ERROR } from "@/lib/media";
@@ -9,12 +10,12 @@ import { warmMgl } from "@/lib/mgl/convert";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  if (!isValidObjectId(id)) return NextResponse.json({ error: "Олдсонгүй" }, { status: 404 });
   await connectToDatabase();
-  const news = await News.findById(id).lean();
-  if (!news) return NextResponse.json({ error: "Олдсонгүй" }, { status: 404 });
-
   const role = await getCurrentRole();
-  if (news.status !== "published" && !role) {
+  const query = News.findById(id);
+  const news = await (role ? query : query.select(STAFF_ONLY_FIELDS)).lean();
+  if (!news || (news.status !== "published" && !role)) {
     return NextResponse.json({ error: "Олдсонгүй" }, { status: 404 });
   }
 

@@ -1,6 +1,18 @@
 import type { NextConfig } from "next";
 
+// Бүх хуудсанд: өөр сайтын iframe дотор оруулж хууран мэхлэх (clickjacking), файлын төрлийг хөтөч
+// таах, хаягийг гадагш задруулах, камер/микрофон/байршил ашиглахаас сэргийлнэ
+const SECURITY_HEADERS = [
+  { key: "Content-Security-Policy", value: "frame-ancestors 'self'" },
+  { key: "X-Frame-Options", value: "SAMEORIGIN" },
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), browsing-topics=()" },
+];
+
 const nextConfig: NextConfig = {
+  // Ямар технологи ашигласныг (X-Powered-By: Next.js) зарлахгүй
+  poweredByHeader: false,
   images: {
     // Админ хэсгээс upload хийсэн мэдээний зургууд (Vercel Blob) болон YouTube видеоны зураг
     remotePatterns: [
@@ -10,6 +22,7 @@ const nextConfig: NextConfig = {
   },
   async headers() {
     return [
+      { source: "/:path*", headers: SECURITY_HEADERS },
       {
         // Монгол бичгийн фонт: файлын нэрэнд хувилбар нь орсон тул хөтөч удаан хадгална
         source: "/fonts/:path*",

@@ -6,3 +6,6 @@ export const CONTACT = {
   phoneHref: "tel:+97672172146",
   email: "unit013@gmail.com",
 };
+
+// Холбоо барих формын талбар бүрийн дээд урт (формын maxLength, API, өгөгдлийн сан бүгд ашиглана)
+export const CONTACT_LIMITS = { name: 100, email: 200, subject: 200, message: 5000 } as const;
