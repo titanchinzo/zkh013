@@ -1,7 +1,7 @@
-import { upload } from "@vercel/blob/client";
 import { NEWS_IMAGE_MAX_MB, NEWS_IMAGE_TYPES } from "@/lib/images";
+import { uploadFile } from "@/lib/upload-client";
 
-// Мэдээний зургийг browser-оос Vercel Blob руу шууд оруулах (нүүр зураг болон цомогт хоёуланд)
+// Мэдээний зургийг browser-оос оруулах (нүүр зураг болон цомогт хоёуланд)
 
 /** Файл тохирохгүй бол алдааны мессеж, тохирвол null */
 export function newsImageError(file: File) {
@@ -14,13 +14,7 @@ export function newsImageError(file: File) {
 
 /** Зургийг оруулж нийтийн хаягийг буцаана */
 export async function uploadNewsImage(file: File, onProgress?: (percent: number) => void) {
-  const blob = await upload(`news/${Date.now()}.${NEWS_IMAGE_TYPES[file.type]}`, file, {
-    access: "public",
-    handleUploadUrl: "/api/upload",
-    contentType: file.type,
-    onUploadProgress: ({ percentage }) => onProgress?.(Math.round(percentage)),
-  });
-  return blob.url;
+  return uploadFile("news-image", file, file.type, onProgress);
 }
 
 export const NEWS_IMAGE_ACCEPT = Object.keys(NEWS_IMAGE_TYPES).join(",");

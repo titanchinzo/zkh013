@@ -8,6 +8,8 @@ const NewsSchema = new Schema(
     imageUrl: { type: String, default: "" },
     // Мэдээний зургийн цомог (нүүр зургаас гадна)
     images: { type: [String], default: [] },
+    // Сайт руу оруулсан бичлэг (видео файл) — мэдээн дотор сайт өөрөө тоглуулна
+    videos: { type: [String], default: [] },
     // YouTube эсвэл Facebook-ийн видео/постын холбоос (мэдээн дотор embed хийж харуулна)
     mediaUrl: { type: String, default: "" },
     status: {

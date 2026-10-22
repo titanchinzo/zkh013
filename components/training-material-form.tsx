@@ -2,8 +2,8 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { upload } from "@vercel/blob/client";
 import { Input, Textarea } from "@/components/ui/input";
+import { uploadFile } from "@/lib/upload-client";
 import {
   TRAINING_FILE_TYPES,
   TRAINING_MAX_MB,
@@ -67,13 +67,8 @@ export function TrainingMaterialForm({ initial }: { initial?: TrainingMaterialVa
 
     setProgress(0);
     try {
-      const blob = await upload(`training/${Date.now()}.${ext}`, picked, {
-        access: "public",
-        handleUploadUrl: "/api/upload",
-        contentType: TRAINING_FILE_TYPES[ext].mime,
-        onUploadProgress: ({ percentage }) => setProgress(Math.round(percentage)),
-      });
-      setFile({ url: blob.url, fileName: picked.name, fileExt: ext, fileSize: picked.size });
+      const url = await uploadFile("training", picked, TRAINING_FILE_TYPES[ext].mime, setProgress);
+      setFile({ url, fileName: picked.name, fileExt: ext, fileSize: picked.size });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Файл оруулахад алдаа гарлаа");
     } finally {

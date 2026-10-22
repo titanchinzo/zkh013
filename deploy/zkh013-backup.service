@@ -1,0 +1,9 @@
+# /etc/systemd/system/zkh013-backup.service — MongoDB-ийн хуулбар авна (zkh013-backup.timer дуудна)
+[Unit]
+Description=zkh013 database backup
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh /home/chinzu1k/zkh013/deploy/backup.sh

@@ -6,6 +6,7 @@ import { getCurrentRole } from "@/lib/auth-role";
 import { createImagePreparer } from "@/lib/image-import";
 import { MEDIA_URL_ERROR } from "@/lib/media";
 import { prepareMediaUrl } from "@/lib/media-server";
+import { parseNewsVideos } from "@/lib/news-files";
 import { warmMgl } from "@/lib/mgl/convert";
 
 export async function GET(req: NextRequest) {
@@ -33,12 +34,14 @@ export async function POST(req: NextRequest) {
   if (!title || !excerpt || !content) {
     return NextResponse.json({ error: "Гарчиг, товч тайлбар, агуулгыг бөглөнө үү" }, { status: 400 });
   }
-  // Facebook-ийн зургийг манай Blob руу хуулж хадгална
+  // Facebook-ийн зургийг манайд (сервер эсвэл Vercel Blob) хуулж хадгална
   const prepare = createImagePreparer();
   const imageUrl = await prepare.image(body?.imageUrl);
   if (!imageUrl.ok) return NextResponse.json({ error: imageUrl.error }, { status: 400 });
   const images = await prepare.list(body?.images);
   if (!images.ok) return NextResponse.json({ error: images.error }, { status: 400 });
+  const videos = parseNewsVideos(body?.videos);
+  if (!videos.ok) return NextResponse.json({ error: videos.error }, { status: 400 });
   const mediaUrl = await prepareMediaUrl(body?.mediaUrl);
   if (mediaUrl === null) {
     return NextResponse.json({ error: MEDIA_URL_ERROR }, { status: 400 });
@@ -54,6 +57,7 @@ export async function POST(req: NextRequest) {
     content,
     imageUrl: imageUrl.value,
     images: images.value,
+    videos: videos.value,
     mediaUrl,
     status: "pending",
     authorId: user.id,

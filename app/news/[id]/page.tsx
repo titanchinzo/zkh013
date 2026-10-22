@@ -6,6 +6,7 @@ import { ArrowLeft, ArrowRight, CalendarDays, ChevronRight, Clock, Images } from
 import { Nav } from "@/components/nav";
 import { Footer } from "@/components/footer";
 import { NewsMediaEmbed } from "@/components/news-media";
+import { NewsVideo } from "@/components/news-video";
 import { NewsGallery } from "@/components/news-gallery";
 import { NewsCompactCard, NewsCompactCardMgl } from "@/components/news-card";
 import { ShareButtons } from "@/components/share-buttons";
@@ -82,8 +83,9 @@ export default async function NewsDetailPage({ params }: PageProps<"/news/[id]">
     getTranslator(),
   ]);
 
-  // Видео/пост хавсаргасан бол нүүр зургийн оронд түүнийг харуулна (зураг нь жагсаалт, нүүр хуудсанд гарна)
-  const showCover = !news.media && Boolean(news.imageUrl);
+  // Видео/пост хавсаргасан бол нүүр зургийн оронд түүнийг харуулна (зураг нь жагсаалт, нүүр хуудсанд гарна).
+  // Сайт руу оруулсан бичлэгтэй бол нүүр зураг нь эхний бичлэгийн зураг (poster) болно.
+  const showCover = !news.media && news.videos.length === 0 && Boolean(news.imageUrl);
   const gallery = showCover ? news.images.filter((url) => url !== news.imageUrl) : news.images;
 
   if (script === "mgl") {
@@ -154,6 +156,12 @@ export default async function NewsDetailPage({ params }: PageProps<"/news/[id]">
                 )
               )}
 
+              {news.videos.length > 0 && (
+                <div className="mt-8 space-y-6">
+                  <NewsVideos news={news} />
+                </div>
+              )}
+
               <div className="mt-8 whitespace-pre-wrap text-base md:text-lg leading-relaxed text-foreground/85">
                 <Linkified text={news.content} />
               </div>
@@ -205,6 +213,19 @@ export default async function NewsDetailPage({ params }: PageProps<"/news/[id]">
       <Footer />
     </div>
   );
+}
+
+/** Сайт руу оруулсан бичлэгүүд; пост/видео холбоосгүй бол эхнийх нь мэдээний нүүр зургийг poster болгоно */
+function NewsVideos({ news, className }: { news: NewsArticle; className?: string }) {
+  return news.videos.map((url, i) => (
+    <div key={url} className={className}>
+      <NewsVideo
+        src={url}
+        title={news.title}
+        poster={i === 0 && !news.media && news.imageUrl ? news.imageUrl : undefined}
+      />
+    </div>
+  ));
 }
 
 function AdjacentLink({ item, direction }: { item: NewsSummary; direction: "older" | "newer" }) {
@@ -315,6 +336,7 @@ async function MglArticle({
                     </div>
                   )
                 )}
+                <NewsVideos news={news} className="w-[min(40rem,78vw)] shrink-0 self-center" />
                 {paragraphs.map((paragraph, i) => (
                   <p key={i} className="mgl-v shrink-0 text-lg leading-loose text-foreground/85">
                     <Linkified text={paragraph} />

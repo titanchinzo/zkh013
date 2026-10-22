@@ -1,5 +1,4 @@
 import "server-only";
-import { put } from "@vercel/blob";
 import {
   isFacebookCdnUrl,
   isUsableImageUrl,
@@ -9,8 +8,9 @@ import {
 } from "@/lib/images";
 import { isFacebookUrl, parseMediaUrl } from "@/lib/media";
 import { facebookPreviewImage, resolveMedia } from "@/lib/media-server";
+import { saveFile } from "@/lib/storage";
 
-// Мэдээ хадгалахад зургийн хаягуудыг шалгаж, Facebook-ийн зургийг манай Vercel Blob руу хуулна
+// Мэдээ хадгалахад зургийн хаягуудыг шалгаж, Facebook-ийн зургийг манайд (сервер эсвэл Vercel Blob) хуулна
 // (Facebook CDN-ий хаяг хэд хоногийн дараа хүчингүй болж зураг эвдэрдэг)
 
 type Result<T> = { ok: true; value: T } | { ok: false; error: string };
@@ -53,7 +53,7 @@ export function createImagePreparer() {
   return { image, list };
 }
 
-/** Facebook-ийн зураг (CDN хаяг эсвэл зураг/видео/постын холбоос)-ийг Blob руу хуулж байнгын хаяг буцаана */
+/** Facebook-ийн зураг (CDN хаяг эсвэл зураг/видео/постын холбоос)-ийг манайд хуулж байнгын хаяг буцаана */
 async function importFacebookImage(url: string): Promise<string | null> {
   try {
     let source: string | null = url;
@@ -71,12 +71,7 @@ async function importFacebookImage(url: string): Promise<string | null> {
     const data = await res.arrayBuffer();
     if (data.byteLength > NEWS_IMAGE_MAX_MB * 1024 * 1024) return null;
 
-    const blob = await put(`news/facebook-${Date.now()}.${ext}`, data, {
-      access: "public",
-      addRandomSuffix: true,
-      contentType,
-    });
-    return blob.url;
+    return await saveFile("news", ext, data, contentType);
   } catch (err) {
     console.warn("[image-import] Facebook-ийн зургийг хуулж чадсангүй:", err);
     return null;

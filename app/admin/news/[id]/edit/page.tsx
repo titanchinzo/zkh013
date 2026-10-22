@@ -6,6 +6,7 @@ import { Input, Textarea } from "@/components/ui/input";
 import { ImageUploadField } from "@/components/image-upload-field";
 import { GalleryUploadField } from "@/components/gallery-upload-field";
 import { MediaLinkField } from "@/components/media-link-field";
+import { VideoUploadField } from "@/components/video-upload-field";
 import { autoFillImage } from "@/lib/media";
 
 type NewsItem = {
@@ -14,6 +15,7 @@ type NewsItem = {
   content: string;
   imageUrl?: string;
   images?: string[];
+  videos?: string[];
   mediaUrl?: string;
   status: string;
 };
@@ -26,8 +28,10 @@ export default function EditNewsPage({ params }: { params: Promise<{ id: string 
   const [submitting, setSubmitting] = useState(false);
   const [coverUploading, setCoverUploading] = useState(false);
   const [galleryUploading, setGalleryUploading] = useState(false);
+  const [videoUploading, setVideoUploading] = useState(false);
   const [imageUrl, setImageUrl] = useState("");
   const [images, setImages] = useState<string[]>([]);
+  const [videos, setVideos] = useState<string[]>([]);
 
   useEffect(() => {
     fetch(`/api/news/${id}`)
@@ -36,6 +40,7 @@ export default function EditNewsPage({ params }: { params: Promise<{ id: string 
         setItem(data.news);
         setImageUrl(data.news?.imageUrl ?? "");
         setImages(data.news?.images ?? []);
+        setVideos(data.news?.videos ?? []);
       });
   }, [id]);
 
@@ -47,7 +52,7 @@ export default function EditNewsPage({ params }: { params: Promise<{ id: string 
     const res = await fetch(`/api/news/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...Object.fromEntries(form), images }),
+      body: JSON.stringify({ ...Object.fromEntries(form), images, videos }),
     });
     setSubmitting(false);
     if (!res.ok) {
@@ -102,6 +107,16 @@ export default function EditNewsPage({ params }: { params: Promise<{ id: string 
           />
         </div>
         <div>
+          <label className="block text-sm font-semibold text-foreground mb-2">Бичлэг (заавал биш)</label>
+          <VideoUploadField
+            value={videos}
+            onChange={setVideos}
+            onUploadingChange={setVideoUploading}
+            wantsPoster={!imageUrl}
+            onPosterUploaded={(url) => setImageUrl((current) => current || url)}
+          />
+        </div>
+        <div>
           <label className="block text-sm font-semibold text-foreground mb-2">Агуулга</label>
           <Textarea name="content" defaultValue={item.content} required className="min-h-64" />
         </div>
@@ -120,7 +135,7 @@ export default function EditNewsPage({ params }: { params: Promise<{ id: string 
         {error && <p className="text-sm text-red-400">{error}</p>}
         <button
           type="submit"
-          disabled={submitting || coverUploading || galleryUploading}
+          disabled={submitting || coverUploading || galleryUploading || videoUploading}
           className="px-6 h-10 rounded-md bg-primary text-primary-foreground font-semibold disabled:opacity-50"
         >
           {submitting ? "Хадгалж байна..." : "Хадгалах"}

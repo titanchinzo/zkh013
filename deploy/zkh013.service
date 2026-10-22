@@ -1,0 +1,16 @@
+# /etc/systemd/system/zkh013.service — сайтыг асааж, унавал дахин асаана
+[Unit]
+Description=zkh013 Next.js site
+After=network.target docker.service
+
+[Service]
+User=chinzu1k
+WorkingDirectory=/home/chinzu1k/zkh013
+Environment=NODE_ENV=production
+# "-H localhost" заавал: Clerk-ийн middleware хүсэлтийг http://localhost:3000 руу rewrite хийдэг тул
+# "-H 127.0.0.1" бол Next.js үүнийг гадны хаяг гэж үзээд бүх хуудас 500 болно
+ExecStart=/usr/bin/npm start -- -H localhost -p 3000
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

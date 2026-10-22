@@ -57,6 +57,19 @@ export function isVercelBlobUrl(url: string) {
   }
 }
 
+// Серверийн дискэнд (UPLOAD_DIR) хадгалсан файлууд энэ замаар нээгдэнэ
+export const LOCAL_UPLOAD_PREFIX = "/uploads/";
+
+/** Манай серверийн дискэнд хадгалсан файл эсэх (/uploads/news/...) */
+export function isLocalUploadUrl(url: string) {
+  return url.startsWith(LOCAL_UPLOAD_PREFIX) && !url.includes("..") && !url.includes("\\");
+}
+
+/** Сайтын өөрөө хадгалсан файл эсэх — серверийн дискэнд эсвэл Vercel Blob-д */
+export function isStoredFileUrl(url: string) {
+  return isLocalUploadUrl(url) || isVercelBlobUrl(url);
+}
+
 /** Next.js-ээр optimize хийж болох эсэх: өөрийн /public зураг, Vercel Blob эсвэл YouTube-ийн зураг */
 export function canOptimizeImage(url: string) {
   if (url.startsWith("/") && !url.startsWith("//")) return true;

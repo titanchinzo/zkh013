@@ -36,7 +36,7 @@ function NewsThumb({ item, sizes, className, preload, badges = true, mgl }: Thum
           <Image src={logo} alt="" sizes="120px" className="h-1/2 w-auto opacity-25" />
         </div>
       )}
-      {badges && item.media?.kind === "video" && (
+      {badges && (item.media?.kind === "video" || item.videoCount > 0) && (
         <span className="absolute inset-0 flex items-center justify-center">
           <span className="flex h-12 w-12 items-center justify-center rounded-full bg-black/60 text-white ring-2 ring-white/70 transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
             <Play className="h-5 w-5 translate-x-0.5" fill="currentColor" />

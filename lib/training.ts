@@ -1,6 +1,6 @@
 // Сургалтын материалын файлын төрлүүд (server болон client аль алинд ашиглана)
 
-import { isHttpUrl, isVercelBlobUrl } from "@/lib/images";
+import { isHttpUrl, isStoredFileUrl } from "@/lib/images";
 
 export const TRAINING_FILE_TYPES = {
   pdf: { mime: "application/pdf", label: "PDF" },
@@ -66,7 +66,7 @@ export function parseTrainingInput(body: unknown): { data: TrainingInput } | { e
   }
 
   const fileExt = typeof b.fileExt === "string" ? b.fileExt.toLowerCase() : "";
-  if (!isVercelBlobUrl(url)) return { error: "Файлаа дахин оруулна уу" };
+  if (!isStoredFileUrl(url)) return { error: "Файлаа дахин оруулна уу" };
   if (!(fileExt in TRAINING_FILE_TYPES)) return { error: "Энэ төрлийн файл зөвшөөрөгдөхгүй" };
   const fileName = typeof b.fileName === "string" ? b.fileName.trim() : "";
   const fileSize = typeof b.fileSize === "number" && b.fileSize > 0 ? b.fileSize : 0;

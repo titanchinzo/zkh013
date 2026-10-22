@@ -3,7 +3,7 @@ import { cache } from "react";
 import { isValidObjectId } from "mongoose";
 import { connectToDatabase } from "@/lib/mongodb";
 import News from "@/lib/models/News";
-import { isUsableImageUrl } from "@/lib/images";
+import { isStoredFileUrl, isUsableImageUrl } from "@/lib/images";
 import { parseMediaUrl, youTubeThumbnail, type NewsMedia } from "@/lib/media";
 
 // Нийтийн мэдээний хуудсуудад ашиглах өгөгдөл татах туслах функцууд
@@ -16,6 +16,7 @@ type NewsDoc = {
   imageUrl?: string;
   mediaUrl?: string;
   images?: string[];
+  videos?: string[];
   status: string;
   createdAt: Date;
 };
@@ -27,6 +28,7 @@ export type NewsSummary = {
   cover: string | null; // жагсаалтад харагдах зураг
   media: NewsMedia | null;
   photoCount: number; // зургийн цомгийн тоо
+  videoCount: number; // сайт руу оруулсан бичлэгийн тоо
   createdAt: Date;
 };
 
@@ -34,9 +36,10 @@ export type NewsArticle = NewsSummary & {
   content: string;
   imageUrl: string;
   images: string[];
+  videos: string[];
 };
 
-const SUMMARY_FIELDS = "title excerpt imageUrl mediaUrl images createdAt";
+const SUMMARY_FIELDS = "title excerpt imageUrl mediaUrl images videos createdAt";
 const PUBLISHED = { status: "published" };
 
 /** Оруулсан нүүр зураг, эсвэл YouTube видеоны зураг */
@@ -54,6 +57,7 @@ function toSummary(doc: NewsDoc): NewsSummary {
     cover: coverOf(doc, media),
     media,
     photoCount: doc.images?.length ?? 0,
+    videoCount: doc.videos?.length ?? 0,
     createdAt: new Date(doc.createdAt),
   };
 }
@@ -106,6 +110,7 @@ export const getPublishedArticle = cache(async (id: string): Promise<NewsArticle
     content: doc.content,
     imageUrl: isUsableImageUrl(doc.imageUrl) ? doc.imageUrl : "",
     images: (doc.images ?? []).filter((url) => isUsableImageUrl(url)),
+    videos: (doc.videos ?? []).filter((url) => isStoredFileUrl(url)),
   };
 });
 
