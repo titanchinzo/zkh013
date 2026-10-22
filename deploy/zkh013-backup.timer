@@ -1,9 +1,9 @@
-# /etc/systemd/system/zkh013-backup.timer — өдөр бүр шөнийн 03:00-д (унтарсан байсан бол асахдаа)
+# /etc/systemd/system/zkh013-backup.timer — өдөр бүр Улаанбаатарын цагаар шөнийн 03:00-д (унтарсан байсан бол асахдаа)
 [Unit]
 Description=Daily zkh013 database backup
 
 [Timer]
-OnCalendar=*-*-* 03:00:00
+OnCalendar=*-*-* 03:00:00 Asia/Ulaanbaatar
 Persistent=true
 
 [Install]
