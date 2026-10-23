@@ -114,8 +114,11 @@ npm run dev
   `/sitemap.xml` (нүүр, мэдээ — шинээр нийтлэгдсэн мэдээ шууд орно).
 - Нүүр хуудсанд JSON-LD (`WebSite`, `GovernmentOrganization`) — Google-д сайтын нэр, байгууллага, лого.
 - Google Search Console-д `unit013.mn`-ийг бүртгэж, `https://unit013.mn/sitemap.xml`-ийг илгээнэ.
-- Clerk-ийн dev түлхүүртэй үед cookie-гүй хүсэлт бүр (Google-ийн робот ч) `clerk.accounts.dev` руу
-  шилждэг тул production түлхүүр заавал хэрэгтэй.
+- Сервер Clerk-ийн **production** түлхүүр ашиглана. Dev түлхүүртэй үед cookie-гүй хүсэлт бүр (Google-ийн
+  робот ч) `clerk.accounts.dev` руу шилждэг тул сайт хайлтад орж чаддаггүй.
+- Clerk production-ийн DNS бичлэгүүд (`clerk`, `accounts`, `clkmail`, `clk._domainkey`, `clk2._domainkey`)
+  Cloudflare-д **DNS only** (саарал үүл) байх ёстой. Google-ээр нэвтрэхэд OAuth тохиргоо хийгээгүй тул
+  нэвтрэх/бүртгүүлэх цонхноос Google товчийг нуусан (`app/sign-in`, `app/sign-up`).
 
 ## Өөрийн сервер дээр ажиллуулах
 
