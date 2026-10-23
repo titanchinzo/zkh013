@@ -119,6 +119,12 @@ npm run dev
 - `nginx-zkh013.conf` — 80 портоос сайт руу дамжуулж, `/uploads/` доторх файлыг дискнээс шууд өгнө.
 - `backup.sh`, `zkh013-backup.service`, `zkh013-backup.timer` — өдөр бүр MongoDB-ийн хуулбар
   (`/srv/zkh013/backups`, 14 хоног).
+- `cloudflared-config.yml` — интернэтээс `unit013.mn`-ээр хандах Cloudflare Tunnel-ийн тохиргоо.
+
+**Интернэт:** `unit013.mn` (Datacom-д бүртгэлтэй) Cloudflare-ын нэрийн серверүүдийг ашиглана. Сервер
+Cloudflare руу өөрөө гадагш холбогддог (`cloudflared` үйлчилгээ, tunnel `zkh013`) тул роутерт порт нээх
+шаардлагагүй, HTTPS-ийг Cloudflare өгнө. Firewall (`ufw`) SSH болон 80 портыг зөвхөн дотоод сүлжээнд нээсэн.
+`.env.local`-д `NEXT_PUBLIC_SITE_URL=https://unit013.mn`.
 
 **Файл хадгалах:** `.env.local`-д `UPLOAD_DIR=/srv/zkh013/uploads` тохируулсан бол зураг, бичлэг, сургалтын
 файл серверийн дискэнд хадгалагдаж `/uploads/...` хаягаар нээгдэнэ. Тохируулаагүй бол (Vercel) Vercel Blob-д

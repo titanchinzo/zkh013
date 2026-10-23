@@ -1,0 +1,12 @@
+# /etc/cloudflared/config.yml — Cloudflare Tunnel: unit013.mn → nginx (127.0.0.1:80)
+# Tunnel-ийг `cloudflared tunnel create zkh013`-ээр үүсгэнэ; TUNNEL-ID болон түүний credentials файлыг
+# (~/.cloudflared/TUNNEL-ID.json → /etc/cloudflared/, root 600) энд бичнэ. Credentials файлыг git-д бүү хийгээрэй.
+tunnel: TUNNEL-ID
+credentials-file: /etc/cloudflared/TUNNEL-ID.json
+
+ingress:
+  - hostname: unit013.mn
+    service: http://127.0.0.1:80
+  - hostname: www.unit013.mn
+    service: http://127.0.0.1:80
+  - service: http_status:404
