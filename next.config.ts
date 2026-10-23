@@ -20,6 +20,13 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "i.ytimg.com", pathname: "/vi/**", port: "", search: "" },
     ],
   },
+  // Сайт ангийн сервер дээр unit013.mn-ээр ажилладаг. Хуучин Vercel хуулбар (өөр өгөгдлийн сантай) Google-д
+  // давхардал үүсгэхгүйн тулд бүх хүсэлтийг албан ёсны домэйн руу байнга шилжүүлнэ
+  async redirects() {
+    return process.env.VERCEL
+      ? [{ source: "/:path*", destination: "https://unit013.mn/:path*", permanent: true }]
+      : [];
+  },
   async headers() {
     return [
       { source: "/:path*", headers: SECURITY_HEADERS },

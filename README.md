@@ -102,13 +102,20 @@ npm run dev
   бүртгэсэн и-мэйлээр анх удаа нэвтэрсэн хэрэглэгч автоматаар **admin** эрхтэй болно.
   Дараа нь бусад хэрэглэгчдэд `/admin/users` хуудаснаас эрх өгч болно.
 
-## Vercel дээр deploy хийх
+## Vercel
 
-1. Vercel project-ийн Environment Variables-д дээрх хувьсагчдыг (бодит утгуудаар нь)
-   нэмнэ — `MONGODB_URI` нь заавал бодит Atlas URI байх ёстой.
-2. Clerk dashboard-д production instance үүсгэж (эсвэл одоогийн dev instance-аа
-   ашиглаж), `pk_live_...` / `sk_live_...` key-үүдийг тохируулна.
-3. `git push` хийсний дараа Vercel автоматаар deploy хийнэ.
+Сайт одоо ангийн сервер дээр (`unit013.mn`) ажилладаг. Vercel дээрх хуучин хуулбар `git push` бүрд deploy
+хийгдсэн хэвээр ч бүх хүсэлтийг `https://unit013.mn` руу байнга шилжүүлнэ (`next.config.ts`) — өөр өгөгдлийн
+сантай хуулбар Google-д давхардал үүсгэхгүйн тулд.
+
+## Хайлтын систем (Google)
+
+- `app/robots.ts` → `/robots.txt` (админ, нэвтрэх хуудас, API-г хайлтаас хасна); `app/sitemap.ts` →
+  `/sitemap.xml` (нүүр, мэдээ — шинээр нийтлэгдсэн мэдээ шууд орно).
+- Нүүр хуудсанд JSON-LD (`WebSite`, `GovernmentOrganization`) — Google-д сайтын нэр, байгууллага, лого.
+- Google Search Console-д `unit013.mn`-ийг бүртгэж, `https://unit013.mn/sitemap.xml`-ийг илгээнэ.
+- Clerk-ийн dev түлхүүртэй үед cookie-гүй хүсэлт бүр (Google-ийн робот ч) `clerk.accounts.dev` руу
+  шилждэг тул production түлхүүр заавал хэрэгтэй.
 
 ## Өөрийн сервер дээр ажиллуулах
 

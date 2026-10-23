@@ -99,6 +99,16 @@ export async function getLatestNews(limit: number, excludeId?: string) {
   return (docs as unknown as NewsDoc[]).map(toSummary);
 }
 
+/** Sitemap-д: нийтлэгдсэн бүх мэдээний id болон сүүлд засагдсан огноо */
+export async function getPublishedNewsDates() {
+  await connectToDatabase();
+  const docs = await News.find(PUBLISHED).sort({ createdAt: -1 }).select("createdAt updatedAt").lean();
+  return (docs as unknown as { _id: unknown; createdAt: Date; updatedAt?: Date }[]).map((doc) => ({
+    id: String(doc._id),
+    lastModified: new Date(doc.updatedAt ?? doc.createdAt),
+  }));
+}
+
 /** Нэг нийтлэгдсэн мэдээ (generateMetadata болон хуудас хоёулаа нэг хүсэлтээр ашиглана) */
 export const getPublishedArticle = cache(async (id: string): Promise<NewsArticle | null> => {
   if (!isValidObjectId(id)) return null;
