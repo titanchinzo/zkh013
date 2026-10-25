@@ -81,7 +81,7 @@ export async function Hero() {
             ХОШУУЧ ГЕНЕРАЛ Р.ГАВААГИЙН НЭРЭМЖИТ
           </a>
           <h1 className="text-3xl md:text-5xl font-bold tracking-tight text-white text-balance drop-shadow-[0_4px_12px_rgba(0,0,0,1)]">
-            ЦЭРГИЙН ГАВЬЯАНЫ УЛААН ТУГ, АЛТАН ГАДАС ОДОНТ
+            ЦЭРГИЙН ГАВЬЯАНЫ УЛААН ТУГИЙН БОЛОН АЛТАН ГАДАС ОДОНТ
             <span className="block text-primary mt-2 drop-shadow-[0_4px_12px_rgba(0,0,0,1)]">
               ЗЭВСЭГТ ХҮЧНИЙ 013 ДУГААР АНГИ
             </span>
@@ -128,7 +128,7 @@ function MglHeroContent({ t }: { t: Translate }) {
               {t("ХОШУУЧ ГЕНЕРАЛ Р.ГАВААГИЙН НЭРЭМЖИТ")}
             </a>
             <h1 className="mgl-v text-2xl leading-[1.45] text-white drop-shadow-[0_4px_12px_rgba(0,0,0,1)] sm:text-3xl lg:text-4xl xl:text-5xl">
-              {t("ЦЭРГИЙН ГАВЬЯАНЫ УЛААН ТУГ, АЛТАН ГАДАС ОДОНТ")}
+              {t("ЦЭРГИЙН ГАВЬЯАНЫ УЛААН ТУГИЙН БОЛОН АЛТАН ГАДАС ОДОНТ")}
               <span className="block text-gold">{t("ЗЭВСЭГТ ХҮЧНИЙ 013 ДУГААР АНГИ")}</span>
             </h1>
             <p className="mgl-v text-base leading-relaxed text-gray-200 drop-shadow-[0_4px_8px_rgba(0,0,0,1)] sm:text-lg xl:text-xl">

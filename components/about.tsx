@@ -11,7 +11,7 @@ import { translateHistory } from "@/lib/mgl/history";
 import { getTranslator } from "@/lib/mgl/server";
 import { UNIT_STATS, UNIT_SUMMARY } from "@/lib/unit-history";
 
-const SUBTITLE = "Хошууч генерал Р.Гаваагийн нэрэмжит Цэргийн гавьяаны улаан туг, Алтан гадас одонт Зэвсэгт хүчний 013 дугаар анги";
+const SUBTITLE = "Хошууч генерал Р.Гаваагийн нэрэмжит Цэргийн гавьяаны улаан тугийн болон Алтан гадас одонт Зэвсэгт хүчний 013 дугаар анги";
 
 export async function About() {
   const { script, t } = await getTranslator();
@@ -33,7 +33,7 @@ export async function About() {
               <Reveal className="flex shrink-0 flex-row gap-4">
                 <MglHeading title={t("АНГИЙН ТУХАЙ")} />
                 <p className="mgl-v h-80 text-base leading-relaxed text-muted-foreground">
-                  {t("Хошууч генерал Р.Гаваагийн нэрэмжит Цэргийн гавьяаны улаан туг, Алтан гадас одонт Зэвсэгт хүчний 013 дугаар анги")}
+                  {t("Хошууч генерал Р.Гаваагийн нэрэмжит Цэргийн гавьяаны улаан тугийн болон Алтан гадас одонт Зэвсэгт хүчний 013 дугаар анги")}
                 </p>
               </Reveal>
               {/* Догол мөр бүр босоо багана; багтахгүй бол дараагийн мөрөнд (доошоо) шилжинэ */}
