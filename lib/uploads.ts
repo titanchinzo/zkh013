@@ -24,9 +24,12 @@ type UploadRule = {
   roles: NonNullable<Role>[];
 };
 
+// Мэдээ оруулдаг бүх эрх (нийтлэгч ч мэдээндээ зураг, бичлэг оруулна)
+const NEWS_ROLES: UploadRule["roles"] = ["admin", "moderator", "publisher"];
+
 export const UPLOAD_KINDS: Record<UploadKind, UploadRule> = {
-  "news-image": { folder: "news", types: NEWS_IMAGE_TYPES, maxMb: NEWS_IMAGE_MAX_MB, roles: ["admin", "moderator"] },
-  "news-video": { folder: "videos", types: NEWS_VIDEO_TYPES, maxMb: NEWS_VIDEO_MAX_MB, roles: ["admin", "moderator"] },
+  "news-image": { folder: "news", types: NEWS_IMAGE_TYPES, maxMb: NEWS_IMAGE_MAX_MB, roles: NEWS_ROLES },
+  "news-video": { folder: "videos", types: NEWS_VIDEO_TYPES, maxMb: NEWS_VIDEO_MAX_MB, roles: NEWS_ROLES },
   training: {
     folder: "training",
     types: Object.fromEntries(Object.entries(TRAINING_FILE_TYPES).map(([ext, { mime }]) => [mime, ext])),

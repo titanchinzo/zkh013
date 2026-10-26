@@ -1,4 +1,21 @@
-export type Role = "admin" | "moderator" | null;
+export type Role = "admin" | "moderator" | "publisher" | null;
+
+export const ROLES = ["admin", "moderator", "publisher"] as const;
+
+export const ROLE_LABELS: Record<NonNullable<Role>, string> = {
+  admin: "Админ",
+  moderator: "Хянагч",
+  publisher: "Нийтлэгч",
+};
+
+export function isRole(value: unknown): value is NonNullable<Role> {
+  return ROLES.includes(value as NonNullable<Role>);
+}
+
+/** Мэдээг хянаж зөвшөөрөх, татгалзах эрхтэй эсэх (нийтлэгч зөвхөн мэдээ оруулна) */
+export function canReview(role: Role) {
+  return role === "admin" || role === "moderator";
+}
 
 type ClerkPublicMetadata = { role?: string };
 
@@ -12,7 +29,7 @@ export function resolveRole(
   email: string | undefined | null
 ): Role {
   const role = publicMetadata?.role;
-  if (role === "admin" || role === "moderator") return role;
+  if (isRole(role)) return role;
 
   const initialAdmins = (process.env.INITIAL_ADMIN_EMAILS ?? "")
     .split(",")

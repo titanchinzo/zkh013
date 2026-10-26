@@ -8,7 +8,7 @@ import { MglNav } from "@/components/mgl/mgl-nav";
 
 export async function Nav() {
   // Уншигчид нэвтрэх шаардлагагүй тул Админ товч нийтэд харагдахгүй.
-  // Ажилтнууд /admin хаягаар шууд орж нэвтэрнэ; нэвтэрсэн админ/хянагчид л товч харагдана.
+  // Ажилтнууд /admin хаягаар шууд орж нэвтэрнэ; нэвтэрсэн админ/хянагч/нийтлэгчид л товч харагдана.
   const [role, { script, t }] = await Promise.all([getCurrentRole(), getTranslator()]);
 
   if (script === "mgl") {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { currentUser } from "@clerk/nextjs/server";
+import { auth, currentUser } from "@clerk/nextjs/server";
 import { connectToDatabase } from "@/lib/mongodb";
 import News, { STAFF_ONLY_FIELDS } from "@/lib/models/News";
 import { getCurrentRole } from "@/lib/auth-role";
@@ -14,7 +14,9 @@ export async function GET(req: NextRequest) {
   const role = await getCurrentRole();
   const wantsAll = req.nextUrl.searchParams.get("all") === "1";
 
-  const filter = wantsAll && role ? {} : { status: "published" };
+  // Нийтлэгч ажлын жагсаалтад зөвхөн өөрийн оруулсан мэдээг харна
+  const own = role === "publisher" ? { authorId: (await auth()).userId } : {};
+  const filter = wantsAll && role ? own : { status: "published" };
   const query = News.find(filter).sort({ createdAt: -1 });
   const news = await (role ? query : query.select(STAFF_ONLY_FIELDS)).lean();
   return NextResponse.json({ news });

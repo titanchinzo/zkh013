@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import { canReview, type Role } from "@/lib/roles";
 
 type NewsItem = {
   _id: string;
@@ -27,7 +28,8 @@ const statusColor: Record<NewsItem["status"], string> = {
 export default function AdminNewsPage() {
   const [items, setItems] = useState<NewsItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [role, setRole] = useState<Role>(null);
+  const isAdmin = role === "admin";
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -35,7 +37,7 @@ export default function AdminNewsPage() {
     const data = await newsRes.json();
     const me = await meRes.json();
     setItems(data.news ?? []);
-    setIsAdmin(me.role === "admin");
+    setRole(me.role ?? null);
     setLoading(false);
   }, []);
 
@@ -62,7 +64,7 @@ export default function AdminNewsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-foreground">Мэдээ</h1>
+        <h1 className="text-2xl font-bold text-foreground">{role === "publisher" ? "Миний мэдээ" : "Мэдээ"}</h1>
         <Link
           href="/admin/news/new"
           className="px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-semibold"
@@ -88,9 +90,12 @@ export default function AdminNewsPage() {
                 <p className="text-xs text-muted-foreground/70 mt-1">
                   {item.authorName} · {new Date(item.createdAt).toLocaleDateString("mn-MN")}
                 </p>
+                {role === "publisher" && item.status === "rejected" && (
+                  <p className="text-xs text-muted-foreground mt-2">Засаад хадгалбал дахин хяналтад орно.</p>
+                )}
               </div>
               <div className="flex flex-col gap-2 shrink-0">
-                {item.status === "pending" && (
+                {item.status === "pending" && canReview(role) && (
                   <>
                     <button
                       onClick={() => review(item._id, "approve")}
@@ -105,6 +110,15 @@ export default function AdminNewsPage() {
                       Татгалзах
                     </button>
                   </>
+                )}
+                {/* Нийтлэгч өөрийн нийтлэгдээгүй мэдээг засна (жагсаалтад зөвхөн өөрийнх нь гарна) */}
+                {role === "publisher" && item.status !== "published" && (
+                  <Link
+                    href={`/admin/news/${item._id}/edit`}
+                    className="px-3 py-1.5 text-xs font-semibold rounded-md border border-border text-center text-foreground"
+                  >
+                    Засах
+                  </Link>
                 )}
                 {isAdmin && (
                   <>

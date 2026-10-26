@@ -8,6 +8,7 @@ import { GalleryUploadField } from "@/components/gallery-upload-field";
 import { MediaLinkField } from "@/components/media-link-field";
 import { VideoUploadField } from "@/components/video-upload-field";
 import { autoFillImage } from "@/lib/media";
+import type { Role } from "@/lib/roles";
 
 type NewsItem = {
   title: string;
@@ -32,6 +33,7 @@ export default function EditNewsPage({ params }: { params: Promise<{ id: string 
   const [imageUrl, setImageUrl] = useState("");
   const [images, setImages] = useState<string[]>([]);
   const [videos, setVideos] = useState<string[]>([]);
+  const [role, setRole] = useState<Role | undefined>(undefined);
 
   useEffect(() => {
     fetch(`/api/news/${id}`)
@@ -42,6 +44,9 @@ export default function EditNewsPage({ params }: { params: Promise<{ id: string 
         setImages(data.news?.images ?? []);
         setVideos(data.news?.videos ?? []);
       });
+    fetch("/api/me")
+      .then((r) => r.json())
+      .then((me) => setRole(me.role ?? null));
   }, [id]);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -63,7 +68,7 @@ export default function EditNewsPage({ params }: { params: Promise<{ id: string 
     router.push("/admin/news");
   }
 
-  if (!item) return <p className="text-muted-foreground text-sm">Ачааллаж байна...</p>;
+  if (!item || role === undefined) return <p className="text-muted-foreground text-sm">Ачааллаж байна...</p>;
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -120,18 +125,22 @@ export default function EditNewsPage({ params }: { params: Promise<{ id: string 
           <label className="block text-sm font-semibold text-foreground mb-2">Агуулга</label>
           <Textarea name="content" defaultValue={item.content} required className="min-h-64" />
         </div>
-        <div>
-          <label className="block text-sm font-semibold text-foreground mb-2">Төлөв</label>
-          <select
-            name="status"
-            defaultValue={item.status}
-            className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground"
-          >
-            <option value="pending">Хяналтад</option>
-            <option value="published">Нийтлэгдсэн</option>
-            <option value="rejected">Татгалзсан</option>
-          </select>
-        </div>
+        {role === "admin" ? (
+          <div>
+            <label className="block text-sm font-semibold text-foreground mb-2">Төлөв</label>
+            <select
+              name="status"
+              defaultValue={item.status}
+              className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground"
+            >
+              <option value="pending">Хяналтад</option>
+              <option value="published">Нийтлэгдсэн</option>
+              <option value="rejected">Татгалзсан</option>
+            </select>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">Хадгалсны дараа мэдээ дахин хянагчийн хяналтад орно.</p>
+        )}
         {error && <p className="text-sm text-red-400">{error}</p>}
         <button
           type="submit"

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { UserButton } from "@clerk/nextjs";
 import { getCurrentRole } from "@/lib/auth-role";
+import { ROLE_LABELS } from "@/lib/roles";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const role = await getCurrentRole();
@@ -12,7 +13,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   const links = [
     { href: "/admin", label: "Хянах самбар" },
-    { href: "/admin/news", label: role === "admin" ? "Мэдээ удирдах" : "Хянах жагсаалт" },
+    {
+      href: "/admin/news",
+      label: role === "admin" ? "Мэдээ удирдах" : role === "moderator" ? "Хянах жагсаалт" : "Миний мэдээ",
+    },
     ...(role === "admin"
       ? [
           { href: "/admin/training", label: "Сургалтын материал" },
@@ -42,7 +46,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         </nav>
         <div className="p-4 border-t border-border flex items-center justify-between">
           <span className="text-xs text-muted-foreground uppercase tracking-wide">
-            {role === "admin" ? "Админ" : "Хянагч"}
+            {ROLE_LABELS[role]}
           </span>
           <UserButton />
         </div>

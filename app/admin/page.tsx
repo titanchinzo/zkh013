@@ -2,6 +2,7 @@ import { connectToDatabase } from "@/lib/mongodb";
 import News from "@/lib/models/News";
 import ContactMessage from "@/lib/models/ContactMessage";
 import TrainingMaterial from "@/lib/models/TrainingMaterial";
+import { auth } from "@clerk/nextjs/server";
 import { getCurrentRole } from "@/lib/auth-role";
 
 export default async function AdminDashboard() {
@@ -9,9 +10,13 @@ export default async function AdminDashboard() {
   await connectToDatabase();
 
   const isAdmin = role === "admin";
-  const [pending, published, messages, materials] = await Promise.all([
-    News.countDocuments({ status: "pending" }),
-    News.countDocuments({ status: "published" }),
+  const isPublisher = role === "publisher";
+  // Нийтлэгчид зөвхөн өөрийн мэдээний тоо харагдана
+  const own = isPublisher ? { authorId: (await auth()).userId } : {};
+  const [pending, published, rejected, messages, materials] = await Promise.all([
+    News.countDocuments({ ...own, status: "pending" }),
+    News.countDocuments({ ...own, status: "published" }),
+    isPublisher ? News.countDocuments({ ...own, status: "rejected" }) : Promise.resolve(null),
     isAdmin ? ContactMessage.countDocuments({}) : Promise.resolve(null),
     isAdmin ? TrainingMaterial.countDocuments({}) : Promise.resolve(null),
   ]);
@@ -19,6 +24,7 @@ export default async function AdminDashboard() {
   const stats = [
     { label: "Хяналт хүлээж буй мэдээ", value: pending },
     { label: "Нийтлэгдсэн мэдээ", value: published },
+    ...(rejected !== null ? [{ label: "Татгалзсан мэдээ", value: rejected }] : []),
     ...(messages !== null ? [{ label: "Ирсэн зурвас", value: messages }] : []),
     ...(materials !== null ? [{ label: "Сургалтын материал", value: materials }] : []),
   ];
@@ -30,7 +36,9 @@ export default async function AdminDashboard() {
         <p className="text-muted-foreground text-sm mt-1">
           {role === "admin"
             ? "Танд бүх контент болон хэрэглэгчийн эрхийг удирдах эрх бий."
-            : "Танд шинэ мэдээг хянаж, зөвшөөрөх эрх бий."}
+            : role === "moderator"
+              ? "Танд шинэ мэдээг хянаж, зөвшөөрөх эрх бий."
+              : "Танд мэдээ бэлтгэж оруулах эрх бий. Таны мэдээ хянагч зөвшөөрсний дараа сайтад нийтлэгдэнэ."}
         </p>
       </div>
 

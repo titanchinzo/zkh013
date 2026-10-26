@@ -1,5 +1,6 @@
 import "server-only";
 import { isLocalUploadUrl, isStoredFileUrl } from "@/lib/images";
+import News from "@/lib/models/News";
 import { deleteFile } from "@/lib/storage";
 import { NEWS_MAX_VIDEOS, UPLOAD_KINDS } from "@/lib/uploads";
 
@@ -26,11 +27,19 @@ const filesOf = (news: NewsFiles) => [news.imageUrl ?? "", ...(news.images ?? []
 /**
  * Мэдээнээс хасагдсан (эсвэл мэдээ устсан үед бүх) серверийн файлыг устгана — том бичлэгүүд дискийг
  * дүүргэхгүйн тулд. Vercel Blob-ийн файлд хүрэхгүй. Алдаа гарсан ч үндсэн үйлдлийг зогсоохгүй.
+ * Өөр мэдээнд ашиглагдаж буй файлыг (хаягийг нь хуулж оруулсан бол) устгахгүй.
  */
 export async function deleteRemovedFiles(before: NewsFiles, after: NewsFiles | null) {
   const kept = new Set(after ? filesOf(after) : []);
   const removed = [...new Set(filesOf(before))].filter((url) => isLocalUploadUrl(url) && !kept.has(url));
   await Promise.all(
-    removed.map((url) => deleteFile(url).catch((err) => console.error("[news] файл устгаж чадсангүй:", url, err)))
+    removed.map(async (url) => {
+      try {
+        if (await News.exists({ $or: [{ imageUrl: url }, { images: url }, { videos: url }] })) return;
+        await deleteFile(url);
+      } catch (err) {
+        console.error("[news] файл устгаж чадсангүй:", url, err);
+      }
+    })
   );
 }

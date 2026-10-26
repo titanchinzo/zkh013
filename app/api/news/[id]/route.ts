@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { isValidObjectId } from "mongoose";
 import { connectToDatabase } from "@/lib/mongodb";
 import News, { STAFF_ONLY_FIELDS } from "@/lib/models/News";
@@ -14,9 +15,12 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   if (!isValidObjectId(id)) return NextResponse.json({ error: "Олдсонгүй" }, { status: 404 });
   await connectToDatabase();
   const role = await getCurrentRole();
+  // Нийтлэгч зөвхөн өөрийн мэдээг ажилтны эрхээр (нийтлэгдээгүй ч) харна
+  const staff =
+    role === "publisher" ? Boolean(await News.exists({ _id: id, authorId: (await auth()).userId })) : Boolean(role);
   const query = News.findById(id);
-  const news = await (role ? query : query.select(STAFF_ONLY_FIELDS)).lean();
-  if (!news || (news.status !== "published" && !role)) {
+  const news = await (staff ? query : query.select(STAFF_ONLY_FIELDS)).lean();
+  if (!news || (news.status !== "published" && !staff)) {
     return NextResponse.json({ error: "Олдсонгүй" }, { status: 404 });
   }
 
@@ -25,12 +29,19 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const role = await getCurrentRole();
-  if (role !== "admin") {
+  if (role !== "admin" && role !== "publisher") {
     return NextResponse.json({ error: "Зөвшөөрөлгүй" }, { status: 403 });
   }
 
   const { id } = await params;
   if (!isValidObjectId(id)) return NextResponse.json({ error: "Олдсонгүй" }, { status: 404 });
+  // Нийтлэгч зөвхөн өөрийн, хараахан нийтлэгдээгүй мэдээг засна; засварласан мэдээ дахин хяналтад орно
+  const target =
+    role === "publisher" ? { _id: id, authorId: (await auth()).userId, status: { $ne: "published" } } : { _id: id };
+  await connectToDatabase();
+  if (role === "publisher" && !(await News.exists(target))) {
+    return NextResponse.json({ error: "Зөвхөн өөрийн, нийтлэгдээгүй мэдээг засах боломжтой" }, { status: 403 });
+  }
   const body = await req.json();
   const { title, excerpt, content, status } = body ?? {};
   // imageUrl, images, videos, mediaUrl ирээгүй бол (хуучин клиент) одоогийн утгыг нь хэвээр үлдээнэ.
@@ -47,10 +58,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     return NextResponse.json({ error: MEDIA_URL_ERROR }, { status: 400 });
   }
 
-  await connectToDatabase();
-  const previous = await News.findById(id).select("imageUrl images videos").lean();
-  const news = await News.findByIdAndUpdate(
-    id,
+  const previous = await News.findOne(target).select("imageUrl images videos").lean();
+  const news = await News.findOneAndUpdate(
+    target,
     {
       title,
       excerpt,
@@ -59,7 +69,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       ...(images ? { images: images.value } : {}),
       ...(videos ? { videos: videos.value } : {}),
       ...(mediaUrl !== undefined ? { mediaUrl } : {}),
-      ...(status ? { status } : {}),
+      ...(role === "publisher" ? { status: "pending" } : status ? { status } : {}),
     },
     { new: true }
   );

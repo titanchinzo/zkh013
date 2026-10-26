@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { clerkClient } from "@clerk/nextjs/server";
+import { auth, clerkClient } from "@clerk/nextjs/server";
 import { getCurrentRole } from "@/lib/auth-role";
-
-const VALID_ROLES = ["admin", "moderator", "none"] as const;
+import { isRole } from "@/lib/roles";
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const role = await getCurrentRole();
@@ -13,8 +12,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const { id } = await params;
   const { role: newRole } = await req.json();
 
-  if (!VALID_ROLES.includes(newRole)) {
+  if (newRole !== "none" && !isRole(newRole)) {
     return NextResponse.json({ error: "Буруу role" }, { status: 400 });
+  }
+  // Админ өөрийн эрхийг андуурч хасаад самбараас гарахгүйн тулд
+  if (id === (await auth()).userId) {
+    return NextResponse.json({ error: "Өөрийн эрхийг өөрчлөх боломжгүй" }, { status: 400 });
   }
 
   const client = await clerkClient();
