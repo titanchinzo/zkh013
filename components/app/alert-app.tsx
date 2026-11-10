@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { RankSelect } from "@/components/hr/rank-select";
-import { DUTY_LABELS, formatDay } from "@/lib/hr";
+import { DUTY_LABEL, DUTY_REMINDER_TEXT, formatDay, formatWeek, relativeDay, todayUb } from "@/lib/hr";
 import { InstallSteps, useInstall } from "@/components/app/install";
 
 type DeviceStatus = "pending" | "approved" | "rejected" | "revoked";
@@ -14,7 +14,8 @@ type Feed = {
   person: { rank: string; name: string; position: string } | null;
   pushEnabled: boolean;
   alerts: { id: string; title: string; body: string; createdAt: string; acked: boolean }[];
-  duties: { date: string; guard: boolean; watch: boolean }[];
+  nextDuty: string | null;
+  weeks: { start: string; days: { date: string; people: { name: string; me: boolean }[] }[] }[];
 };
 
 const button = "w-full h-11 rounded-md bg-primary text-primary-foreground font-semibold disabled:opacity-50";
@@ -176,6 +177,8 @@ function ApprovedView() {
         </p>
       )}
 
+      {feed.nextDuty && <NextDuty date={feed.nextDuty} />}
+
       <PushToggle enabled={feed.pushEnabled} onChange={load} />
 
       <section className="space-y-3">
@@ -199,26 +202,69 @@ function ApprovedView() {
         ))}
       </section>
 
-      {feed.person && (
-        <section className="space-y-3">
-          <h2 className="font-bold text-foreground">Миний харуул, манаа</h2>
-          {feed.duties.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Ойрын 30 хоногт томилогдоогүй байна.</p>
-          ) : (
-            <ul className="rounded-xl border border-border divide-y divide-border">
-              {feed.duties.map((d) => (
-                <li key={d.date} className="px-4 py-3 flex justify-between gap-3 text-sm">
-                  <span className="text-foreground">{formatDay(d.date)}</span>
-                  <span className="text-primary font-semibold text-right">
-                    {[d.guard && DUTY_LABELS.guard, d.watch && DUTY_LABELS.watch].filter(Boolean).join(", ")}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      )}
+      {feed.weeks.map((week, i) => (
+        <DutyWeek key={week.start} title={i === 0 ? "Энэ 7 хоног" : "Дараагийн 7 хоног"} week={week} />
+      ))}
     </>
+  );
+}
+
+/** «Та 3 хоногийн дараа харуул хоногийн манаанд гарна» */
+function NextDuty({ date }: { date: string }) {
+  const today = todayUb();
+  return (
+    <section className="rounded-xl border border-primary/50 bg-primary/10 p-4 space-y-1">
+      <p className="text-xs text-muted-foreground">{DUTY_LABEL}</p>
+      {date === today ? (
+        <p className="font-bold text-foreground">{DUTY_REMINDER_TEXT}</p>
+      ) : (
+        <p className="font-bold text-foreground">Та {relativeDay(date, today)} харуул хоногийн манаанд гарна.</p>
+      )}
+      <p className="text-sm text-primary">{formatDay(date)}</p>
+    </section>
+  );
+}
+
+/** 7 хоногийн харуул хоногийн манааны хуваарь — өөрийн өдөр, өнөөдрийг тодруулна */
+function DutyWeek({ title, week }: { title: string; week: Feed["weeks"][number] }) {
+  const today = todayUb();
+  const empty = week.days.every((d) => d.people.length === 0);
+  return (
+    <section className="space-y-3">
+      <h2 className="font-bold text-foreground">
+        {DUTY_LABEL} — {title}
+        <span className="block text-xs font-normal text-muted-foreground">{formatWeek(week.start)}</span>
+      </h2>
+      {empty ? (
+        <p className="text-sm text-muted-foreground">Хуваарь гараагүй байна.</p>
+      ) : (
+        <ul className="rounded-xl border border-border divide-y divide-border">
+          {week.days.map((d) => {
+            const mine = d.people.some((p) => p.me);
+            return (
+              <li
+                key={d.date}
+                className={`px-4 py-2.5 flex justify-between gap-3 text-sm ${mine ? "bg-primary/10" : ""} ${d.date < today ? "opacity-50" : ""}`}
+              >
+                <span className={d.date === today ? "text-primary font-semibold" : "text-foreground"}>
+                  {formatDay(d.date)}
+                </span>
+                <span className="text-right text-muted-foreground">
+                  {d.people.length === 0
+                    ? "—"
+                    : d.people.map((p, i) => (
+                        <span key={i} className={p.me ? "text-primary font-semibold" : ""}>
+                          {i > 0 && ", "}
+                          {p.name}
+                        </span>
+                      ))}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
   );
 }
 

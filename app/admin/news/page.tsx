@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { canReview, type Role } from "@/lib/roles";
 
 type NewsItem = {
@@ -25,7 +26,16 @@ const statusColor: Record<NewsItem["status"], string> = {
   rejected: "text-red-400",
 };
 
+const FILTERS: { status: NewsItem["status"] | null; label: string }[] = [
+  { status: null, label: "Бүгд" },
+  { status: "pending", label: "Хяналтад" },
+  { status: "published", label: "Нийтлэгдсэн" },
+  { status: "rejected", label: "Татгалзсан" },
+];
+
 export default function AdminNewsPage() {
+  // Хянах самбарын картаас ?status=pending г.м шүүлтүүртэй орж ирнэ
+  const status = useSearchParams().get("status");
   const [items, setItems] = useState<NewsItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState<Role>(null);
@@ -61,6 +71,8 @@ export default function AdminNewsPage() {
     load();
   }
 
+  const shown = status ? items.filter((i) => i.status === status) : items;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -73,13 +85,29 @@ export default function AdminNewsPage() {
         </Link>
       </div>
 
+      <div className="flex flex-wrap gap-2">
+        {FILTERS.map((f) => {
+          const count = f.status ? items.filter((i) => i.status === f.status).length : items.length;
+          const active = (status ?? null) === f.status;
+          return (
+            <Link
+              key={f.label}
+              href={f.status ? `/admin/news?status=${f.status}` : "/admin/news"}
+              className={`px-3 py-1.5 rounded-md border text-sm ${active ? "border-primary text-primary" : "border-border text-muted-foreground hover:text-foreground"}`}
+            >
+              {f.label} ({count})
+            </Link>
+          );
+        })}
+      </div>
+
       {loading ? (
         <p className="text-muted-foreground text-sm">Ачааллаж байна...</p>
-      ) : items.length === 0 ? (
+      ) : shown.length === 0 ? (
         <p className="text-muted-foreground text-sm">Мэдээ алга байна.</p>
       ) : (
         <div className="space-y-3">
-          {items.map((item) => (
+          {shown.map((item) => (
             <div key={item._id} className="rounded-xl border border-border bg-card p-4 flex items-start justify-between gap-4">
               <div>
                 <p className={`text-xs font-semibold uppercase mb-1 ${statusColor[item.status]}`}>

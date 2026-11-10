@@ -13,7 +13,7 @@ const CLERK_ERRORS: Record<string, string> = {
 };
 
 /**
- * И-мэйлээр урилга илгээнэ. body: { email, role }
+ * И-мэйлээр урилга илгээнэ. body: { email, role } — role "none" бол эрхгүй
  * Урилгын холбоосоор бүртгүүлсэн хүн сонгосон эрхтэйгээ шууд нэвтэрнэ (Clerk publicMetadata-д шилжинэ).
  */
 export async function POST(req: NextRequest) {
@@ -26,7 +26,8 @@ export async function POST(req: NextRequest) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return NextResponse.json({ error: "И-мэйл хаяг буруу байна." }, { status: 400 });
   }
-  if (!isRole(body?.role)) {
+  // "none" — эрхгүй (зөвхөн утасны апп ашиглана)
+  if (body?.role !== "none" && !isRole(body?.role)) {
     return NextResponse.json({ error: "Эрхээ сонгоно уу." }, { status: 400 });
   }
 
@@ -34,7 +35,7 @@ export async function POST(req: NextRequest) {
   try {
     await client.invitations.createInvitation({
       emailAddress: email,
-      publicMetadata: { role: body.role },
+      publicMetadata: body.role === "none" ? {} : { role: body.role },
       redirectUrl: `${SITE_URL}/sign-up`,
     });
   } catch (err) {

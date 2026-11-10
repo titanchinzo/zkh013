@@ -1,4 +1,4 @@
-// Хүний нөөц: алба хаагчдын ирц, харуул, манаа — server болон client аль алинд ажиллана
+// Хүний нөөц: алба хаагчдын ирц, харуул хоногийн манаа — server болон client аль алинд ажиллана
 
 export const ATTENDANCE_LABELS = {
   present: "Ирсэн",
@@ -12,11 +12,14 @@ export const ATTENDANCE_LABELS = {
 export type AttendanceStatus = keyof typeof ATTENDANCE_LABELS;
 export const ATTENDANCE_STATUSES = Object.keys(ATTENDANCE_LABELS) as AttendanceStatus[];
 
-export const DUTY_LABELS = { guard: "7 хоногийн харуул", watch: "Хоногийн манаа" } as const;
-export type Duty = keyof typeof DUTY_LABELS;
+/** Нэг л төрлийн үүрэг — хуваарийг 7 хоногоор (Даваа–Ням) гаргаж, өдөр бүрд хүмүүсийг нь сонгоно */
+export const DUTY_LABEL = "Харуул хоногийн манаа";
 
-/** Харуулыг нэг дор оноох хоногийн тоо */
-export const GUARD_DAYS = 7;
+/** Манаанд гарах өдөр энэ цагаас хойш (Улаанбаатарын цагаар) «Тайван хоноорой» мэдэгдэл очно */
+export const DUTY_REMINDER_HOUR = 11;
+export const DUTY_REMINDER_TEXT = "Та өнөөдөр харуул хоногийн манаанд гарна. Тайван хоноорой!";
+
+export const WEEK_DAYS = 7;
 
 /** Цолын товчлол — бага цолоос ахлах руу. Цолыг зөвхөн эндээс сонгоно. */
 export const RANKS = ["энг", "т/ч", "а/т", "д/а", "а/ч", "а/а", "с/а", "т/а", "д/ч", "а/д", "а/х", "х/ч", "д/х", "Хур"] as const;
@@ -28,8 +31,13 @@ const UB_TZ = "Asia/Ulaanbaatar";
 const WEEKDAYS = ["Ням", "Даваа", "Мягмар", "Лхагва", "Пүрэв", "Баасан", "Бямба"];
 
 /** Улаанбаатарын цагаар өнөөдрийн огноо: "YYYY-MM-DD" */
-export function todayUb(): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: UB_TZ }).format(new Date());
+export function todayUb(now = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: UB_TZ }).format(now);
+}
+
+/** Улаанбаатарын цагаар одоо хэдэн цаг (0–23) */
+export function hourUb(now = new Date()): number {
+  return Number(new Intl.DateTimeFormat("en-GB", { timeZone: UB_TZ, hour: "2-digit", hourCycle: "h23" }).format(now));
 }
 
 export function isDateKey(value: unknown): value is string {
@@ -44,10 +52,38 @@ export function addDays(date: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+/** Тэр өдрийг агуулсан 7 хоногийн Даваа гараг */
+export function weekStart(date: string): string {
+  const day = new Date(`${date}T00:00:00Z`).getUTCDay();
+  return addDays(date, -((day + 6) % 7));
+}
+
+export function daysBetween(from: string, to: string): number {
+  return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
+}
+
+/** "өнөөдөр", "маргааш", "нөгөөдөр", "3 хоногийн дараа" */
+export function relativeDay(date: string, today = todayUb()): string {
+  const n = daysBetween(today, date);
+  if (n === 0) return "өнөөдөр";
+  if (n === 1) return "маргааш";
+  if (n === 2) return "нөгөөдөр";
+  return n > 0 ? `${n} хоногийн дараа` : `${-n} хоногийн өмнө`;
+}
+
 /** "11 сарын 12, Пүрэв" */
 export function formatDay(date: string): string {
   const d = new Date(`${date}T00:00:00Z`);
   return `${d.getUTCMonth() + 1} сарын ${d.getUTCDate()}, ${WEEKDAYS[d.getUTCDay()]}`;
+}
+
+/** "11 сарын 9 – 11 сарын 15" */
+export function formatWeek(start: string): string {
+  const short = (date: string) => {
+    const d = new Date(`${date}T00:00:00Z`);
+    return `${d.getUTCMonth() + 1} сарын ${d.getUTCDate()}`;
+  };
+  return `${short(start)} – ${short(addDays(start, WEEK_DAYS - 1))}`;
 }
 
 export function personnelLabel(p: { rank?: string | null; name: string }) {

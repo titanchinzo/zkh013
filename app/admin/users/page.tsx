@@ -9,6 +9,8 @@ type UserRow = {
   name: string;
   email: string;
   role: Role;
+  banned: boolean;
+  lastSignInAt: number | null;
   isMe: boolean;
 };
 
@@ -22,11 +24,23 @@ type InvitationRow = {
 const ROLE_HELP: [NonNullable<Role>, string][] = [
   ["publisher", "мэдээ бэлтгэж оруулна, өөрийн нийтлэгдээгүй мэдээг засна"],
   ["moderator", "ирсэн мэдээг хянаж зөвшөөрнө эсвэл татгалзана"],
-  ["hr", "алба хаагчдын ирц, харуул, манаа, утасны бүртгэл, зарлан мэдээллийг удирдана (мэдээтэй ажиллахгүй)"],
+  ["hr", "алба хаагчдын ирц, харуул хоногийн манаа, утасны бүртгэл, зарлан мэдээллийг удирдана (мэдээтэй ажиллахгүй)"],
   ["admin", "бүх мэдээ, сургалтын материал, хэрэглэгчийн эрхийг удирдана"],
 ];
 
+const ROLE_OPTIONS = (
+  <>
+    <option value="none">Эрхгүй (зөвхөн утасны апп)</option>
+    <option value="publisher">{ROLE_LABELS.publisher}</option>
+    <option value="moderator">{ROLE_LABELS.moderator}</option>
+    <option value="hr">{ROLE_LABELS.hr}</option>
+    <option value="admin">{ROLE_LABELS.admin}</option>
+  </>
+);
+
 const selectClass = "h-9 rounded-md border border-border bg-background px-2 text-sm text-foreground";
+const smallButton = "px-3 py-1.5 text-xs font-semibold rounded-md border border-border text-foreground disabled:opacity-40";
+const dangerButton = "px-3 py-1.5 text-xs font-semibold rounded-md border border-red-400/40 text-red-400 disabled:opacity-40";
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<UserRow[]>([]);
@@ -34,10 +48,10 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [inviting, setInviting] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [query, setQuery] = useState("");
 
   const load = useCallback(async () => {
-    setLoading(true);
     const res = await fetch("/api/admin/users");
     const data = await res.json();
     setUsers(data.users ?? []);
@@ -58,44 +72,66 @@ export default function AdminUsersPage() {
     return res.ok;
   }
 
+  const json = (method: string, body: unknown): RequestInit => ({
+    method,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
   async function setRole(id: string, role: string) {
-    await send(`/api/admin/users/${id}/role`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ role }),
-    });
+    await send(`/api/admin/users/${id}/role`, json("PATCH", { role }));
     load();
   }
 
-  async function invite(e: React.FormEvent<HTMLFormElement>) {
+  /** «Нэмэх» — бүртгэлийг шууд үүсгэнэ; «Урилга илгээх» — и-мэйлээр урилга явуулна */
+  async function add(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = e.currentTarget;
     const data = Object.fromEntries(new FormData(form));
-    setInviting(true);
-    const ok = await send("/api/admin/invitations", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-    setInviting(false);
+    const mode = ((e.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null)?.value;
+    setAdding(true);
+    const ok = await send(mode === "invite" ? "/api/admin/invitations" : "/api/admin/users", json("POST", data));
+    setAdding(false);
     if (!ok) return;
     form.reset();
-    setNotice(`${data.email} хаяг руу урилга илгээлээ. Тэр хүн и-мэйл дэх холбоосоор орж нууц үгээ үүсгэнэ.`);
+    setNotice(
+      mode === "invite"
+        ? `${data.email} хаяг руу урилга илгээлээ. Тэр хүн и-мэйл дэх холбоосоор орж бүртгүүлнэ.`
+        : `${data.email} нэмэгдлээ. Тэр хүн unit013.mn/sign-in дээр и-мэйлээ бичээд, ирсэн кодоор нэвтэрнэ.`
+    );
     load();
   }
 
-  async function revoke(inv: InvitationRow) {
+  async function revokeInvitation(inv: InvitationRow) {
     if (!confirm(`${inv.email} хаягийн урилгыг цуцлах уу?`)) return;
     await send(`/api/admin/invitations/${inv.id}`, { method: "DELETE" });
     load();
   }
+
+  async function setBanned(u: UserRow, banned: boolean) {
+    if (banned && !confirm(`${u.email}-г хаах уу? Тэр хүн нэвтэрч чадахгүй, утасны апп нь ч хаагдана.`)) return;
+    if (await send(`/api/admin/users/${u.id}`, json("PATCH", { action: banned ? "ban" : "unban" }))) {
+      setNotice(banned ? `${u.email} хаагдлаа.` : `${u.email} дахин нэвтэрч болно. Утасны аппаа дахин бүртгүүлнэ.`);
+    }
+    load();
+  }
+
+  async function remove(u: UserRow) {
+    if (!confirm(`${u.email}-г бүр мөсөн устгах уу? Энэ үйлдлийг буцаах боломжгүй.`)) return;
+    if (await send(`/api/admin/users/${u.id}`, { method: "DELETE" })) setNotice(`${u.email} устгагдлаа.`);
+    load();
+  }
+
+  const q = query.trim().toLowerCase();
+  const shown = q ? users.filter((u) => `${u.name} ${u.email}`.toLowerCase().includes(q)) : users;
 
   return (
     <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Хэрэглэгч, хандах эрх</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Шинэ хүнийг и-мэйлээр нь урих, эсвэл бүртгүүлсэн хэрэглэгчийн эрхийг доороос солино.
+          Хэрэглэгч нэмэх, эрхийг нь солих, хаах, устгах. Эрхгүй хэрэглэгч зөвхөн утасны апп ашиглана (хүний нөөцийн
+          зөвшөөрлөөр).
         </p>
         <ul className="text-sm text-muted-foreground mt-3 space-y-1">
           {ROLE_HELP.map(([role, help]) => (
@@ -106,24 +142,34 @@ export default function AdminUsersPage() {
         </ul>
       </div>
 
-      <form onSubmit={invite} className="rounded-xl border border-border bg-card p-4 space-y-3">
-        <h2 className="font-bold text-foreground">Шинэ хэрэглэгч урих</h2>
+      <form onSubmit={add} className="rounded-xl border border-border bg-card p-4 space-y-3">
+        <h2 className="font-bold text-foreground">Хэрэглэгч нэмэх</h2>
         <div className="flex flex-wrap gap-3">
           <Input name="email" type="email" required placeholder="name@example.com" className="flex-1 min-w-60" />
-          <select name="role" defaultValue="publisher" className={`${selectClass} h-10`}>
-            <option value="publisher">{ROLE_LABELS.publisher}</option>
-            <option value="moderator">{ROLE_LABELS.moderator}</option>
-            <option value="hr">{ROLE_LABELS.hr}</option>
-            <option value="admin">{ROLE_LABELS.admin}</option>
+          <select name="role" defaultValue="publisher" className={`${selectClass} h-10`} aria-label="Эрх">
+            {ROLE_OPTIONS}
           </select>
           <button
             type="submit"
-            disabled={inviting}
+            value="create"
+            disabled={adding}
             className="px-4 h-10 rounded-md bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-50"
           >
-            {inviting ? "Илгээж байна..." : "Урилга илгээх"}
+            Нэмэх
+          </button>
+          <button
+            type="submit"
+            value="invite"
+            disabled={adding}
+            className="px-4 h-10 rounded-md border border-border text-sm font-semibold text-foreground disabled:opacity-50"
+          >
+            Урилга илгээх
           </button>
         </div>
+        <p className="text-xs text-muted-foreground">
+          «Нэмэх» — бүртгэлийг шууд үүсгэнэ, тэр хүн unit013.mn/sign-in дээр и-мэйлээ бичээд ирсэн кодоор нэвтэрнэ.
+          «Урилга илгээх» — и-мэйл рүү нь урилгын холбоос очно.
+        </p>
       </form>
 
       {error && <p className="text-sm text-red-400">{error}</p>}
@@ -147,10 +193,7 @@ export default function AdminUsersPage() {
                           {new Date(inv.createdAt).toLocaleDateString("mn-MN")}
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <button
-                            onClick={() => revoke(inv)}
-                            className="px-3 py-1.5 text-xs font-semibold rounded-md border border-red-400/40 text-red-400"
-                          >
+                          <button onClick={() => revokeInvitation(inv)} className={dangerButton}>
                             Цуцлах
                           </button>
                         </td>
@@ -162,48 +205,64 @@ export default function AdminUsersPage() {
             </div>
           )}
 
-          <div className="rounded-xl border border-border overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/40">
-                <tr>
-                  <th className="text-left px-4 py-3 text-muted-foreground font-semibold">Нэр</th>
-                  <th className="text-left px-4 py-3 text-muted-foreground font-semibold">И-мэйл</th>
-                  <th className="text-left px-4 py-3 text-muted-foreground font-semibold">Одоогийн эрх</th>
-                  <th className="text-left px-4 py-3 text-muted-foreground font-semibold">Эрх солих</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.map((u) => (
-                  <tr key={u.id} className="border-t border-border">
-                    <td className="px-4 py-3 text-foreground">
-                      {u.name}
-                      {u.isMe && <span className="text-muted-foreground"> (та)</span>}
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">{u.email}</td>
-                    <td className="px-4 py-3">
-                      <span className={u.role ? "text-primary font-semibold" : "text-muted-foreground"}>
-                        {u.role ? ROLE_LABELS[u.role] : "Эрхгүй"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <select
-                        value={u.role ?? "none"}
-                        disabled={u.isMe}
-                        title={u.isMe ? "Өөрийн эрхийг өөрчлөх боломжгүй" : undefined}
-                        onChange={(e) => setRole(u.id, e.target.value)}
-                        className={`${selectClass} disabled:opacity-50`}
-                      >
-                        <option value="none">Эрхгүй</option>
-                        <option value="publisher">{ROLE_LABELS.publisher}</option>
-                        <option value="moderator">{ROLE_LABELS.moderator}</option>
-                        <option value="hr">{ROLE_LABELS.hr}</option>
-                        <option value="admin">{ROLE_LABELS.admin}</option>
-                      </select>
-                    </td>
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="font-bold text-foreground">Хэрэглэгчид ({users.length})</h2>
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Нэр, и-мэйлээр хайх"
+                className="max-w-72"
+              />
+            </div>
+            <div className="rounded-xl border border-border overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/40">
+                  <tr>
+                    <th className="text-left px-4 py-3 text-muted-foreground font-semibold">Нэр</th>
+                    <th className="text-left px-4 py-3 text-muted-foreground font-semibold">И-мэйл</th>
+                    <th className="text-left px-4 py-3 text-muted-foreground font-semibold">Эрх</th>
+                    <th className="text-left px-4 py-3 text-muted-foreground font-semibold">Сүүлд нэвтэрсэн</th>
+                    <th />
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {shown.map((u) => (
+                    <tr key={u.id} className={`border-t border-border ${u.banned ? "opacity-60" : ""}`}>
+                      <td className="px-4 py-3 text-foreground">
+                        {u.name}
+                        {u.isMe && <span className="text-muted-foreground"> (та)</span>}
+                        {u.banned && <span className="ml-2 text-xs font-semibold text-red-400">Хаагдсан</span>}
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground">{u.email}</td>
+                      <td className="px-4 py-3">
+                        <select
+                          value={u.role ?? "none"}
+                          disabled={u.isMe}
+                          title={u.isMe ? "Өөрийн эрхийг өөрчлөх боломжгүй" : undefined}
+                          onChange={(e) => setRole(u.id, e.target.value)}
+                          className={`${selectClass} disabled:opacity-50`}
+                          aria-label={`${u.email} эрх`}
+                        >
+                          {ROLE_OPTIONS}
+                        </select>
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                        {u.lastSignInAt ? new Date(u.lastSignInAt).toLocaleDateString("mn-MN") : "—"}
+                      </td>
+                      <td className="px-4 py-3 text-right whitespace-nowrap space-x-2">
+                        <button onClick={() => setBanned(u, !u.banned)} disabled={u.isMe} className={smallButton}>
+                          {u.banned ? "Нээх" : "Хаах"}
+                        </button>
+                        <button onClick={() => remove(u)} disabled={u.isMe} className={dangerButton}>
+                          Устгах
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </>
       )}
