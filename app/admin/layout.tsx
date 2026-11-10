@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { UserButton } from "@clerk/nextjs";
 import { getCurrentRole } from "@/lib/auth-role";
-import { ROLE_LABELS } from "@/lib/roles";
+import { ROLE_LABELS, isHrRole, isNewsRole } from "@/lib/roles";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const role = await getCurrentRole();
@@ -13,10 +13,23 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   const links = [
     { href: "/admin", label: "Хянах самбар" },
-    {
-      href: "/admin/news",
-      label: role === "admin" ? "Мэдээ удирдах" : role === "moderator" ? "Хянах жагсаалт" : "Миний мэдээ",
-    },
+    ...(isNewsRole(role)
+      ? [
+          {
+            href: "/admin/news",
+            label: role === "admin" ? "Мэдээ удирдах" : role === "moderator" ? "Хянах жагсаалт" : "Миний мэдээ",
+          },
+        ]
+      : []),
+    // Хүний нөөц — нийтэд биш, зөвхөн админ болон хүний нөөц
+    ...(isHrRole(role)
+      ? [
+          { href: "/admin/attendance", label: "Ирц, харуул, манаа" },
+          { href: "/admin/personnel", label: "Алба хаагчид" },
+          { href: "/admin/devices", label: "Утасны бүртгэл" },
+          { href: "/admin/alerts", label: "Зарлан мэдээлэх" },
+        ]
+      : []),
     ...(role === "admin"
       ? [
           { href: "/admin/training", label: "Сургалтын материал" },

@@ -22,6 +22,7 @@ type InvitationRow = {
 const ROLE_HELP: [NonNullable<Role>, string][] = [
   ["publisher", "мэдээ бэлтгэж оруулна, өөрийн нийтлэгдээгүй мэдээг засна"],
   ["moderator", "ирсэн мэдээг хянаж зөвшөөрнө эсвэл татгалзана"],
+  ["hr", "алба хаагчдын ирц, харуул, манаа, утасны бүртгэл, зарлан мэдээллийг удирдана (мэдээтэй ажиллахгүй)"],
   ["admin", "бүх мэдээ, сургалтын материал, хэрэглэгчийн эрхийг удирдана"],
 ];
 
@@ -112,6 +113,7 @@ export default function AdminUsersPage() {
           <select name="role" defaultValue="publisher" className={`${selectClass} h-10`}>
             <option value="publisher">{ROLE_LABELS.publisher}</option>
             <option value="moderator">{ROLE_LABELS.moderator}</option>
+            <option value="hr">{ROLE_LABELS.hr}</option>
             <option value="admin">{ROLE_LABELS.admin}</option>
           </select>
           <button
@@ -194,6 +196,7 @@ export default function AdminUsersPage() {
                         <option value="none">Эрхгүй</option>
                         <option value="publisher">{ROLE_LABELS.publisher}</option>
                         <option value="moderator">{ROLE_LABELS.moderator}</option>
+                        <option value="hr">{ROLE_LABELS.hr}</option>
                         <option value="admin">{ROLE_LABELS.admin}</option>
                       </select>
                     </td>

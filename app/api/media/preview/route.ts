@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentRole } from "@/lib/auth-role";
+import { isNewsRole } from "@/lib/roles";
 import { MEDIA_URL_ERROR, parseMediaUrl } from "@/lib/media";
 import { bestYouTubeThumbnail, facebookPreviewImage, resolveMedia } from "@/lib/media-server";
 
@@ -8,7 +9,7 @@ import { bestYouTubeThumbnail, facebookPreviewImage, resolveMedia } from "@/lib/
 // Зургийн талбарт Facebook зургийн холбоос оруулахад жинхэнэ зургийг нь олоход ч ашиглана.
 export async function GET(req: NextRequest) {
   const role = await getCurrentRole();
-  if (!role) {
+  if (!isNewsRole(role)) {
     return NextResponse.json({ error: "Нэвтрэх шаардлагатай" }, { status: 401 });
   }
 

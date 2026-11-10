@@ -31,6 +31,11 @@ const nextConfig: NextConfig = {
     return [
       { source: "/:path*", headers: SECURITY_HEADERS },
       {
+        // Зарлан мэдээллийн аппын service worker — шинэчлэл утсанд шууд хүрэхийн тулд кэшлэхгүй
+        source: "/sw.js",
+        headers: [{ key: "Cache-Control", value: "no-cache, no-store, must-revalidate" }],
+      },
+      {
         // Монгол бичгийн фонт: файлын нэрэнд хувилбар нь орсон тул хөтөч удаан хадгална
         source: "/fonts/:path*",
         headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],

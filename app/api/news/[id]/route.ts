@@ -4,6 +4,7 @@ import { isValidObjectId } from "mongoose";
 import { connectToDatabase } from "@/lib/mongodb";
 import News, { STAFF_ONLY_FIELDS } from "@/lib/models/News";
 import { getCurrentRole } from "@/lib/auth-role";
+import { isNewsRole } from "@/lib/roles";
 import { createImagePreparer } from "@/lib/image-import";
 import { MEDIA_URL_ERROR } from "@/lib/media";
 import { prepareMediaUrl } from "@/lib/media-server";
@@ -17,7 +18,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const role = await getCurrentRole();
   // Нийтлэгч зөвхөн өөрийн мэдээг ажилтны эрхээр (нийтлэгдээгүй ч) харна
   const staff =
-    role === "publisher" ? Boolean(await News.exists({ _id: id, authorId: (await auth()).userId })) : Boolean(role);
+    role === "publisher" ? Boolean(await News.exists({ _id: id, authorId: (await auth()).userId })) : isNewsRole(role);
   const query = News.findById(id);
   const news = await (staff ? query : query.select(STAFF_ONLY_FIELDS)).lean();
   if (!news || (news.status !== "published" && !staff)) {

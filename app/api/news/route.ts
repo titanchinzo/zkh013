@@ -3,6 +3,7 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { connectToDatabase } from "@/lib/mongodb";
 import News, { STAFF_ONLY_FIELDS } from "@/lib/models/News";
 import { getCurrentRole } from "@/lib/auth-role";
+import { isNewsRole } from "@/lib/roles";
 import { createImagePreparer } from "@/lib/image-import";
 import { MEDIA_URL_ERROR } from "@/lib/media";
 import { prepareMediaUrl } from "@/lib/media-server";
@@ -12,13 +13,15 @@ import { warmMgl } from "@/lib/mgl/convert";
 export async function GET(req: NextRequest) {
   await connectToDatabase();
   const role = await getCurrentRole();
+  // Хүний нөөц мэдээтэй ажиллахгүй — нийтийн жагсаалтыг л харна
+  const staff = isNewsRole(role);
   const wantsAll = req.nextUrl.searchParams.get("all") === "1";
 
   // Нийтлэгч ажлын жагсаалтад зөвхөн өөрийн оруулсан мэдээг харна
   const own = role === "publisher" ? { authorId: (await auth()).userId } : {};
-  const filter = wantsAll && role ? own : { status: "published" };
+  const filter = wantsAll && staff ? own : { status: "published" };
   const query = News.find(filter).sort({ createdAt: -1 });
-  const news = await (role ? query : query.select(STAFF_ONLY_FIELDS)).lean();
+  const news = await (staff ? query : query.select(STAFF_ONLY_FIELDS)).lean();
   return NextResponse.json({ news });
 }
 
@@ -26,7 +29,7 @@ export async function POST(req: NextRequest) {
   const user = await currentUser();
   const role = await getCurrentRole();
 
-  if (!user || !role) {
+  if (!user || !isNewsRole(role)) {
     return NextResponse.json({ error: "Нэвтрэх шаардлагатай" }, { status: 401 });
   }
 
