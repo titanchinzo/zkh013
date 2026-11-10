@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
-import { personnelLabel } from "@/lib/hr";
+import { formatPhone, personnelLabel } from "@/lib/hr";
 
 type DeviceRow = {
   _id: string;
@@ -11,6 +11,7 @@ type DeviceRow = {
   rank: string;
   name: string;
   position: string;
+  phone?: string;
   label: string;
   status: "pending" | "approved" | "rejected" | "revoked";
   createdAt: string;
@@ -165,7 +166,7 @@ function PendingRequest({
       <div className="space-y-1">
         <p className="font-bold text-foreground">{personnelLabel(device)}</p>
         <p className="text-sm text-muted-foreground">
-          {device.position || "Албан тушаал бичээгүй"} · {device.email}
+          {[device.position || "Албан тушаал бичээгүй", formatPhone(device.phone), device.email].filter(Boolean).join(" · ")}
         </p>
         <p className="text-xs text-muted-foreground">
           {device.label} · {fmt(device.createdAt)}

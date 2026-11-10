@@ -5,9 +5,13 @@ import Personnel from "@/lib/models/Personnel";
 import { getCurrentRole } from "@/lib/auth-role";
 import { isHrRole } from "@/lib/roles";
 import { parsePersonnel } from "@/lib/hr";
+import { deleteFile } from "@/lib/storage";
 
-// Алба хаагчийн мэдээллийг засах. body: { rank?, name?, position?, active? } — халагдсан хүнийг устгахгүй,
-// идэвхгүй (active: false) болгоно, тэгвэл ирц, харуул, манааны жагсаалтад гарахгүй.
+/**
+ * Алба хаагчийн мэдээллийг засах (үг үсгийн алдаа г.м). body: { rank?, name?, position?, phone?, active?,
+ * canRegister?, photo: null } — халагдсан хүнийг устгахгүй, идэвхгүй болгоно; photo: null — зургийг нь арилгана;
+ * canRegister — «Бүртгэх эрх» (доод хүмүүсээ урьж бүртгэх).
+ */
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   if (!isHrRole(await getCurrentRole())) return NextResponse.json({ error: "Зөвшөөрөлгүй" }, { status: 403 });
   const { id } = await params;
@@ -20,7 +24,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const parsed = parsePersonnel(body, true, person.rank);
   if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
 
-  person.set({ ...parsed.value, ...(typeof body?.active === "boolean" ? { active: body.active } : {}) });
+  const oldPhoto = body?.photo === null ? person.photo : "";
+  person.set({
+    ...parsed.value,
+    ...(typeof body?.active === "boolean" ? { active: body.active } : {}),
+    ...(typeof body?.canRegister === "boolean" ? { canRegister: body.canRegister } : {}),
+    ...(body?.photo === null ? { photo: "" } : {}),
+  });
   await person.save();
+  if (oldPhoto) await deleteFile(oldPhoto).catch(() => {});
   return NextResponse.json({ person });
 }

@@ -3,15 +3,24 @@ import { connectToDatabase } from "@/lib/mongodb";
 import Personnel from "@/lib/models/Personnel";
 import { getCurrentRole } from "@/lib/auth-role";
 import { isHrRole } from "@/lib/roles";
-import { parsePersonnel } from "@/lib/hr";
+import { parsePersonnel, personnelLabel } from "@/lib/hr";
 
 const FORBIDDEN = { error: "Зөвшөөрөлгүй" };
 
+type Row = { _id: unknown; rank: string; name: string; userId?: string; invitedBy?: string };
+
+/** Алба хаагчид — хэн урьж бүртгэснийг (invitedByName) оролцуулан */
 export async function GET() {
   if (!isHrRole(await getCurrentRole())) return NextResponse.json(FORBIDDEN, { status: 403 });
   await connectToDatabase();
-  const personnel = await Personnel.find().sort({ active: -1, name: 1 }).lean();
-  return NextResponse.json({ personnel });
+  const personnel = await Personnel.find().sort({ active: -1, name: 1 }).lean<Row[]>();
+  const nameOf = new Map(personnel.filter((p) => p.userId).map((p) => [p.userId, personnelLabel(p)]));
+  return NextResponse.json({
+    personnel: personnel.map((p) => ({
+      ...p,
+      invitedByName: p.invitedBy ? (nameOf.get(p.invitedBy) ?? "Хүний нөөц / админ") : "",
+    })),
+  });
 }
 
 export async function POST(req: NextRequest) {

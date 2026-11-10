@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Script from "next/script";
 import { ClerkProvider } from "@clerk/nextjs";
 import { SITE_NAME, SITE_OG_IMAGE, SITE_URL } from "@/lib/site";
 import { MGL_FONT_URL } from "@/lib/mgl/shared";
@@ -54,6 +55,11 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
       >
         <body className="min-h-full flex flex-col">
+          {/* «Апп татах»: хөтөч апп суулгах санал (beforeinstallprompt)-ыг аль ч хуудсанд анх нээхэд гаргадаг тул
+              эрт барьж хадгална — /download, /app руу шилжихэд нэг товшилтоор суулгана (components/app/install.tsx) */}
+          <Script id="install-capture" strategy="beforeInteractive">
+            {"addEventListener('beforeinstallprompt',function(e){e.preventDefault();window.__installEvent=e});"}
+          </Script>
           {/* MGL горимд: монгол бичгийн фонтыг (globals.css) урьдчилан татна, Chrome-ийн орчуулах саналыг хаана —
               React эдгээрийг <head> руу зөөнө */}
           {script === "mgl" && (

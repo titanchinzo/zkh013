@@ -3,7 +3,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { BellRing, CalendarCheck, Smartphone } from "lucide-react";
 import { DownloadSection } from "@/components/app/download-section";
-import { InstallCapture } from "@/components/app/install-capture";
 
 export const metadata: Metadata = {
   title: "Апп татах",
@@ -30,7 +29,6 @@ const AFTER_INSTALL = [
 export default function DownloadPage() {
   return (
     <main className="min-h-screen bg-background">
-      <InstallCapture />
       <div className="mx-auto max-w-3xl px-4 py-8 space-y-8">
         <Link href="/" className="text-sm text-muted-foreground hover:text-primary">
           ← Нүүр хуудас

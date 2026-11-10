@@ -90,12 +90,24 @@ export function personnelLabel(p: { rank?: string | null; name: string }) {
   return p.rank ? `${p.rank} ${p.name}` : p.name;
 }
 
+/** "9911 2233", "+976 9911-2233" → "99112233"; Монголын 8 оронтой дугаар биш бол null */
+export function normalizePhone(value: string): string | null {
+  const digits = value.replace(/[\s\-()]/g, "").replace(/^\+?976/, "");
+  return /^\d{8}$/.test(digits) ? digits : null;
+}
+
+/** "99112233" → "9911 2233" */
+export function formatPhone(phone?: string | null): string {
+  return phone && /^\d{8}$/.test(phone) ? `${phone.slice(0, 4)} ${phone.slice(4)}` : (phone ?? "");
+}
+
 type Result<T> = { ok: true; value: T } | { ok: false; error: string };
-type PersonnelFields = { rank?: string; name?: string; position?: string };
+type PersonnelFields = { rank?: string; name?: string; position?: string; phone?: string };
 
 /**
- * Цол, нэр, албан тушаалыг шалгана. partial — зөвхөн ирсэн талбаруудыг (засварт).
+ * Цол, нэр, албан тушаал, утасны дугаарыг шалгана. partial — зөвхөн ирсэн талбаруудыг (засварт).
  * Цол хоосон эсвэл RANKS-ийн нэг байна; keepRank — жагсаалт гарахаас өмнө бичсэн хуучин цолыг засварт хэвээр үлдээнэ.
+ * Утасны дугаар заавал (8 оронтой).
  */
 export function parsePersonnel(body: unknown, partial = false, keepRank?: string): Result<PersonnelFields> {
   const b = (body ?? {}) as Record<string, unknown>;
@@ -109,6 +121,11 @@ export function parsePersonnel(body: unknown, partial = false, keepRank?: string
   if (out.name === "" || (!partial && !out.name)) return { ok: false, error: "Нэрийг бичнэ үү" };
   if (out.rank && out.rank !== keepRank && !(RANKS as readonly string[]).includes(out.rank)) {
     return { ok: false, error: "Цолоо жагсаалтаас сонгоно уу" };
+  }
+  if (b.phone !== undefined || !partial) {
+    const phone = normalizePhone(typeof b.phone === "string" ? b.phone : "");
+    if (!phone) return { ok: false, error: "Утасны дугаараа бичнэ үү (8 оронтой)" };
+    out.phone = phone;
   }
   return { ok: true, value: out };
 }

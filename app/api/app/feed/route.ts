@@ -20,7 +20,9 @@ export async function GET() {
     Alert.find().sort({ createdAt: -1 }).limit(20).lean<
       { _id: unknown; title: string; body: string; createdAt: Date; acks: { userId: string }[] }[]
     >(),
-    Personnel.findOne({ userId: device.userId, active: true }).select("rank name position").lean<{ _id: unknown; rank: string; name: string; position: string }>(),
+    Personnel.findOne({ userId: device.userId, active: true })
+      .select("rank name position phone photo canRegister")
+      .lean<{ _id: unknown; rank: string; name: string; position: string; phone?: string; photo?: string; canRegister?: boolean }>(),
     DayRecord.find({ date: { $in: days } }).select("date guard watch").lean<DayDoc[]>(),
   ]);
   const pid = person ? String(person._id) : "";
@@ -41,7 +43,16 @@ export async function GET() {
     : null;
 
   return NextResponse.json({
-    person: person ? { rank: person.rank, name: person.name, position: person.position } : null,
+    person: person
+      ? {
+          rank: person.rank,
+          name: person.name,
+          position: person.position,
+          phone: person.phone ?? "",
+          photo: person.photo ?? "",
+          canRegister: Boolean(person.canRegister),
+        }
+      : null,
     pushEnabled: Boolean(device.push?.endpoint),
     nextDuty: next?.date ?? null,
     alerts: alerts.map((a) => ({

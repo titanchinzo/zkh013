@@ -37,7 +37,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       // Энэ хүн өөр алба хаагчтай холбогдсон бол давхар бүртгэл үүсгэхгүй
       const linked = await Personnel.exists({ userId: device.userId });
       if (!linked) {
-        await Personnel.create({ rank: device.rank, name: device.name, position: device.position, userId: device.userId });
+        await Personnel.create({
+          rank: device.rank,
+          name: device.name,
+          position: device.position,
+          phone: device.phone,
+          userId: device.userId,
+        });
       }
     } else if (personnelId) {
       if (!isValidObjectId(personnelId)) return NextResponse.json({ error: "Алба хаагч олдсонгүй" }, { status: 400 });
@@ -49,6 +55,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       // Хэрэглэгч нэг л алба хаагчтай холбогдоно
       await Personnel.updateMany({ userId: device.userId, _id: { $ne: person._id } }, { $unset: { userId: 1 } });
       person.userId = device.userId;
+      // Хүсэлтэд бичсэн утасны дугаараар дутууг нь бөглөнө
+      if (!person.phone && device.phone) person.phone = device.phone;
       await person.save();
     } else {
       return NextResponse.json({ error: "Алба хаагчийг сонгоно уу" }, { status: 400 });

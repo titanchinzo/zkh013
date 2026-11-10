@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth, clerkClient } from "@clerk/nextjs/server";
-import { isClerkAPIResponseError } from "@clerk/nextjs/errors";
 import { getCurrentRole } from "@/lib/auth-role";
+import { clerkErrorMessage, parseEmail } from "@/lib/invite";
 import { isRole, resolveRole } from "@/lib/roles";
 
 const FORBIDDEN = { error: "Зөвшөөрөлгүй" };
@@ -40,35 +40,29 @@ export async function GET() {
 
 /**
  * Хэрэглэгчийг шууд нэмнэ (урилгагүй). body: { email, role } — role "none" бол эрхгүй (утасны апп ашиглагч).
- * Нууц үг шаардахгүй: тэр хүн /sign-in дээр и-мэйлээ бичиж, ирсэн кодоор нэвтэрнэ.
+ * Нууц үг шаардахгүй: тэр хүн /app дээр «Нэвтрэх» дараад и-мэйлээ бичиж, ирсэн кодоор нэвтэрч, бүртгэлээ шууд
+ * үүсгэнэ (админ нэмсэн тул хүний нөөцийн зөвшөөрөл хэрэггүй).
  */
 export async function POST(req: NextRequest) {
   if ((await getCurrentRole()) !== "admin") return NextResponse.json(FORBIDDEN, { status: 403 });
   const body = await req.json().catch(() => null);
-  const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return NextResponse.json({ error: "И-мэйл хаяг буруу байна." }, { status: 400 });
-  }
+  const email = parseEmail(body?.email);
+  if (!email) return NextResponse.json({ error: "И-мэйл хаяг буруу байна." }, { status: 400 });
   if (body?.role !== "none" && !isRole(body?.role)) {
     return NextResponse.json({ error: "Эрхээ сонгоно уу." }, { status: 400 });
   }
 
+  const invitedBy = (await auth()).userId ?? "";
   const client = await clerkClient();
   try {
     await client.users.createUser({
       emailAddress: [email],
-      publicMetadata: body.role === "none" ? {} : { role: body.role },
+      publicMetadata: body.role === "none" ? { invitedBy } : { role: body.role, invitedBy },
       skipPasswordRequirement: true,
     });
   } catch (err) {
-    if (isClerkAPIResponseError(err)) {
-      const first = err.errors[0];
-      const error =
-        first?.code === "form_identifier_exists"
-          ? "Энэ и-мэйлтэй хэрэглэгч бүртгэлтэй байна."
-          : (first?.longMessage ?? first?.message ?? "Хэрэглэгч нэмж чадсангүй");
-      return NextResponse.json({ error }, { status: 400 });
-    }
+    const error = clerkErrorMessage(err, "Хэрэглэгч нэмж чадсангүй");
+    if (error) return NextResponse.json({ error }, { status: 400 });
     throw err;
   }
   return NextResponse.json({ ok: true }, { status: 201 });

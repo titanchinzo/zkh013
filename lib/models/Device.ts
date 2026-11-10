@@ -11,6 +11,7 @@ const DeviceSchema = new Schema(
     rank: { type: String, default: "", maxlength: PERSONNEL_LIMITS.rank },
     name: { type: String, required: true, maxlength: PERSONNEL_LIMITS.name },
     position: { type: String, default: "", maxlength: PERSONNEL_LIMITS.position },
+    phone: { type: String, default: "" },
     label: { type: String, default: "" },
     tokenHash: { type: String, required: true, unique: true },
     status: { type: String, enum: ["pending", "approved", "rejected", "revoked"], default: "pending" },

@@ -5,13 +5,22 @@ import Image from "next/image";
 import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { RankSelect } from "@/components/hr/rank-select";
-import { DUTY_LABEL, DUTY_REMINDER_TEXT, formatDay, formatWeek, relativeDay, todayUb } from "@/lib/hr";
+import { DUTY_LABEL, DUTY_REMINDER_TEXT, formatDay, formatPhone, formatWeek, relativeDay, todayUb } from "@/lib/hr";
 import { InstallSteps, useInstall } from "@/components/app/install";
 
 type DeviceStatus = "pending" | "approved" | "rejected" | "revoked";
-type DeviceInfo = { signedIn: boolean; device: { status: DeviceStatus; name: string } | null };
+// direct — урилгаар орж ирсэн тул бүртгэл хүний нөөцийн зөвшөөрөлгүй шууд идэвхжинэ
+type DeviceInfo = { signedIn: boolean; direct: boolean; device: { status: DeviceStatus; name: string } | null };
+type Person = {
+  rank: string;
+  name: string;
+  position: string;
+  phone: string;
+  photo: string;
+  canRegister: boolean;
+};
 type Feed = {
-  person: { rank: string; name: string; position: string } | null;
+  person: Person | null;
   pushEnabled: boolean;
   alerts: { id: string; title: string; body: string; createdAt: string; acked: boolean }[];
   nextDuty: string | null;
@@ -76,7 +85,7 @@ export function AlertApp() {
                 : "Хүний нөөц энэ утасны хүсэлтийг татгалзсан."}
             </p>
           )}
-          {info.signedIn ? <RequestForm onSent={load} /> : <SignInPrompt />}
+          {info.signedIn ? <RequestForm direct={info.direct} onSent={load} /> : <SignInPrompt />}
         </>
       )}
     </div>
@@ -104,9 +113,31 @@ function SignInPrompt() {
   );
 }
 
-function RequestForm({ onSent }: { onSent: () => void }) {
+/** Цол, нэр, албан тушаал, утасны дугаар (заавал) — бүртгэл үүсгэх, засах маягтад */
+function ProfileFields({ person }: { person?: Partial<Person> }) {
+  return (
+    <>
+      <RankSelect defaultValue={person?.rank ?? ""} />
+      <Input name="name" placeholder="Овог, нэр" required maxLength={120} defaultValue={person?.name} />
+      <Input name="position" placeholder="Албан тушаал" maxLength={120} defaultValue={person?.position} />
+      <Input
+        name="phone"
+        type="tel"
+        inputMode="numeric"
+        placeholder="Утасны дугаар (8 оронтой)"
+        required
+        maxLength={16}
+        defaultValue={person?.phone}
+      />
+    </>
+  );
+}
+
+function RequestForm({ direct, onSent }: { direct: boolean; onSent: () => void }) {
+  const install = useInstall();
   const [error, setError] = useState("");
   const [sending, setSending] = useState(false);
+  const [inBrowser, setInBrowser] = useState(false);
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -125,22 +156,266 @@ function RequestForm({ onSent }: { onSent: () => void }) {
     onSent();
   }
 
+  // iPhone-д суулгасан апп хөтчөөс тусдаа санах ойтой — хөтөч дээр үүсгэсэн бүртгэл апп руу шилжихгүй
+  if (direct && install.ios && !install.standalone && !inBrowser) {
+    return (
+      <Card>
+        <p className="font-semibold text-foreground">Таныг урьсан байна</p>
+        <p className="text-sm text-muted-foreground">
+          Дээрх зааврын дагуу аппаа нүүр дэлгэцэндээ суулгаад, суулгасан аппаас нэвтэрч бүртгэлээ үүсгэнэ үү.
+        </p>
+        <button onClick={() => setInBrowser(true)} className="text-xs text-primary hover:underline">
+          Суулгахгүйгээр энд үргэлжлүүлэх
+        </button>
+      </Card>
+    );
+  }
+
   return (
     <Card>
-      <p className="font-semibold text-foreground">Утсаа бүртгүүлэх</p>
+      <p className="font-semibold text-foreground">{direct ? "Бүртгэл үүсгэх" : "Утсаа бүртгүүлэх"}</p>
       <p className="text-sm text-muted-foreground">
-        Нэг хүн нэг л утсаар ашиглана. Утсаа солих, гээх үед хүний нөөцөөс дахин зөвшөөрөл авна.
+        {direct
+          ? "Таныг урьсан тул бүртгэл тань шууд идэвхжинэ. "
+          : "Хүний нөөц зөвшөөрсний дараа ашиглана. "}
+        Нэг хүн нэг л утсаар ашиглана — утсаа солих, гээх үед хүний нөөцөөс дахин зөвшөөрөл авна.
       </p>
       <form onSubmit={submit} className="space-y-3">
-        <RankSelect />
-        <Input name="name" placeholder="Овог, нэр" required maxLength={120} />
-        <Input name="position" placeholder="Албан тушаал" maxLength={120} />
+        <ProfileFields />
         {error && <p className="text-sm text-red-400">{error}</p>}
         <button type="submit" disabled={sending} className={button}>
-          {sending ? "Илгээж байна..." : "Хүсэлт илгээх"}
+          {sending ? "Илгээж байна..." : direct ? "Бүртгэл үүсгэх" : "Хүсэлт илгээх"}
         </button>
       </form>
     </Card>
+  );
+}
+
+/** Профайл зураг эсвэл нэрийн эхний үсэг */
+function Avatar({ person, size = 56 }: { person: Pick<Person, "name" | "photo">; size?: number }) {
+  if (person.photo) {
+    return (
+      <Image
+        src={person.photo}
+        alt=""
+        width={size}
+        height={size}
+        unoptimized
+        className="rounded-full object-cover border border-border shrink-0"
+        style={{ width: size, height: size }}
+      />
+    );
+  }
+  return (
+    <span
+      className="rounded-full bg-muted text-foreground font-bold flex items-center justify-center shrink-0"
+      style={{ width: size, height: size }}
+    >
+      {person.name.trim().charAt(0).toUpperCase()}
+    </span>
+  );
+}
+
+/** Утсан дээр авсан зургийг ≈400px болгож жижгэрүүлнэ — серверт жижиг файл очно */
+async function shrinkImage(file: File, max = 400): Promise<Blob> {
+  const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+  const scale = Math.min(1, max / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(bitmap.width * scale);
+  canvas.height = Math.round(bitmap.height * scale);
+  canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  return new Promise((resolve, reject) =>
+    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("Зургийг уншиж чадсангүй"))), "image/jpeg", 0.85)
+  );
+}
+
+/** Миний бүртгэл: зураг, цол, нэр, албан тушаал, утас — засаж болно (хүний нөөц ч засна) */
+function ProfileCard({ person, onChange }: { person: Person; onChange: () => void }) {
+  const [editing, setEditing] = useState(!person.phone);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function save(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    const res = await fetch("/api/app/profile", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(Object.fromEntries(new FormData(e.currentTarget))),
+    });
+    setBusy(false);
+    if (!res.ok) {
+      setError((await res.json().catch(() => null))?.error ?? "Алдаа гарлаа");
+      return;
+    }
+    setEditing(false);
+    onChange();
+  }
+
+  async function changePhoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setBusy(true);
+    setError("");
+    try {
+      const res = await fetch("/api/app/profile/photo", {
+        method: "POST",
+        headers: { "Content-Type": "image/jpeg" },
+        body: await shrinkImage(file),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? "Алдаа гарлаа");
+      onChange();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Алдаа гарлаа");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card>
+      <div className="flex items-center gap-4">
+        <label className="relative cursor-pointer" title="Зураг солих">
+          <Avatar person={person} />
+          <span className="absolute -bottom-1 -right-1 rounded-full bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5">
+            {busy ? "…" : "Зураг"}
+          </span>
+          <input type="file" accept="image/*" className="hidden" onChange={changePhoto} disabled={busy} />
+        </label>
+        <div className="min-w-0">
+          <p className="font-bold text-foreground">{[person.rank, person.name].filter(Boolean).join(" ")}</p>
+          {person.position && <p className="text-sm text-muted-foreground">{person.position}</p>}
+          <p className="text-sm text-muted-foreground">{person.phone ? formatPhone(person.phone) : "Утасны дугаар алга"}</p>
+        </div>
+      </div>
+      {editing ? (
+        <form onSubmit={save} className="space-y-3">
+          {!person.phone && <p className="text-sm text-yellow-400">Утасны дугаараа заавал оруулна уу.</p>}
+          <ProfileFields person={person} />
+          {error && <p className="text-sm text-red-400">{error}</p>}
+          <div className="flex gap-2">
+            <button type="submit" disabled={busy} className={button}>
+              Хадгалах
+            </button>
+            {person.phone && (
+              <button type="button" onClick={() => setEditing(false)} className={secondary}>
+                Болих
+              </button>
+            )}
+          </div>
+        </form>
+      ) : (
+        <>
+          {error && <p className="text-sm text-red-400">{error}</p>}
+          <button onClick={() => setEditing(true)} className={secondary}>
+            Бүртгэлээ засах
+          </button>
+        </>
+      )}
+    </Card>
+  );
+}
+
+type Invites = {
+  pending: { id: string; email: string; createdAt: number }[];
+  joined: (Pick<Person, "rank" | "name" | "position" | "phone" | "photo"> & { _id: string })[];
+};
+
+/** Хүний нөөцөөс «Бүртгэх эрх» авсан дарга доод хүмүүсээ и-мэйлээр урина */
+function RegistrarSection() {
+  const [data, setData] = useState<Invites | null>(null);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [sending, setSending] = useState(false);
+
+  const load = useCallback(async () => {
+    const res = await fetch("/api/app/invitations", { cache: "no-store" });
+    if (res.ok) setData(await res.json());
+  }, []);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial data fetch on mount
+    load();
+  }, [load]);
+
+  async function invite(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const email = String(new FormData(form).get("email") ?? "");
+    setSending(true);
+    setError("");
+    setNotice("");
+    const res = await fetch("/api/app/invitations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    setSending(false);
+    if (!res.ok) {
+      setError((await res.json().catch(() => null))?.error ?? "Алдаа гарлаа");
+      return;
+    }
+    form.reset();
+    setNotice(`${email} руу урилга илгээлээ. Тэр хүн и-мэйл дэх холбоосоор орж бүртгэлээ шууд үүсгэнэ.`);
+    load();
+  }
+
+  async function cancel(id: string, email: string) {
+    if (!confirm(`${email}-ийн урилгыг цуцлах уу?`)) return;
+    await fetch(`/api/app/invitations/${id}`, { method: "DELETE" });
+    load();
+  }
+
+  return (
+    <section className="space-y-3">
+      <h2 className="font-bold text-foreground">Хүн бүртгэх</h2>
+      <Card>
+        <p className="text-sm text-muted-foreground">
+          Доод хүмүүсээ и-мэйлээр нь урина. Урилгаар орж ирсэн хүн хүний нөөцийн зөвшөөрөл хүлээлгүй бүртгэлээ
+          үүсгэнэ.
+        </p>
+        <form onSubmit={invite} className="flex gap-2">
+          <Input name="email" type="email" required placeholder="name@example.com" />
+          <button type="submit" disabled={sending} className="px-4 h-10 shrink-0 rounded-md bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-50">
+            Урих
+          </button>
+        </form>
+        {error && <p className="text-sm text-red-400">{error}</p>}
+        {notice && <p className="text-sm text-primary">{notice}</p>}
+      </Card>
+      {data && data.pending.length > 0 && (
+        <ul className="rounded-xl border border-border divide-y divide-border text-sm">
+          {data.pending.map((inv) => (
+            <li key={inv.id} className="px-4 py-2.5 flex items-center justify-between gap-3">
+              <span className="min-w-0 truncate text-foreground">{inv.email}</span>
+              <span className="flex items-center gap-2 shrink-0">
+                <span className="text-xs text-yellow-400">Хүлээгдэж байна</span>
+                <button onClick={() => cancel(inv.id, inv.email)} className="text-xs text-red-400">
+                  Цуцлах
+                </button>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {data && data.joined.length > 0 && (
+        <ul className="rounded-xl border border-border divide-y divide-border text-sm">
+          {data.joined.map((p) => (
+            <li key={p._id} className="px-4 py-2.5 flex items-center gap-3">
+              <Avatar person={p} size={36} />
+              <span className="min-w-0">
+                <span className="block text-foreground">{[p.rank, p.name].filter(Boolean).join(" ")}</span>
+                <span className="block text-xs text-muted-foreground">
+                  {[p.position, formatPhone(p.phone)].filter(Boolean).join(" · ")}
+                </span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 
@@ -170,12 +445,7 @@ function ApprovedView() {
 
   return (
     <>
-      {feed.person && (
-        <p className="text-sm text-muted-foreground">
-          {[feed.person.rank, feed.person.name].filter(Boolean).join(" ")}
-          {feed.person.position && ` · ${feed.person.position}`}
-        </p>
-      )}
+      {feed.person && <ProfileCard person={feed.person} onChange={load} />}
 
       {feed.nextDuty && <NextDuty date={feed.nextDuty} />}
 
@@ -205,6 +475,8 @@ function ApprovedView() {
       {feed.weeks.map((week, i) => (
         <DutyWeek key={week.start} title={i === 0 ? "Энэ 7 хоног" : "Дараагийн 7 хоног"} week={week} />
       ))}
+
+      {feed.person?.canRegister && <RegistrarSection />}
     </>
   );
 }
