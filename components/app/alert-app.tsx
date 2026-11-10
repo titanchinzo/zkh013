@@ -4,7 +4,9 @@ import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Input } from "@/components/ui/input";
+import { RankSelect } from "@/components/hr/rank-select";
 import { DUTY_LABELS, formatDay } from "@/lib/hr";
+import { InstallSteps, useInstall } from "@/components/app/install";
 
 type DeviceStatus = "pending" | "approved" | "rejected" | "revoked";
 type DeviceInfo = { signedIn: boolean; device: { status: DeviceStatus; name: string } | null };
@@ -129,7 +131,7 @@ function RequestForm({ onSent }: { onSent: () => void }) {
         Нэг хүн нэг л утсаар ашиглана. Утсаа солих, гээх үед хүний нөөцөөс дахин зөвшөөрөл авна.
       </p>
       <form onSubmit={submit} className="space-y-3">
-        <Input name="rank" placeholder="Цол (жишээ нь: ахлагч)" maxLength={60} />
+        <RankSelect />
         <Input name="name" placeholder="Овог, нэр" required maxLength={120} />
         <Input name="position" placeholder="Албан тушаал" maxLength={120} />
         {error && <p className="text-sm text-red-400">{error}</p>}
@@ -288,47 +290,24 @@ function PushToggle({ enabled, onChange }: { enabled: boolean; onChange: () => v
   );
 }
 
-type InstallEvent = Event & { prompt: () => Promise<void> };
-
+/** Суулгаагүй бол дээд хэсэгт: суулгах товч эсвэл заавар (дэлгэрэнгүйг /download-д) */
 function InstallHint() {
-  const [standalone, setStandalone] = useState(true);
-  const [ios, setIos] = useState(false);
-  const [installEvent, setInstallEvent] = useState<InstallEvent | null>(null);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- browser capability check after mount
-    setStandalone(
-      window.matchMedia("(display-mode: standalone)").matches ||
-        (navigator as Navigator & { standalone?: boolean }).standalone === true
-    );
-    setIos(/iPhone|iPad|iPod/.test(navigator.userAgent));
-    const onPrompt = (e: Event) => {
-      e.preventDefault();
-      setInstallEvent(e as InstallEvent);
-    };
-    window.addEventListener("beforeinstallprompt", onPrompt);
-    return () => window.removeEventListener("beforeinstallprompt", onPrompt);
-  }, []);
-
-  if (standalone) return null;
+  const state = useInstall();
+  if (!state.ready || state.standalone || state.installed) return null;
   return (
     <Card>
       <p className="font-semibold text-foreground">Эхлээд утсандаа суулгана</p>
       <p className="text-sm text-muted-foreground">Суулгасан аппаас нэвтэрч, утсаа бүртгүүлнэ.</p>
-      {installEvent ? (
-        <button onClick={() => installEvent.prompt()} className={button}>
-          Апп суулгах
+      {state.install && !state.inApp ? (
+        <button onClick={state.install} className={button}>
+          Апп татах
         </button>
-      ) : ios ? (
-        <p className="text-sm text-muted-foreground">
-          Safari-гийн доод хэсгийн <b>Хуваалцах</b> (□↑) товчийг дараад <b>Нүүр дэлгэцэнд нэмэх</b> (Add to Home Screen)-ийг
-          сонгоно. Дараа нь нүүр дэлгэц дээрх «013 анги» аппаас нээнэ.
-        </p>
       ) : (
-        <p className="text-sm text-muted-foreground">
-          Chrome-ийн баруун дээд <b>⋮</b> цэснээс <b>Апп суулгах</b> (Install app эсвэл Add to Home screen)-ийг сонгоно.
-        </p>
+        <InstallSteps state={state} />
       )}
+      <Link href="/download" className="block text-xs text-primary hover:underline">
+        Дэлгэрэнгүй заавар
+      </Link>
     </Card>
   );
 }

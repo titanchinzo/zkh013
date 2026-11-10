@@ -13,13 +13,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const { id } = await params;
   if (!isValidObjectId(id)) return NextResponse.json({ error: "Олдсонгүй" }, { status: 404 });
 
-  const body = await req.json().catch(() => null);
-  const parsed = parsePersonnel(body, true);
-  if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
-  const update = { ...parsed.value, ...(typeof body?.active === "boolean" ? { active: body.active } : {}) };
-
   await connectToDatabase();
-  const person = await Personnel.findByIdAndUpdate(id, update, { new: true, runValidators: true });
+  const person = await Personnel.findById(id);
   if (!person) return NextResponse.json({ error: "Олдсонгүй" }, { status: 404 });
+  const body = await req.json().catch(() => null);
+  const parsed = parsePersonnel(body, true, person.rank);
+  if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
+
+  person.set({ ...parsed.value, ...(typeof body?.active === "boolean" ? { active: body.active } : {}) });
+  await person.save();
   return NextResponse.json({ person });
 }

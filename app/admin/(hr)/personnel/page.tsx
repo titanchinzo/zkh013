@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
+import { RankSelect } from "@/components/hr/rank-select";
 
 type Person = { _id: string; rank: string; name: string; position: string; active: boolean; userId?: string };
 
@@ -69,7 +70,7 @@ export default function PersonnelPage() {
       <form onSubmit={add} className="rounded-xl border border-border bg-card p-4 space-y-3">
         <h2 className="font-bold text-foreground">Алба хаагч нэмэх</h2>
         <div className="grid gap-3 sm:grid-cols-[1fr_2fr_2fr_auto]">
-          <Input name="rank" placeholder="Цол" maxLength={60} />
+          <RankSelect />
           <Input name="name" placeholder="Овог, нэр" required maxLength={120} />
           <Input name="position" placeholder="Албан тушаал" maxLength={120} />
           <button type="submit" className="px-4 h-10 rounded-md bg-primary text-primary-foreground text-sm font-semibold">
@@ -102,7 +103,7 @@ export default function PersonnelPage() {
                     <tr key={p._id} className="border-t border-border">
                       <td colSpan={5} className="px-4 py-3">
                         <form onSubmit={(e) => save(p._id, e)} className="grid gap-2 sm:grid-cols-[1fr_2fr_2fr_auto_auto]">
-                          <Input name="rank" defaultValue={p.rank} maxLength={60} />
+                          <RankSelect defaultValue={p.rank} />
                           <Input name="name" defaultValue={p.name} required maxLength={120} />
                           <Input name="position" defaultValue={p.position} maxLength={120} />
                           <button type="submit" className={smallButton}>

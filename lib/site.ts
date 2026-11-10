@@ -18,4 +18,6 @@ export const NAV_LINKS = [
   { href: "/news", label: "Мэдээ" },
   { href: "/#training", label: "Сургалт" },
   { href: "/#contact", label: "Холбоо барих" },
+  // Алба хаагчдын «Зарлан мэдээлэх» апп (/download → утсандаа суулгана)
+  { href: "/download", label: "Апп татах" },
 ];

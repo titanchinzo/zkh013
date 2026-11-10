@@ -18,6 +18,9 @@ export type Duty = keyof typeof DUTY_LABELS;
 /** Харуулыг нэг дор оноох хоногийн тоо */
 export const GUARD_DAYS = 7;
 
+/** Цолын товчлол — бага цолоос ахлах руу. Цолыг зөвхөн эндээс сонгоно. */
+export const RANKS = ["энг", "т/ч", "а/т", "д/а", "а/ч", "а/а", "с/а", "т/а", "д/ч", "а/д", "а/х", "х/ч", "д/х", "Хур"] as const;
+
 export const PERSONNEL_LIMITS = { rank: 60, name: 120, position: 120 } as const;
 export const ALERT_LIMITS = { title: 120, body: 1000 } as const;
 
@@ -54,8 +57,11 @@ export function personnelLabel(p: { rank?: string | null; name: string }) {
 type Result<T> = { ok: true; value: T } | { ok: false; error: string };
 type PersonnelFields = { rank?: string; name?: string; position?: string };
 
-/** Цол, нэр, албан тушаалыг шалгана. partial — зөвхөн ирсэн талбаруудыг (засварт) */
-export function parsePersonnel(body: unknown, partial = false): Result<PersonnelFields> {
+/**
+ * Цол, нэр, албан тушаалыг шалгана. partial — зөвхөн ирсэн талбаруудыг (засварт).
+ * Цол хоосон эсвэл RANKS-ийн нэг байна; keepRank — жагсаалт гарахаас өмнө бичсэн хуучин цолыг засварт хэвээр үлдээнэ.
+ */
+export function parsePersonnel(body: unknown, partial = false, keepRank?: string): Result<PersonnelFields> {
   const b = (body ?? {}) as Record<string, unknown>;
   const out: PersonnelFields = {};
   for (const key of ["rank", "name", "position"] as const) {
@@ -65,5 +71,8 @@ export function parsePersonnel(body: unknown, partial = false): Result<Personnel
     out[key] = value;
   }
   if (out.name === "" || (!partial && !out.name)) return { ok: false, error: "Нэрийг бичнэ үү" };
+  if (out.rank && out.rank !== keepRank && !(RANKS as readonly string[]).includes(out.rank)) {
+    return { ok: false, error: "Цолоо жагсаалтаас сонгоно уу" };
+  }
   return { ok: true, value: out };
 }

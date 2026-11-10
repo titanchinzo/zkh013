@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Image from "next/image";
 import { personnelLabel } from "@/lib/hr";
 
 type DeviceRow = {
@@ -65,6 +66,17 @@ export default function DevicesPage() {
           Зарлан мэдээллийн аппыг утсандаа суулгасан хүн энд хүсэлт илгээнэ. Хүн бүр нэг л утастай — шинэ утсыг
           зөвшөөрөхөд хуучин утас нь автоматаар хүчингүй болно. Гээсэн утсыг доороос хүчингүй болгоно.
         </p>
+      </div>
+
+      <div className="rounded-xl border border-border bg-card p-4 flex items-center gap-4">
+        <Image src="/app-qr.png" alt="unit013.mn/download хаягийн QR код" width={96} height={96} className="rounded-md shrink-0" />
+        <div className="text-sm text-muted-foreground space-y-1">
+          <p className="font-semibold text-foreground">Апп татах холбоос</p>
+          <p>
+            Алба хаагчид энэ QR кодыг утасныхаа камераар уншуулах эсвэл{" "}
+            <span className="font-mono text-foreground">unit013.mn/download</span> хаягийг нээж аппаа суулгана.
+          </p>
+        </div>
       </div>
 
       {error && <p className="text-sm text-red-400">{error}</p>}

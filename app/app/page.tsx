@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { AlertApp } from "@/components/app/alert-app";
+import { InstallCapture } from "@/components/app/install-capture";
 
 export const metadata: Metadata = {
   title: "Зарлан мэдээлэх",
@@ -12,6 +13,7 @@ export const viewport: Viewport = { themeColor: "#0a0f0a" };
 export default function AlertAppPage() {
   return (
     <main className="min-h-screen bg-background">
+      <InstallCapture />
       <AlertApp />
     </main>
   );

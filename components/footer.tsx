@@ -14,6 +14,7 @@ const FOOTER_LINKS = [
   { href: "/news", label: "Мэдээ" },
   { href: "/#training", label: "Сургалт" },
   { href: "/#contact", label: "Холбоо барих" },
+  { href: "/download", label: "Апп татах" },
 ];
 
 export async function Footer() {
