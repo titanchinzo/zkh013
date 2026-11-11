@@ -2,6 +2,18 @@ import { NextResponse } from "next/server";
 import { getApprovedDevice } from "@/lib/device";
 import Alert from "@/lib/models/Alert";
 import { visibleNow } from "@/lib/alerts";
+import { userRole } from "@/lib/actor";
+import News from "@/lib/models/News";
+import { canReview } from "@/lib/roles";
+
+async function newsBadge(userId: string) {
+  const { role } = await userRole(userId);
+  const [pending, latest] = await Promise.all([
+    canReview(role) ? News.countDocuments({ status: "pending" }) : 0,
+    News.findOne({ status: "published" }).sort({ createdAt: -1 }).select("createdAt").lean<{ createdAt: Date }>(),
+  ]);
+  return { role, pending, latestAt: latest?.createdAt ?? null };
+}
 import DayRecord, { dutyIds } from "@/lib/models/DayRecord";
 import Personnel from "@/lib/models/Personnel";
 import { WEEK_DAYS, addDays, personnelLabel, todayUb, weekStart } from "@/lib/hr";
@@ -65,6 +77,8 @@ export async function GET() {
         }
       : null,
     pushEnabled: Boolean(device.push?.endpoint),
+    // «Мэдээ» хэсгийн тэмдэг: хянагчид хяналт хүлээж буй мэдээний тоо, бусдад шинэ мэдээ нэмэгдсэн эсэх
+    news: await newsBadge(device.userId),
     nextDuty: next?.date ?? null,
     alerts: alerts.map((a) => ({
       id: String(a._id),

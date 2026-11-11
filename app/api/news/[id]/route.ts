@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { isValidObjectId } from "mongoose";
 import { connectToDatabase } from "@/lib/mongodb";
 import News, { STAFF_ONLY_FIELDS } from "@/lib/models/News";
-import { getCurrentRole } from "@/lib/auth-role";
+import { getActor } from "@/lib/actor";
+import { notifyReviewers } from "@/lib/news-notify";
 import { isNewsRole } from "@/lib/roles";
 import { createImagePreparer } from "@/lib/image-import";
 import { MEDIA_URL_ERROR } from "@/lib/media";
@@ -15,21 +15,28 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const { id } = await params;
   if (!isValidObjectId(id)) return NextResponse.json({ error: "Олдсонгүй" }, { status: 404 });
   await connectToDatabase();
-  const role = await getCurrentRole();
+  const actor = await getActor();
+  const role = actor?.role ?? null;
   // Нийтлэгч зөвхөн өөрийн мэдээг ажилтны эрхээр (нийтлэгдээгүй ч) харна
   const staff =
-    role === "publisher" ? Boolean(await News.exists({ _id: id, authorId: (await auth()).userId })) : isNewsRole(role);
+    role === "publisher" ? Boolean(await News.exists({ _id: id, authorId: actor!.userId })) : isNewsRole(role);
   const query = News.findById(id);
   const news = await (staff ? query : query.select(STAFF_ONLY_FIELDS)).lean();
   if (!news || (news.status !== "published" && !staff)) {
     return NextResponse.json({ error: "Олдсонгүй" }, { status: 404 });
   }
 
-  return NextResponse.json({ news });
+  // Утсан дээрх апп: хянах, засах товч харуулах эсэх
+  const viewer = {
+    canReview: role === "admin" || role === "moderator",
+    canEdit: role === "admin" || (role === "publisher" && staff && news.status !== "published"),
+  };
+  return NextResponse.json({ news, viewer });
 }
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const role = await getCurrentRole();
+  const actor = await getActor();
+  const role = actor?.role ?? null;
   if (role !== "admin" && role !== "publisher") {
     return NextResponse.json({ error: "Зөвшөөрөлгүй" }, { status: 403 });
   }
@@ -38,7 +45,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!isValidObjectId(id)) return NextResponse.json({ error: "Олдсонгүй" }, { status: 404 });
   // Нийтлэгч зөвхөн өөрийн, хараахан нийтлэгдээгүй мэдээг засна; засварласан мэдээ дахин хяналтад орно
   const target =
-    role === "publisher" ? { _id: id, authorId: (await auth()).userId, status: { $ne: "published" } } : { _id: id };
+    role === "publisher" ? { _id: id, authorId: actor!.userId, status: { $ne: "published" } } : { _id: id };
   await connectToDatabase();
   if (role === "publisher" && !(await News.exists(target))) {
     return NextResponse.json({ error: "Зөвхөн өөрийн, нийтлэгдээгүй мэдээг засах боломжтой" }, { status: 403 });
@@ -80,12 +87,13 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (previous) await deleteRemovedFiles(previous, news);
   // Монгол бичгийн хувилбарыг хариу илгээсний дараа бэлдэнэ
   warmMgl([news.title, news.excerpt, news.content]);
+  // Нийтлэгчийн засварласан мэдээ дахин хяналтад орсон тул хянагчдад мэдэгдэнэ
+  if (role === "publisher") after(() => notifyReviewers(news));
   return NextResponse.json({ news });
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const role = await getCurrentRole();
-  if (role !== "admin") {
+  if ((await getActor())?.role !== "admin") {
     return NextResponse.json({ error: "Зөвшөөрөлгүй" }, { status: 403 });
   }
 

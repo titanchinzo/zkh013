@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { currentUser } from "@clerk/nextjs/server";
-import { resolveRole } from "@/lib/roles";
+import { getActor } from "@/lib/actor";
 import { CHUNK_BYTES, createUploadSession, usesLocalStorage } from "@/lib/storage";
 import { UPLOAD_KINDS, type UploadKind } from "@/lib/uploads";
 
@@ -12,11 +11,9 @@ export async function POST(req: NextRequest) {
   const rule = UPLOAD_KINDS[body?.kind as UploadKind];
   if (!rule) return NextResponse.json({ error: "Буруу төрлийн файл" }, { status: 400 });
 
-  const user = await currentUser();
-  const role = user
-    ? resolveRole(user.publicMetadata as { role?: string }, user.primaryEmailAddress?.emailAddress)
-    : null;
-  if (!user || !role || !rule.roles.includes(role)) {
+  // Сайтаас (Clerk) эсвэл утсан дээрх аппаас (зөвшөөрөгдсөн утас) — эрх нь Clerk-ийн role
+  const actor = await getActor();
+  if (!actor?.role || !rule.roles.includes(actor.role)) {
     return NextResponse.json({ error: "Файл оруулах эрхгүй байна" }, { status: 403 });
   }
 
@@ -28,6 +25,6 @@ export async function POST(req: NextRequest) {
   }
 
   if (!usesLocalStorage()) return NextResponse.json({ mode: "blob" });
-  const id = await createUploadSession(body.kind, ext, size, user.id);
+  const id = await createUploadSession(body.kind, ext, size, actor.userId);
   return NextResponse.json({ mode: "local", id, chunkSize: CHUNK_BYTES });
 }

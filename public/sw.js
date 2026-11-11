@@ -7,6 +7,8 @@ self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim(
 self.addEventListener("push", (event) => {
   const data = event.data ? event.data.json() : {};
   const chat = data.kind === "chat";
+  // Чатын зурвас, мэдээний хяналт — бусад аппынх шиг энгийн мэдэгдэл
+  const quiet = chat || data.kind === "news";
   const tasks = [
     self.registration.showNotification(data.title || "013 анги", {
       body: data.body || "",
@@ -14,9 +16,9 @@ self.addEventListener("push", (event) => {
       badge: "/app-icon-192.png",
       tag: data.tag,
       renotify: Boolean(data.tag),
-      // Зарлан мэдээлэл дарах хүртэл дэлгэц дээр үлдэнэ; чатын зурвас бусад аппынх шиг өөрөө алга болно
-      requireInteraction: !chat,
-      vibrate: chat ? [200, 100, 200] : [300, 100, 300, 100, 300],
+      // Зарлан мэдээлэл дарах хүртэл дэлгэц дээр үлдэнэ; чатын зурвас, мэдээ бусад аппынх шиг өөрөө алга болно
+      requireInteraction: !quiet,
+      vibrate: quiet ? [200, 100, 200] : [300, 100, 300, 100, 300],
       timestamp: Date.now(),
       data: { url: data.url || "/app" },
     }),

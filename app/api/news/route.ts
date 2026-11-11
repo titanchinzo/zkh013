@@ -1,8 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { connectToDatabase } from "@/lib/mongodb";
 import News, { STAFF_ONLY_FIELDS } from "@/lib/models/News";
-import { getCurrentRole } from "@/lib/auth-role";
+import { getActor } from "@/lib/actor";
+import { notifyReviewers } from "@/lib/news-notify";
 import { isNewsRole } from "@/lib/roles";
 import { createImagePreparer } from "@/lib/image-import";
 import { MEDIA_URL_ERROR } from "@/lib/media";
@@ -12,13 +12,14 @@ import { warmMgl } from "@/lib/mgl/convert";
 
 export async function GET(req: NextRequest) {
   await connectToDatabase();
-  const role = await getCurrentRole();
+  const actor = await getActor();
+  const role = actor?.role ?? null;
   // Хүний нөөц мэдээтэй ажиллахгүй — нийтийн жагсаалтыг л харна
   const staff = isNewsRole(role);
   const wantsAll = req.nextUrl.searchParams.get("all") === "1";
 
   // Нийтлэгч ажлын жагсаалтад зөвхөн өөрийн оруулсан мэдээг харна
-  const own = role === "publisher" ? { authorId: (await auth()).userId } : {};
+  const own = role === "publisher" ? { authorId: actor!.userId } : {};
   const filter = wantsAll && staff ? own : { status: "published" };
   const query = News.find(filter).sort({ createdAt: -1 });
   const news = await (staff ? query : query.select(STAFF_ONLY_FIELDS)).lean();
@@ -26,10 +27,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const user = await currentUser();
-  const role = await getCurrentRole();
-
-  if (!user || !isNewsRole(role)) {
+  // Сайтаас (Clerk) эсвэл утсан дээрх аппаас (зөвшөөрөгдсөн утас) — эрх нь Clerk-ийн role
+  const actor = await getActor();
+  if (!actor || !isNewsRole(actor.role)) {
     return NextResponse.json({ error: "Нэвтрэх шаардлагатай" }, { status: 401 });
   }
 
@@ -65,9 +65,11 @@ export async function POST(req: NextRequest) {
     videos: videos.value,
     mediaUrl,
     status: "pending",
-    authorId: user.id,
-    authorName: user.fullName ?? user.primaryEmailAddress?.emailAddress ?? "Тодорхойгүй",
+    authorId: actor.userId,
+    authorName: actor.name,
   });
+  // Хянагчдын утсанд «Хянах мэдээ» мэдэгдэл
+  after(() => notifyReviewers(news));
 
   // Монгол бичгийн хувилбарыг хариу илгээсний дараа бэлдэнэ
   warmMgl([title, excerpt, content]);

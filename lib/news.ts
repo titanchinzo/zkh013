@@ -8,7 +8,7 @@ import { parseMediaUrl, youTubeThumbnail, type NewsMedia } from "@/lib/media";
 
 // Нийтийн мэдээний хуудсуудад ашиглах өгөгдөл татах туслах функцууд
 
-type NewsDoc = {
+export type NewsDoc = {
   _id: unknown;
   title: string;
   excerpt: string;
@@ -39,7 +39,7 @@ export type NewsArticle = NewsSummary & {
   videos: string[];
 };
 
-const SUMMARY_FIELDS = "title excerpt imageUrl mediaUrl images videos createdAt";
+export const SUMMARY_FIELDS = "title excerpt imageUrl mediaUrl images videos createdAt";
 const PUBLISHED = { status: "published" };
 
 /** Оруулсан нүүр зураг, эсвэл YouTube видеоны зураг */
@@ -48,7 +48,8 @@ function coverOf(doc: Pick<NewsDoc, "imageUrl">, media: NewsMedia | null) {
   return media?.provider === "youtube" ? youTubeThumbnail(media.videoId) : null;
 }
 
-function toSummary(doc: NewsDoc): NewsSummary {
+/** Жагсаалтад харагдах товч мэдээлэл (утсан дээрх аппын жагсаалтад ч) */
+export function toSummary(doc: NewsDoc): NewsSummary {
   const media = parseMediaUrl(doc.mediaUrl);
   return {
     id: String(doc._id),

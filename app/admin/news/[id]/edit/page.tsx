@@ -2,70 +2,35 @@
 
 import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
-import { Input, Textarea } from "@/components/ui/input";
-import { ImageUploadField } from "@/components/image-upload-field";
-import { GalleryUploadField } from "@/components/gallery-upload-field";
-import { MediaLinkField } from "@/components/media-link-field";
-import { VideoUploadField } from "@/components/video-upload-field";
-import { autoFillImage } from "@/lib/media";
+import { NewsForm, type NewsFormInitial } from "@/components/news-form";
 import type { Role } from "@/lib/roles";
 
-type NewsItem = {
-  title: string;
-  excerpt: string;
-  content: string;
-  imageUrl?: string;
-  images?: string[];
-  videos?: string[];
-  mediaUrl?: string;
-  status: string;
-};
+type NewsItem = NewsFormInitial & { status: string };
 
 export default function EditNewsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
   const [item, setItem] = useState<NewsItem | null>(null);
-  const [error, setError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [coverUploading, setCoverUploading] = useState(false);
-  const [galleryUploading, setGalleryUploading] = useState(false);
-  const [videoUploading, setVideoUploading] = useState(false);
-  const [imageUrl, setImageUrl] = useState("");
-  const [images, setImages] = useState<string[]>([]);
-  const [videos, setVideos] = useState<string[]>([]);
   const [role, setRole] = useState<Role | undefined>(undefined);
 
   useEffect(() => {
     fetch(`/api/news/${id}`)
       .then((r) => r.json())
-      .then((data) => {
-        setItem(data.news);
-        setImageUrl(data.news?.imageUrl ?? "");
-        setImages(data.news?.images ?? []);
-        setVideos(data.news?.videos ?? []);
-      });
+      .then((data) => setItem(data.news));
     fetch("/api/me")
       .then((r) => r.json())
       .then((me) => setRole(me.role ?? null));
   }, [id]);
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setSubmitting(true);
-    setError("");
-    const form = new FormData(e.currentTarget);
+  async function save(values: Record<string, unknown>) {
     const res = await fetch(`/api/news/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...Object.fromEntries(form), images, videos }),
+      body: JSON.stringify(values),
     });
-    setSubmitting(false);
-    if (!res.ok) {
-      const data = await res.json();
-      setError(data.error ?? "Алдаа гарлаа");
-      return;
-    }
+    if (!res.ok) return (await res.json().catch(() => null))?.error ?? "Алдаа гарлаа";
     router.push("/admin/news");
+    return null;
   }
 
   if (!item || role === undefined) return <p className="text-muted-foreground text-sm">Ачааллаж байна...</p>;
@@ -73,58 +38,7 @@ export default function EditNewsPage({ params }: { params: Promise<{ id: string 
   return (
     <div className="max-w-2xl space-y-6">
       <h1 className="text-2xl font-bold text-foreground">Мэдээ засах</h1>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="block text-sm font-semibold text-foreground mb-2">Гарчиг</label>
-          <Input name="title" defaultValue={item.title} required />
-        </div>
-        <div>
-          <label className="block text-sm font-semibold text-foreground mb-2">Товч тайлбар</label>
-          <Input name="excerpt" defaultValue={item.excerpt} required />
-        </div>
-        <div>
-          <label className="block text-sm font-semibold text-foreground mb-2">
-            YouTube / Facebook холбоос (заавал биш)
-          </label>
-          <MediaLinkField
-            name="mediaUrl"
-            defaultValue={item.mediaUrl ?? ""}
-            onThumbnailChange={(thumb) => setImageUrl((current) => autoFillImage(current, thumb))}
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-semibold text-foreground mb-2">Нүүр зураг (заавал биш)</label>
-          <ImageUploadField
-            name="imageUrl"
-            value={imageUrl}
-            onChange={setImageUrl}
-            onUploadingChange={setCoverUploading}
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-semibold text-foreground mb-2">Зургийн цомог (заавал биш)</label>
-          <GalleryUploadField
-            value={images}
-            onChange={setImages}
-            onUploadingChange={setGalleryUploading}
-            coverUrl={imageUrl}
-            onSetCover={setImageUrl}
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-semibold text-foreground mb-2">Бичлэг (заавал биш)</label>
-          <VideoUploadField
-            value={videos}
-            onChange={setVideos}
-            onUploadingChange={setVideoUploading}
-            wantsPoster={!imageUrl}
-            onPosterUploaded={(url) => setImageUrl((current) => current || url)}
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-semibold text-foreground mb-2">Агуулга</label>
-          <Textarea name="content" defaultValue={item.content} required className="min-h-64" />
-        </div>
+      <NewsForm initial={item} submitLabel="Хадгалах" busyLabel="Хадгалж байна..." onSubmit={save}>
         {role === "admin" ? (
           <div>
             <label className="block text-sm font-semibold text-foreground mb-2">Төлөв</label>
@@ -141,15 +55,7 @@ export default function EditNewsPage({ params }: { params: Promise<{ id: string 
         ) : (
           <p className="text-sm text-muted-foreground">Хадгалсны дараа мэдээ дахин хянагчийн хяналтад орно.</p>
         )}
-        {error && <p className="text-sm text-red-400">{error}</p>}
-        <button
-          type="submit"
-          disabled={submitting || coverUploading || galleryUploading || videoUploading}
-          className="px-6 h-10 rounded-md bg-primary text-primary-foreground font-semibold disabled:opacity-50"
-        >
-          {submitting ? "Хадгалж байна..." : "Хадгалах"}
-        </button>
-      </form>
+      </NewsForm>
     </div>
   );
 }

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { House, MessageCircle } from "lucide-react";
+import { House, MessageCircle, Newspaper } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { RankSelect } from "@/components/hr/rank-select";
 import {
@@ -21,6 +21,7 @@ import { POLL_MS } from "@/lib/chat-shared";
 import { InstallSteps, useInstall } from "@/components/app/install";
 import { Avatar } from "@/components/app/avatar";
 import { ChatList, Conversation } from "@/components/app/chat";
+import { NewsDetail, NewsList, NewsWrite } from "@/components/app/news";
 import { usePolling } from "@/lib/use-polling";
 import { clearChatHistory } from "@/lib/chat-store";
 
@@ -42,6 +43,8 @@ type Feed = {
   alerts: { id: string; title: string; body: string; startsAt: string; endsAt: string | null; edited: boolean; acked: boolean }[];
   nextDuty: string | null;
   weeks: { start: string; days: { date: string; people: { name: string; me: boolean }[] }[] }[];
+  // «Мэдээ»-ний тэмдэг: хянагчид хяналт хүлээж буй мэдээ, бусдад хамгийн сүүлийн мэдээний огноо
+  news?: { pending: number; latestAt: string | null };
 };
 
 const button = "w-full h-11 rounded-md bg-primary text-primary-foreground font-semibold disabled:opacity-50";
@@ -52,14 +55,19 @@ function urlBase64ToUint8Array(base64: string) {
   return Uint8Array.from(atob(padded), (c) => c.charCodeAt(0));
 }
 
-// «Нүүр» — зарлан мэдээлэл, харуулын хуваарь, бүртгэл; «Чат» — алба хаагчид хоорондоо (?tab=chat, ?chat=<userId>)
-type Tab = "home" | "chat";
+// «Нүүр» — зарлан мэдээлэл, харуулын хуваарь, бүртгэл; «Мэдээ» — сайтын мэдээ, хянах, бичих (?tab=news, ?news=<id>,
+// ?write=new|<id>); «Чат» — алба хаагчид хоорондоо (?tab=chat, ?chat=<userId>)
+type Tab = "home" | "news" | "chat";
+const TITLES: Record<Tab, string> = { home: "Зарлан мэдээлэх", news: "Мэдээ", chat: "Чат" };
 
 export function AlertApp() {
   const [info, setInfo] = useState<DeviceInfo | null>(null);
   const params = useSearchParams();
   const chatWith = params.get("chat");
-  const tab: Tab = chatWith || params.get("tab") === "chat" ? "chat" : "home";
+  const newsId = params.get("news");
+  const write = params.get("write");
+  const tab: Tab =
+    chatWith || params.get("tab") === "chat" ? "chat" : newsId || write || params.get("tab") === "news" ? "news" : "home";
   const approved = info?.device?.status === "approved";
 
   const load = useCallback(async () => {
@@ -88,7 +96,7 @@ export function AlertApp() {
         <Image src="/logo.png" alt="" width={36} height={47} />
         <div>
           <p className="text-xs text-muted-foreground">Зэвсэгт хүчний 013 дугаар анги</p>
-          <h1 className="text-xl font-bold text-foreground">{approved && tab === "chat" ? "Чат" : "Зарлан мэдээлэх"}</h1>
+          <h1 className="text-xl font-bold text-foreground">{approved ? TITLES[tab] : TITLES.home}</h1>
         </div>
       </header>
 
@@ -97,7 +105,7 @@ export function AlertApp() {
       {!info ? (
         <p className="text-sm text-muted-foreground">Ачааллаж байна...</p>
       ) : approved ? (
-        <ApprovedView tab={tab} chatWith={chatWith} />
+        <ApprovedView tab={tab} chatWith={chatWith} newsId={newsId} write={write} />
       ) : info.device?.status === "pending" ? (
         <Card>
           <p className="font-semibold text-foreground">Хүсэлт илгээгдсэн</p>
@@ -428,9 +436,26 @@ function RegistrarSection() {
 
 type AppBadge = Navigator & { setAppBadge?: (count?: number) => Promise<void>; clearAppBadge?: () => Promise<void> };
 
-function ApprovedView({ tab, chatWith }: { tab: Tab; chatWith: string | null }) {
+const NEWS_SEEN_KEY = "zkh013-news-seen";
+
+function ApprovedView({
+  tab,
+  chatWith,
+  newsId,
+  write,
+}: {
+  tab: Tab;
+  chatWith: string | null;
+  newsId: string | null;
+  write: string | null;
+}) {
   const [feed, setFeed] = useState<Feed | null>(null);
   const [unread, setUnread] = useState(0);
+  // Мэдээ бичсэн, хянасны дараа жагсаалтыг шинэчилнэ
+  const [newsVersion, setNewsVersion] = useState(0);
+  const [newsNotice, setNewsNotice] = useState("");
+  // «Мэдээ»-г сүүлд нээхэд байсан хамгийн шинэ мэдээний огноо (null — хараахан уншаагүй)
+  const [newsSeen, setNewsSeen] = useState<string | null>(null);
   // Чатыг апп дотроос нээсэн бол «Буцах» нь өмнөх хуудас руу (history.back) — мэдэгдлээр шууд нээсэн бол жагсаалт руу
   const pushed = useRef(false);
 
@@ -475,7 +500,7 @@ function ApprovedView({ tab, chatWith }: { tab: Tab; chatWith: string | null }) 
     const onMessage = (e: MessageEvent) => {
       const url = e.data?.type === "open" && typeof e.data.url === "string" ? e.data.url : "";
       if (!url.startsWith("/app")) return;
-      if (url.includes("chat=")) {
+      if (url.includes("chat=") || url.includes("news=")) {
         pushed.current = true;
         window.history.pushState(null, "", url);
       } else window.history.replaceState(null, "", url);
@@ -499,7 +524,56 @@ function ApprovedView({ tab, chatWith }: { tab: Tab; chatWith: string | null }) 
     } else window.history.replaceState(null, "", "/app?tab=chat");
   }, []);
   const switchTab = (next: Tab) => {
-    if (next !== tab) window.history.replaceState(null, "", next === "chat" ? "/app?tab=chat" : "/app");
+    if (next !== tab) window.history.replaceState(null, "", next === "home" ? "/app" : `/app?tab=${next}`);
+  };
+
+  // Мэдээ: дэлгэрэнгүй, бичих цонх — чат шиг «Буцах» нь өмнөх хуудас руу
+  const openNews = useCallback((id: string) => {
+    pushed.current = true;
+    window.history.pushState(null, "", `/app?news=${encodeURIComponent(id)}`);
+  }, []);
+  const openWrite = useCallback((id: string | null) => {
+    pushed.current = true;
+    window.history.pushState(null, "", `/app?write=${id ? encodeURIComponent(id) : "new"}`);
+  }, []);
+  const closeNews = useCallback(() => {
+    if (pushed.current) {
+      pushed.current = false;
+      window.history.back();
+    } else window.history.replaceState(null, "", "/app?tab=news");
+  }, []);
+  const newsChanged = useCallback(
+    (message: string) => {
+      setNewsNotice(message);
+      setNewsVersion((v) => v + 1);
+      load();
+      // Хянасан, бичсэний дараа жагсаалт руу буцна
+      pushed.current = false;
+      window.history.replaceState(null, "", "/app?tab=news");
+    },
+    [load]
+  );
+
+  useEffect(() => {
+    try {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- read the per-phone "seen" marker once
+      setNewsSeen(localStorage.getItem(NEWS_SEEN_KEY) ?? "");
+    } catch {
+      setNewsSeen("");
+    }
+  }, []);
+  const latestNews = feed?.news?.latestAt ?? null;
+  useEffect(() => {
+    if (tab !== "news" || !latestNews || newsSeen === null || latestNews === newsSeen) return;
+    try {
+      localStorage.setItem(NEWS_SEEN_KEY, latestNews);
+    } catch {}
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- the news tab is open, so the newest item is seen
+    setNewsSeen(latestNews);
+  }, [tab, latestNews, newsSeen]);
+  const newsBadge = {
+    count: feed?.news?.pending ?? 0,
+    dot: newsSeen !== null && latestNews !== null && latestNews > newsSeen,
   };
 
   async function ack(id: string) {
@@ -512,15 +586,33 @@ function ApprovedView({ tab, chatWith }: { tab: Tab; chatWith: string | null }) 
       <div className={tab === "home" ? "space-y-6" : "hidden"}>
         {feed ? <HomeView feed={feed} onChange={load} onAck={ack} /> : <p className="text-sm text-muted-foreground">Ачааллаж байна...</p>}
       </div>
+      {tab === "news" && (
+        <NewsList version={newsVersion} notice={newsNotice} onOpen={openNews} onWrite={() => openWrite(null)} />
+      )}
+      {newsId && <NewsDetail key={newsId} id={newsId} onBack={closeNews} onEdit={openWrite} onChanged={newsChanged} />}
+      {write && <NewsWrite key={write} id={write === "new" ? null : write} onBack={closeNews} onDone={newsChanged} />}
       {tab === "chat" && !chatWith && <ChatList onOpen={openChat} onUnread={setUnread} pushEnabled={feed?.pushEnabled ?? true} />}
       {chatWith && <Conversation key={chatWith} userId={chatWith} onBack={closeChat} />}
-      {!chatWith && <BottomNav tab={tab} unread={unread} onTab={switchTab} />}
+      {!chatWith && !newsId && !write && <BottomNav tab={tab} unread={unread} news={newsBadge} onTab={switchTab} />}
     </>
   );
 }
 
-/** Доод цэс: Нүүр / Чат (уншаагүй зурвасын тоотой) */
-function BottomNav({ tab, unread, onTab }: { tab: Tab; unread: number; onTab: (tab: Tab) => void }) {
+const badgeClass =
+  "absolute -right-3 -top-1.5 h-4 min-w-4 rounded-full bg-red-500 px-1 text-center text-[10px] font-bold leading-4 text-white";
+
+/** Доод цэс: Нүүр / Мэдээ (хянах мэдээний тоо, шинэ мэдээ) / Чат (уншаагүй зурвасын тоо) */
+function BottomNav({
+  tab,
+  unread,
+  news,
+  onTab,
+}: {
+  tab: Tab;
+  unread: number;
+  news: { count: number; dot: boolean };
+  onTab: (tab: Tab) => void;
+}) {
   const item = (t: Tab) =>
     `flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] font-semibold ${tab === t ? "text-primary" : "text-muted-foreground"}`;
   return (
@@ -534,14 +626,24 @@ function BottomNav({ tab, unread, onTab }: { tab: Tab; unread: number; onTab: (t
           <House className="size-5" aria-hidden />
           Нүүр
         </button>
+        <button onClick={() => onTab("news")} className={item("news")} aria-current={tab === "news" ? "page" : undefined}>
+          <span className="relative">
+            <Newspaper className="size-5" aria-hidden />
+            {news.count > 0 ? (
+              <span className={badgeClass} aria-label={`${news.count} хянах мэдээ`}>
+                {news.count > 99 ? "99+" : news.count}
+              </span>
+            ) : (
+              news.dot && <span className="absolute -right-1 -top-0.5 size-2 rounded-full bg-red-500" aria-label="Шинэ мэдээ" />
+            )}
+          </span>
+          Мэдээ
+        </button>
         <button onClick={() => onTab("chat")} className={item("chat")} aria-current={tab === "chat" ? "page" : undefined}>
           <span className="relative">
             <MessageCircle className="size-5" aria-hidden />
             {unread > 0 && (
-              <span
-                className="absolute -right-3 -top-1.5 h-4 min-w-4 rounded-full bg-red-500 px-1 text-center text-[10px] font-bold leading-4 text-white"
-                aria-label={`${unread} уншаагүй зурвас`}
-              >
+              <span className={badgeClass} aria-label={`${unread} уншаагүй зурвас`}>
                 {unread > 99 ? "99+" : unread}
               </span>
             )}

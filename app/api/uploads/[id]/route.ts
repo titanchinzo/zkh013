@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
+import { getActorId } from "@/lib/actor";
 import { appendChunk, CHUNK_BYTES } from "@/lib/storage";
 
 // Файлын дараагийн хэсэг: PUT /api/uploads/[id]?offset=<серверт ирсэн байт>, body нь хэсгийн өгөгдөл.
-// Эрхийг оруулалт эхлүүлэхэд шалгасан; энд тухайн хэрэглэгчийнх эсэхийг л шалгана (Clerk API дуудахгүй).
+// Эрхийг оруулалт эхлүүлэхэд шалгасан; энд тухайн хэрэглэгчийнх (сайт эсвэл апп) эсэхийг л шалгана.
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { userId } = await auth();
+  const userId = await getActorId();
   if (!userId) return NextResponse.json({ error: "Нэвтрэх шаардлагатай" }, { status: 401 });
 
   const offset = Number(req.nextUrl.searchParams.get("offset"));
