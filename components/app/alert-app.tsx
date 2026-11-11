@@ -12,6 +12,7 @@ import { POLL_MS } from "@/lib/chat-shared";
 import { InstallSteps, useInstall } from "@/components/app/install";
 import { Avatar } from "@/components/app/avatar";
 import { ChatList, Conversation, usePolling } from "@/components/app/chat";
+import { clearChatHistory } from "@/lib/chat-store";
 
 type DeviceStatus = "pending" | "approved" | "rejected" | "revoked";
 // direct — урилгаар орж ирсэн тул бүртгэл хүний нөөцийн зөвшөөрөлгүй шууд идэвхжинэ
@@ -52,7 +53,10 @@ export function AlertApp() {
 
   const load = useCallback(async () => {
     const res = await fetch("/api/app/device", { cache: "no-store" });
-    setInfo(await res.json());
+    const data: DeviceInfo = await res.json();
+    // Утсыг хүний нөөц хүчингүй болгосон (гээсэн г.м) эсвэл бүртгэлгүй бол утсан дээрх чатын түүхийг арилгана
+    if (data.device?.status !== "approved") await clearChatHistory();
+    setInfo(data);
   }, []);
 
   useEffect(() => {

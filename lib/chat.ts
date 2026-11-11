@@ -15,9 +15,6 @@ export const MESSAGES_PER_MINUTE = 30;
 export const isUserId = (value: unknown): value is string =>
   typeof value === "string" && /^user_[A-Za-z0-9]{10,64}$/.test(value);
 
-/** Хоёр хүний чатын түлхүүр — дарааллаас үл хамааран ижил */
-export const chatKey = (a: string, b: string) => [a, b].sort().join("|");
-
 export const isOnline = (lastSeenAt?: Date | null, now = Date.now()) =>
   Boolean(lastSeenAt && now - new Date(lastSeenAt).getTime() < ONLINE_MS);
 
@@ -54,8 +51,21 @@ export async function approvedLastSeen(userIds?: string[]) {
 // Хэн одоо аль хүнтэй чатаа нээж харж байгаа — тэр хүнд тухайн чатын зурвасыг мэдэгдлээр давхар илгээхгүй.
 // Сервер ганц процесс тул санах ойд хадгална (дахин асахад хоосорно — тэгвэл мэдэгдэл л очно).
 type Viewing = Map<string, { with: string; at: number }>;
-const store = globalThis as typeof globalThis & { __zkhChatViewing?: Viewing };
+const store = globalThis as typeof globalThis & { __zkhChatViewing?: Viewing; __zkhChatSends?: Map<string, number[]> };
 const viewing: Viewing = (store.__zkhChatViewing ??= new Map());
+
+// Сүүлийн нэг минутад илгээсэн зурвасын цагууд — зурвас уншигдмагц устдаг тул өгөгдлийн сангаас тоолох боломжгүй
+const sends = (store.__zkhChatSends ??= new Map<string, number[]>());
+
+/** Минутад MESSAGES_PER_MINUTE-ээс олон зурвас илгээхийг хориглоно */
+export function allowSend(userId: string) {
+  const now = Date.now();
+  const recent = (sends.get(userId) ?? []).filter((at) => now - at < 60_000);
+  const allowed = recent.length < MESSAGES_PER_MINUTE;
+  if (allowed) recent.push(now);
+  sends.set(userId, recent);
+  return allowed;
+}
 // Чат дотор утас 2.5 секунд тутам асуудаг — хоёр удаа асуугаагүй бол хаасан гэж үзнэ
 const VIEWING_MS = 7_000;
 

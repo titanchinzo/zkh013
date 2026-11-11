@@ -1,19 +1,20 @@
 import { Schema, model, models, type InferSchemaType } from "mongoose";
-import { CHAT_LIMITS } from "@/lib/chat-shared";
+import { CHAT_LIMITS, CHAT_TTL_DAYS } from "@/lib/chat-shared";
 
-// Чатын зурвас. _id-ийн дарааллаар (үүссэн цагаар) эрэмбэлж, хуудаслана.
+// Хүлээн авагчид хараахан хүрээгүй (уншаагүй) чатын зурвас. Хүлээн авагчийн утас уншиж өөртөө хадгалмагц серверээс
+// устгана — чатын түүх зөвхөн хоёр хүний утсанд үлдэнэ. Удаан нээгээгүй зурвас CHAT_TTL_DAYS хоногийн дараа өөрөө устна.
 const ChatMessageSchema = new Schema(
   {
-    conversation: { type: Schema.Types.ObjectId, required: true },
     sender: { type: String, required: true },
+    recipient: { type: String, required: true },
     text: { type: String, required: true, maxlength: CHAT_LIMITS.text },
   },
   { timestamps: { createdAt: true, updatedAt: false } }
 );
 
-ChatMessageSchema.index({ conversation: 1, _id: -1 });
-// Нэг хүн минутад хэт олон зурвас илгээхийг хязгаарлахад
-ChatMessageSchema.index({ sender: 1, createdAt: -1 });
+// Тухайн хүнд ирсэн, тухайн хүнээс ирсэн зурвасууд — үүссэн дарааллаар
+ChatMessageSchema.index({ recipient: 1, sender: 1, _id: 1 });
+ChatMessageSchema.index({ createdAt: 1 }, { expireAfterSeconds: CHAT_TTL_DAYS * 24 * 60 * 60 });
 
 export type ChatMessage = InferSchemaType<typeof ChatMessageSchema>;
 

@@ -1,36 +1,38 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ArrowDown, ArrowLeft, Search, SendHorizontal } from "lucide-react";
+import { ArrowDown, ArrowLeft, Lock, Search, SendHorizontal } from "lucide-react";
 import { Avatar } from "@/components/app/avatar";
 import { CHAT_LIMITS, POLL_MS, chatDay, chatListTime, chatTime, presenceText, sameDay } from "@/lib/chat-shared";
+import {
+  clearChatHistory,
+  historyOwner,
+  loadThread,
+  loadThreads,
+  saveThread,
+  type StoredMessage,
+  type StoredPerson,
+  type StoredThread,
+} from "@/lib/chat-store";
 
 // Утсан дээрх аппын чат: апп ашиглаж буй алба хаагчдын жагсаалт (хэн идэвхтэй), хоёр хүний чат.
-// Апп нээлттэй үед сервер рүү тогтмол асууж шинэ зурвас авна; хаалттай үед зурвас мэдэгдлээр очно.
+// Сервер зөвхөн хараахан уншаагүй зурвасыг түр хадгална: утас зурвасыг хүлээн авч өөртөө хадгалаад серверээс
+// устгуулна. Тиймээс чатын түүх зөвхөн хоёр хүний утсанд (lib/chat-store.ts) үлдэнэ.
 
 type LastMessage = { text: string; mine: boolean; at: string };
-export type ChatPerson = {
-  userId: string;
-  rank: string;
-  name: string;
-  position: string;
-  photo: string;
+type ServerPerson = StoredPerson & {
   online: boolean;
   lastSeenAt: string | null;
   canMessage: boolean;
-  lastMessage: LastMessage | null;
-  unread: number;
+  pending: { count: number; text: string; at: string } | null;
 };
-type Message = { id: string; text: string; mine: boolean; at: string; pending?: boolean; failed?: string };
-type Thread = {
-  person: Pick<ChatPerson, "userId" | "rank" | "name" | "position" | "photo">;
-  online: boolean;
-  lastSeenAt: string | null;
-  canMessage: boolean;
-  readAt: string | null;
-};
+type ChatRowData = ServerPerson & { lastMessage: LastMessage | null; unread: number };
+type Message = StoredMessage & { pending?: boolean; failed?: string };
+type ThreadInfo = { person: StoredPerson; online: boolean; lastSeenAt: string | null; canMessage: boolean };
+type ThreadResponse = ThreadInfo & { me: string; messages: Message[]; unreadFrom: string | null };
 
 const fullName = (p: { rank: string; name: string }) => (p.rank ? `${p.rank} ${p.name}` : p.name);
+const OFFLINE = "Сервертэй холбогдож чадсангүй";
 
 async function errorOf(res: Response | null, fallback: string) {
   return (await res?.json().catch(() => null))?.error ?? fallback;
@@ -57,9 +59,42 @@ export function usePolling(fn: () => void, ms: number, enabled = true) {
 }
 
 // Чатаас буцаж ороход жагсаалт шууд харагдана (дараа нь шинэчилнэ)
-let listCache: ChatPerson[] | null = null;
+let listCache: ChatRowData[] | null = null;
 // Илгээж буй зурвасын түр id
 let tempSeq = 0;
+
+const lastOf = (thread?: StoredThread) => (thread?.messages.length ? thread.messages[thread.messages.length - 1] : null);
+
+/** Серверийн жагсаалт (хүмүүс, уншаагүй зурвас) + утсан дээрх чатын түүх → мөрүүд, сүүлд чатласан нь эхэндээ */
+function toRows(people: ServerPerson[], threads: StoredThread[]): ChatRowData[] {
+  const threadOf = new Map(threads.map((t) => [t.person.userId, t]));
+  const rows: ChatRowData[] = people.map((p) => {
+    const local = lastOf(threadOf.get(p.userId));
+    threadOf.delete(p.userId);
+    const waiting = p.pending ? { text: p.pending.text, mine: false, at: p.pending.at } : null;
+    const lastMessage =
+      local && (!waiting || new Date(local.at) >= new Date(waiting.at)) ? { text: local.text, mine: local.mine, at: local.at } : waiting;
+    return { ...p, lastMessage, unread: p.pending?.count ?? 0 };
+  });
+  // Сервер дээр байхгүй болсон (халагдсан, хасагдсан) хүнтэй хийсэн өмнөх чат — зөвхөн уншина
+  for (const t of threadOf.values()) {
+    const local = lastOf(t);
+    if (!local) continue;
+    rows.push({
+      ...t.person,
+      online: false,
+      lastSeenAt: null,
+      canMessage: false,
+      pending: null,
+      lastMessage: { text: local.text, mine: local.mine, at: local.at },
+      unread: 0,
+    });
+  }
+  const time = (r: ChatRowData) => (r.lastMessage ? new Date(r.lastMessage.at).getTime() : 0);
+  return rows.sort(
+    (a, b) => time(b) - time(a) || Number(b.online) - Number(a.online) || a.name.localeCompare(b.name, "mn")
+  );
+}
 
 /** Чатын жагсаалт: хайлт, «Одоо идэвхтэй» хүмүүс, сүүлд чатласан нь эхэндээ */
 export function ChatList({
@@ -71,34 +106,46 @@ export function ChatList({
   onUnread: (count: number) => void;
   pushEnabled: boolean;
 }) {
-  const [people, setPeople] = useState<ChatPerson[] | null>(listCache);
+  const [rows, setRows] = useState<ChatRowData[] | null>(listCache);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
 
   const load = useCallback(async () => {
     const res = await fetch("/api/app/chat", { cache: "no-store" }).catch(() => null);
-    if (!res?.ok) {
-      setError(await errorOf(res, "Сервертэй холбогдож чадсангүй"));
+    if (res?.status === 403) {
+      // Утсыг хүчингүй болгосон эсвэл бүртгэл идэвхгүй болсон — утсан дээрх түүхийг арилгана
+      await clearChatHistory();
+      listCache = null;
+      setRows([]);
+      setError(await errorOf(res, "Энэ утсаар чат ашиглах эрхгүй байна"));
       return;
     }
-    const data: { unreadTotal: number; people: ChatPerson[] } = await res.json();
-    listCache = data.people;
+    if (!res?.ok) {
+      setError(await errorOf(res, OFFLINE));
+      return;
+    }
+    const data: { me: string; unreadTotal: number; people: ServerPerson[] } = await res.json();
+    const next = toRows(data.people, await loadThreads(data.me));
+    listCache = next;
     setError("");
-    setPeople(data.people);
+    setRows(next);
     onUnread(data.unreadTotal);
   }, [onUnread]);
 
   useEffect(() => {
+    // Сервер хариулахаас өмнө (сүлжээгүй үед ч) утсан дээрх чатуудыг харуулна
+    const owner = historyOwner();
+    if (!listCache && owner) loadThreads(owner).then((threads) => setRows((current) => current ?? toRows([], threads)));
     // eslint-disable-next-line react-hooks/set-state-in-effect -- initial data fetch on mount
     load();
   }, [load]);
   usePolling(load, POLL_MS.list);
 
-  if (!people) return <p className="text-sm text-muted-foreground">{error || "Ачааллаж байна..."}</p>;
+  if (!rows) return <p className="text-sm text-muted-foreground">{error || "Ачааллаж байна..."}</p>;
 
   const q = query.trim().toLowerCase();
-  const shown = q ? people.filter((p) => `${p.rank} ${p.name} ${p.position}`.toLowerCase().includes(q)) : people;
-  const active = people.filter((p) => p.online && p.canMessage);
+  const shown = q ? rows.filter((p) => `${p.rank} ${p.name} ${p.position}`.toLowerCase().includes(q)) : rows;
+  const active = rows.filter((p) => p.online && p.canMessage);
 
   return (
     <section className="space-y-4">
@@ -137,7 +184,7 @@ export function ChatList({
       {error && <p className="text-xs text-red-400">{error}</p>}
 
       {shown.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{q ? "Олдсонгүй." : "Апп ашиглаж буй өөр хүн одоогоор алга."}</p>
+        !error && <p className="text-sm text-muted-foreground">{q ? "Олдсонгүй." : "Апп ашиглаж буй өөр хүн одоогоор алга."}</p>
       ) : (
         <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border">
           {shown.map((p) => (
@@ -146,12 +193,15 @@ export function ChatList({
         </ul>
       )}
 
-      <p className="text-xs text-muted-foreground">Албаны нууцад хамаарах мэдээллийг чатаар бичихгүй.</p>
+      <p className="text-xs text-muted-foreground">
+        Зурвас хүлээн авагч уншмагц серверээс устна; чатын түүх зөвхөн та хоёрын утсанд хадгалагдана. Албаны нууцад
+        хамаарах мэдээллийг чатаар бичихгүй.
+      </p>
     </section>
   );
 }
 
-function ChatRow({ person: p, onOpen }: { person: ChatPerson; onOpen: (userId: string) => void }) {
+function ChatRow({ person: p, onOpen }: { person: ChatRowData; onOpen: (userId: string) => void }) {
   const unread = p.unread > 0;
   const subtitle = p.lastMessage
     ? `${p.lastMessage.mine ? "Та: " : ""}${p.lastMessage.text}`
@@ -185,23 +235,17 @@ function ChatRow({ person: p, onOpen }: { person: ChatPerson; onOpen: (userId: s
   );
 }
 
-/** Шинэ зурвасуудыг нэмнэ: давхардлыг хасаж, илгээж буй зурвасыг серверийнхээр орлуулж, үүссэн дарааллаар нь */
-function merge(prev: Message[], incoming: Message[]): Message[] {
-  const known = new Set(prev.map((m) => m.id));
-  const pending = prev.filter((m) => m.pending);
-  const confirmed = prev.filter((m) => !m.pending);
+/** Зурвасуудыг нэгтгэнэ: давхардлыг хасаж, үүссэн дарааллаар (MongoDB id), илгээж буй зурвас төгсгөлд */
+function merge(current: Message[], incoming: Message[]): Message[] {
+  const known = new Set(current.map((m) => m.id));
+  const confirmed = current.filter((m) => !m.pending);
   for (const m of incoming) {
     if (known.has(m.id)) continue;
     known.add(m.id);
-    if (m.mine) {
-      const i = pending.findIndex((p) => !p.failed && p.text === m.text);
-      if (i >= 0) pending.splice(i, 1);
-    }
     confirmed.push(m);
   }
-  // MongoDB-ийн id үүссэн цагаараа эрэмбэлэгддэг (ижил урттай hex)
   confirmed.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-  return [...confirmed, ...pending];
+  return [...confirmed, ...current.filter((m) => m.pending)];
 }
 
 /** Утасны гар нээгдэхэд харагдах хэсэг — чатын цонхыг түүнд багтааж, бичих хэсэг гарын дээр үлдэнэ */
@@ -222,45 +266,154 @@ function useVisualViewport() {
   return box;
 }
 
+type Local = { me: string | null; person: StoredPerson | null; messages: Message[]; ack: string | null };
+
 /** Хоёр хүний чат — бүтэн дэлгэцээр */
 export function Conversation({ userId, onBack }: { userId: string; onBack: () => void }) {
-  const [thread, setThread] = useState<Thread | null>(null);
+  const [info, setInfo] = useState<ThreadInfo | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState("");
+  const [missing, setMissing] = useState(false);
   const [text, setText] = useState("");
   const [newBelow, setNewBelow] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const lastId = useRef<string | null>(null);
-  // Хамгийн доор байгаа эсэх, дараагийн зурагт доош гүйлгэх эсэх, өмнөх зурвас нэмэхэд байрлалаа хадгалах
+  // Хамгийн доор байгаа эсэх, дараагийн зурагт доош гүйлгэх эсэх
   const atBottom = useRef(true);
   const stick = useRef(true);
-  const keepFromBottom = useRef<number | null>(null);
   const box = useVisualViewport();
 
+  // Утсан дээрх түүх (энд л үлдэнэ). ack — хүлээн авч хадгалсан сүүлийн зурвас: дараагийн асуулгаар сервер түүнийг
+  // хүртэлх зурвасыг устгана. verified — серверээс энэ утасны эзнийг баталсны дараа л ack илгээнэ.
+  const local = useRef<Local>({ me: null, person: null, messages: [], ack: null });
+  const verified = useRef(false);
+  const ready = useRef(false);
+  const busy = useRef(false);
+  const again = useRef(false);
+  // Асуулга бүрийн дугаар; илгээсэн зурвас аль асуулгын үед баталгаажсан — асуулга эхлэхээс өмнө илгээгдсэнийг л уншсан эсэхийг шалгана
+  const tick = useRef(0);
+  const confirmedAt = useRef(new Map<string, number>());
+
+  const show = useCallback((next: Message[]) => {
+    local.current.messages = next;
+    setMessages(next);
+  }, []);
+
+  const persist = useCallback(async () => {
+    const { me, person, messages: all, ack } = local.current;
+    if (!me || !person) return;
+    const saved = all.filter((m) => !m.pending).map(({ id, text, mine, at, read }) => ({ id, text, mine, at, read }));
+    await saveThread(me, person, saved, ack);
+  }, []);
+
+  const lose = useCallback(
+    async (res: Response) => {
+      // Утсыг хүчингүй болгосон эсвэл бүртгэл идэвхгүй болсон — утсан дээрх түүхийг арилгана
+      await clearChatHistory();
+      local.current = { me: null, person: null, messages: [], ack: null };
+      show([]);
+      setInfo(null);
+      setError(await errorOf(res, "Энэ утсаар чат ашиглах эрхгүй байна"));
+    },
+    [show]
+  );
+
+  /** Серверээс шинэ зурвас авч хадгална; шинэ зурвас ирсэн бол true (тэгвэл шууд дахин асууж серверээс устгуулна) */
+  const pollOnce = useCallback(async (): Promise<boolean> => {
+    const startedAt = ++tick.current;
+    const ack = verified.current ? local.current.ack : null;
+    const res = await fetch(`/api/app/chat/${userId}${ack ? `?ack=${ack}` : ""}`, { cache: "no-store" }).catch(() => null);
+    if (!res) {
+      setError(OFFLINE);
+      return false;
+    }
+    if (res.status === 403) {
+      await lose(res);
+      return false;
+    }
+    if (res.status === 404) {
+      setMissing(true);
+      setError("");
+      return false;
+    }
+    if (!res.ok) {
+      setError(await errorOf(res, OFFLINE));
+      return false;
+    }
+    const data: ThreadResponse = await res.json();
+    setError("");
+    const first = !verified.current;
+    if (local.current.me !== data.me) {
+      // Энэ утсаар өөр хүн нэвтэрсэн бол өмнөх хүний түүхийг харуулахгүй (loadThread түүнийг арилгана)
+      const kept = local.current.me === null ? local.current.messages : [];
+      const stored = await loadThread(data.me, userId);
+      local.current = { me: data.me, person: data.person, messages: merge(stored?.messages ?? [], kept), ack: stored?.ack ?? null };
+    }
+    verified.current = true;
+    local.current.person = data.person;
+    setInfo({ person: data.person, online: data.online, lastSeenAt: data.lastSeenAt, canMessage: data.canMessage });
+
+    const before = local.current.messages;
+    const fresh = data.messages.filter((m) => !before.some((k) => k.id === m.id));
+    let changed = first || data.messages.length > 0;
+    // Миний илгээснээс unreadFrom-оос өмнөх нь уншигдсан (асуулга эхлэхээс өмнө илгээгдсэн нь л)
+    const next = merge(before, data.messages).map((m) => {
+      if (!m.mine || m.pending || m.read) return m;
+      if ((confirmedAt.current.get(m.id) ?? 0) >= startedAt) return m;
+      if (data.unreadFrom && m.id >= data.unreadFrom) return m;
+      changed = true;
+      return { ...m, read: true };
+    });
+    if (!changed) return false;
+    if (fresh.length) {
+      if (atBottom.current) stick.current = true;
+      else setNewBelow(true);
+    }
+    local.current.messages = next;
+    if (data.messages.length) local.current.ack = data.messages[data.messages.length - 1].id;
+    await persist();
+    setMessages(next);
+    // Шинээр хадгалсан зурвас байвал шууд дахин асууж (ack) серверээс устгуулна
+    return data.messages.length > 0 && local.current.ack !== ack;
+  }, [userId, lose, persist]);
+
   const poll = useCallback(async () => {
-    const after = lastId.current;
-    const res = await fetch(`/api/app/chat/${userId}${after ? `?after=${after}` : ""}`, { cache: "no-store" }).catch(() => null);
-    if (!res?.ok) {
-      setError(await errorOf(res, "Сервертэй холбогдож чадсангүй"));
+    if (!ready.current) return;
+    if (busy.current) {
+      again.current = true;
       return;
     }
-    const data: Thread & { messages: Message[]; hasMore: boolean } = await res.json();
-    setError("");
-    setThread({ person: data.person, online: data.online, lastSeenAt: data.lastSeenAt, canMessage: data.canMessage, readAt: data.readAt });
-    if (!after) setHasMore(data.hasMore);
-    if (data.messages.length) {
-      lastId.current = data.messages[data.messages.length - 1].id;
-      if (atBottom.current) stick.current = true;
-      else if (data.messages.some((m) => !m.mine)) setNewBelow(true);
-      setMessages((prev) => merge(prev, data.messages));
+    busy.current = true;
+    try {
+      let more = true;
+      while (more) {
+        again.current = false;
+        more = (await pollOnce()) || again.current;
+      }
+    } finally {
+      busy.current = false;
     }
-  }, [userId]);
+  }, [pollOnce]);
 
+  // Эхлээд утсан дээрх түүхийг харуулж, дараа нь серверээс шинэ зурвас авна
   useEffect(() => {
-    poll();
-  }, [poll]);
+    let cancelled = false;
+    (async () => {
+      const owner = historyOwner();
+      const stored = owner ? await loadThread(owner, userId) : undefined;
+      if (cancelled) return;
+      local.current = { me: owner, person: stored?.person ?? null, messages: stored?.messages ?? [], ack: stored?.ack ?? null };
+      if (stored) {
+        setInfo((current) => current ?? { person: stored.person, online: false, lastSeenAt: null, canMessage: true });
+        setMessages(stored.messages);
+      }
+      ready.current = true;
+      poll();
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, poll]);
   usePolling(poll, POLL_MS.conversation);
 
   // Чат нээлттэй үед ард байгаа хуудас гүйлгэгдэхгүй
@@ -274,11 +427,7 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
 
   useLayoutEffect(() => {
     const el = listRef.current;
-    if (!el) return;
-    if (keepFromBottom.current !== null) {
-      el.scrollTop = el.scrollHeight - keepFromBottom.current;
-      keepFromBottom.current = null;
-    } else if (stick.current) {
+    if (el && stick.current) {
       el.scrollTop = el.scrollHeight;
       stick.current = false;
     }
@@ -311,45 +460,30 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
     setNewBelow(false);
   }
 
-  async function loadOlder() {
-    const first = messages.find((m) => !m.pending);
-    if (!first) return;
-    const res = await fetch(`/api/app/chat/${userId}?before=${first.id}`, { cache: "no-store" }).catch(() => null);
-    if (!res?.ok) return;
-    const data: { messages: Message[]; hasMore: boolean } = await res.json();
-    const el = listRef.current;
-    keepFromBottom.current = el ? el.scrollHeight - el.scrollTop : null;
-    setHasMore(data.hasMore);
-    setMessages((prev) => merge(prev, data.messages));
-  }
-
   async function send(value: string, retryId?: string) {
     const body = value.trim();
     if (!body) return;
-    const temp: Message = {
-      id: retryId ?? `tmp-${++tempSeq}`,
-      text: body,
-      mine: true,
-      at: new Date().toISOString(),
-      pending: true,
-    };
+    const temp: Message = { id: retryId ?? `tmp-${++tempSeq}`, text: body, mine: true, at: new Date().toISOString(), pending: true };
     stick.current = true;
-    setMessages((prev) => [...prev.filter((m) => m.id !== temp.id), temp]);
+    show([...local.current.messages.filter((m) => m.id !== temp.id), temp]);
     const res = await fetch(`/api/app/chat/${userId}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text: body }),
     }).catch(() => null);
+    if (res?.status === 403) {
+      await lose(res);
+      return;
+    }
     if (!res?.ok) {
       const failed = await errorOf(res, "Илгээгдсэнгүй");
-      setMessages((prev) => prev.map((m) => (m.id === temp.id ? { ...m, failed } : m)));
+      show(local.current.messages.map((m) => (m.id === temp.id ? { ...m, failed } : m)));
       return;
     }
     const { message }: { message: Message } = await res.json();
-    setMessages((prev) => {
-      const rest = prev.filter((m) => m.id !== temp.id);
-      return rest.some((m) => m.id === message.id) ? rest : merge(rest, [message]);
-    });
+    confirmedAt.current.set(message.id, tick.current);
+    show(merge(local.current.messages.filter((m) => m.id !== temp.id), [message]));
+    await persist();
   }
 
   function submit(e?: { preventDefault(): void }) {
@@ -367,16 +501,17 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
     }
   }
 
-  const lastConfirmed = [...messages].reverse().find((m) => !m.pending);
-  const showStatus = Boolean(lastConfirmed?.mine) && messages[messages.length - 1]?.id === lastConfirmed?.id;
-  const seen = Boolean(showStatus && thread?.readAt && lastConfirmed && new Date(thread.readAt) >= new Date(lastConfirmed.at));
+  const person = info?.person ?? null;
+  const canMessage = Boolean(info?.canMessage) && !missing;
+  const last = messages[messages.length - 1];
+  const status = last?.mine && !last.pending ? (last.read ? "Уншсан" : "Илгээсэн") : "";
 
   return (
     <div
       className="fixed inset-x-0 z-50 flex flex-col bg-background"
       style={box ? { top: box.top, height: box.height } : { top: 0, height: "100dvh" }}
       role="dialog"
-      aria-label={thread ? fullName(thread.person) : "Чат"}
+      aria-label={person ? fullName(person) : "Чат"}
     >
       <header className="shrink-0 border-b border-border bg-background" style={{ paddingTop: "env(safe-area-inset-top)" }}>
         <div className="mx-auto flex max-w-md items-center gap-2 px-2 py-2">
@@ -387,41 +522,37 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
           >
             <ArrowLeft className="size-5" aria-hidden />
           </button>
-          {thread ? (
+          {person ? (
             <>
-              <Avatar person={thread.person} size={40} online={thread.online} />
+              <Avatar person={person} size={40} online={missing ? undefined : info?.online} />
               <div className="min-w-0">
-                <p className="truncate font-semibold text-foreground">{fullName(thread.person)}</p>
-                <p className={`truncate text-xs ${thread.online ? "text-green-500" : "text-muted-foreground"}`}>
-                  {presenceText(thread.online, thread.lastSeenAt) || thread.person.position}
+                <p className="truncate font-semibold text-foreground">{fullName(person)}</p>
+                <p className={`truncate text-xs ${info?.online && !missing ? "text-green-500" : "text-muted-foreground"}`}>
+                  {(!missing && presenceText(Boolean(info?.online), info?.lastSeenAt)) || person.position}
                 </p>
               </div>
             </>
           ) : (
-            <p className="text-sm text-muted-foreground">{error || "Ачааллаж байна..."}</p>
+            <p className="text-sm text-muted-foreground">{error || (missing ? "Хэрэглэгч олдсонгүй" : "Ачааллаж байна...")}</p>
           )}
         </div>
       </header>
 
       <div ref={listRef} onScroll={onScroll} className="flex-1 overflow-y-auto overscroll-contain">
         <div className="mx-auto max-w-md space-y-0.5 px-3 py-3">
-          {hasMore && (
-            <button
-              onClick={loadOlder}
-              className="mx-auto mb-2 block rounded-full border border-border px-3 py-1 text-xs text-muted-foreground"
-            >
-              Өмнөх зурвасууд
-            </button>
-          )}
-          {thread && messages.length === 0 && (
-            <div className="space-y-2 py-16 text-center">
+          <p className="mx-auto mb-3 flex max-w-xs items-start justify-center gap-1.5 text-center text-[11px] leading-snug text-muted-foreground">
+            <Lock className="mt-px size-3 shrink-0" aria-hidden />
+            Зурвас хүлээн авагч уншмагц серверээс устна. Чатын түүх зөвхөн та хоёрын утсанд хадгалагдана.
+          </p>
+          {person && messages.length === 0 && (
+            <div className="space-y-2 py-12 text-center">
               <div className="flex justify-center">
-                <Avatar person={thread.person} size={72} />
+                <Avatar person={person} size={72} />
               </div>
-              <p className="font-semibold text-foreground">{fullName(thread.person)}</p>
-              {thread.person.position && <p className="text-sm text-muted-foreground">{thread.person.position}</p>}
+              <p className="font-semibold text-foreground">{fullName(person)}</p>
+              {person.position && <p className="text-sm text-muted-foreground">{person.position}</p>}
               <p className="pt-2 text-sm text-muted-foreground">
-                {thread.canMessage ? "Зурвас бичиж чатаа эхлүүлнэ үү." : "Энэ хүн чат ашиглах боломжгүй болсон."}
+                {canMessage ? "Зурвас бичиж чатаа эхлүүлнэ үү." : "Энэ хүн чат ашиглах боломжгүй болсон."}
               </p>
             </div>
           )}
@@ -454,7 +585,8 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
               </Fragment>
             );
           })}
-          {showStatus && <p className="pr-1 pt-0.5 text-right text-[11px] text-muted-foreground">{seen ? "Уншсан" : "Илгээсэн"}</p>}
+          {status && <p className="pr-1 pt-0.5 text-right text-[11px] text-muted-foreground">{status}</p>}
+          {error && person && <p className="pt-2 text-center text-[11px] text-red-400">{error}</p>}
         </div>
       </div>
 
@@ -467,7 +599,7 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
         </button>
       )}
 
-      {thread && !thread.canMessage ? (
+      {person && !canMessage ? (
         <p
           className="shrink-0 border-t border-border px-3 pt-3 text-center text-sm text-muted-foreground"
           style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
@@ -494,7 +626,7 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
             />
             <button
               type="submit"
-              disabled={!text.trim()}
+              disabled={!text.trim() || !person}
               aria-label="Илгээх"
               // Товч дарахад бичих талбараас фокус гарч гар хаагдахгүй
               onMouseDown={(e) => e.preventDefault()}
