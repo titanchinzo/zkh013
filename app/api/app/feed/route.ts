@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getApprovedDevice } from "@/lib/device";
 import Alert from "@/lib/models/Alert";
+import { visibleNow } from "@/lib/alerts";
 import DayRecord, { dutyIds } from "@/lib/models/DayRecord";
 import Personnel from "@/lib/models/Personnel";
 import { WEEK_DAYS, addDays, personnelLabel, todayUb, weekStart } from "@/lib/hr";
@@ -17,8 +18,18 @@ export async function GET() {
   const start = weekStart(today);
   const days = Array.from({ length: WEEK_DAYS * 2 }, (_, i) => addDays(start, i));
   const [alerts, person, records] = await Promise.all([
-    Alert.find().sort({ createdAt: -1 }).limit(20).lean<
-      { _id: unknown; title: string; body: string; createdAt: Date; acks: { userId: string }[] }[]
+    // Эхэлсэн, хугацаа нь дуусаагүй мэдээлэл — товлосон нь эхлэх цагтаа, дууссан нь тэр дороо алга болно
+    Alert.find(visibleNow()).sort({ startsAt: -1, createdAt: -1 }).limit(20).lean<
+      {
+        _id: unknown;
+        title: string;
+        body: string;
+        createdAt: Date;
+        startsAt?: Date;
+        endsAt?: Date;
+        editedAt?: Date;
+        acks: { userId: string }[];
+      }[]
     >(),
     Personnel.findOne({ userId: device.userId, active: true })
       .select("rank name position phone photo canRegister")
@@ -60,6 +71,9 @@ export async function GET() {
       title: a.title,
       body: a.body,
       createdAt: a.createdAt,
+      startsAt: a.startsAt ?? a.createdAt,
+      endsAt: a.endsAt ?? null,
+      edited: Boolean(a.editedAt),
       acked: a.acks.some((k) => k.userId === device.userId),
     })),
     weeks: [start, addDays(start, WEEK_DAYS)].map((weekFrom) => ({

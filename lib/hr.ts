@@ -26,6 +26,19 @@ export const RANKS = ["энг", "т/ч", "а/т", "д/а", "а/ч", "а/а", "с
 
 export const PERSONNEL_LIMITS = { rank: 60, name: 120, position: 120 } as const;
 export const ALERT_LIMITS = { title: 120, body: 1000 } as const;
+/** Зарлан мэдээллийн дуусах цаг хамгийн хол нь одооноос хойш ийм хоног */
+export const ALERT_MAX_DAYS = 365;
+
+const HOUR_MS = 3_600_000;
+/** Зарлан мэдээллийн маягт дээрх хугацааны товчнууд — эхлэх цагаас (хоосон бол одооноос) хойш */
+export const ALERT_DURATIONS = [
+  { label: "1 цаг", ms: HOUR_MS },
+  { label: "3 цаг", ms: 3 * HOUR_MS },
+  { label: "1 хоног", ms: 24 * HOUR_MS },
+  { label: "3 хоног", ms: 72 * HOUR_MS },
+  { label: "7 хоног", ms: 168 * HOUR_MS },
+  { label: "30 хоног", ms: 720 * HOUR_MS },
+] as const;
 
 const UB_TZ = "Asia/Ulaanbaatar";
 const WEEKDAYS = ["Ням", "Даваа", "Мягмар", "Лхагва", "Пүрэв", "Баасан", "Бямба"];
@@ -38,6 +51,41 @@ export function todayUb(now = new Date()): string {
 /** Улаанбаатарын цагаар одоо хэдэн цаг (0–23) */
 export function hourUb(now = new Date()): number {
   return Number(new Intl.DateTimeFormat("en-GB", { timeZone: UB_TZ, hour: "2-digit", hourCycle: "h23" }).format(now));
+}
+
+const UB_DATE_TIME = new Intl.DateTimeFormat("en-GB", {
+  timeZone: UB_TZ,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
+function ubParts(value: string | Date): Record<string, string> {
+  const parts: Record<string, string> = {};
+  for (const p of UB_DATE_TIME.formatToParts(new Date(value))) parts[p.type] = p.value;
+  return parts;
+}
+
+/** "11 сарын 12, 09:00" — Улаанбаатарын цагаар */
+export function formatDateTime(value: string | Date): string {
+  const p = ubParts(value);
+  return `${Number(p.month)} сарын ${Number(p.day)}, ${p.hour}:${p.minute}`;
+}
+
+/** <input type="datetime-local">-ийн утга, Улаанбаатарын цагаар: "2026-11-12T09:00" */
+export function toUbInput(value: string | Date): string {
+  const p = ubParts(value);
+  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
+}
+
+/** datetime-local-ийн утгыг Улаанбаатарын цагаар (UTC+8, зуны цаг хэрэглэдэггүй) уншина — компьютерийн цагийн бүсээс үл хамаарна */
+export function fromUbInput(value: string): Date | null {
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(value)) return null;
+  const date = new Date(`${value.length === 16 ? `${value}:00` : value}+08:00`);
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 export function isDateKey(value: unknown): value is string {
@@ -103,6 +151,31 @@ export function formatPhone(phone?: string | null): string {
 
 type Result<T> = { ok: true; value: T } | { ok: false; error: string };
 type PersonnelFields = { rank?: string; name?: string; position?: string; phone?: string };
+type AlertFields = { title: string; body: string; startsAt: Date; endsAt: Date };
+
+/**
+ * Зарлан мэдээллийг шалгана: гарчиг (заавал), дэлгэрэнгүй, эхлэх (хоосон бол одоо), дуусах (заавал) — огноо нь ISO
+ * хэлбэрээр. Эхлэх цаг болоход утсанд мэдэгдэл очиж харагдана, дуусах цаг өнгөрмөгц автоматаар устна.
+ */
+export function parseAlert(body: unknown, now = new Date()): Result<AlertFields> {
+  const b = (body ?? {}) as Record<string, unknown>;
+  const title = typeof b.title === "string" ? b.title.trim() : "";
+  const text = typeof b.body === "string" ? b.body.trim() : "";
+  if (!title) return { ok: false, error: "Гарчгийг бичнэ үү" };
+  if (title.length > ALERT_LIMITS.title || text.length > ALERT_LIMITS.body) return { ok: false, error: "Хэт урт байна" };
+
+  const date = (value: unknown) => (typeof value === "string" && value ? new Date(value) : null);
+  const startsAt = date(b.startsAt) ?? now;
+  const endsAt = date(b.endsAt);
+  if (Number.isNaN(startsAt.getTime())) return { ok: false, error: "Эхлэх цаг буруу байна" };
+  if (!endsAt || Number.isNaN(endsAt.getTime())) return { ok: false, error: "Дуусах хугацааг сонгоно уу" };
+  if (endsAt.getTime() <= startsAt.getTime()) return { ok: false, error: "Дуусах цаг эхлэх цагаас хойш байх ёстой" };
+  if (endsAt.getTime() <= now.getTime()) return { ok: false, error: "Дуусах цаг аль хэдийн өнгөрсөн байна" };
+  if (endsAt.getTime() - now.getTime() > ALERT_MAX_DAYS * 86_400_000) {
+    return { ok: false, error: `Дуусах цаг хэт хол байна (одооноос ${ALERT_MAX_DAYS} хоногийн дотор)` };
+  }
+  return { ok: true, value: { title, body: text, startsAt, endsAt } };
+}
 
 /**
  * Цол, нэр, албан тушаал, утасны дугаарыг шалгана. partial — зөвхөн ирсэн талбаруудыг (засварт).

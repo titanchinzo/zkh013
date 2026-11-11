@@ -7,7 +7,16 @@ import { useSearchParams } from "next/navigation";
 import { House, MessageCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { RankSelect } from "@/components/hr/rank-select";
-import { DUTY_LABEL, DUTY_REMINDER_TEXT, formatDay, formatPhone, formatWeek, relativeDay, todayUb } from "@/lib/hr";
+import {
+  DUTY_LABEL,
+  DUTY_REMINDER_TEXT,
+  formatDateTime,
+  formatDay,
+  formatPhone,
+  formatWeek,
+  relativeDay,
+  todayUb,
+} from "@/lib/hr";
 import { POLL_MS } from "@/lib/chat-shared";
 import { InstallSteps, useInstall } from "@/components/app/install";
 import { Avatar } from "@/components/app/avatar";
@@ -29,7 +38,8 @@ type Person = {
 type Feed = {
   person: Person | null;
   pushEnabled: boolean;
-  alerts: { id: string; title: string; body: string; createdAt: string; acked: boolean }[];
+  // endsAt — энэ цагт автоматаар устна (хугацаатай болохоос өмнөх мэдээлэлд null)
+  alerts: { id: string; title: string; body: string; startsAt: string; endsAt: string | null; edited: boolean; acked: boolean }[];
   nextDuty: string | null;
   weeks: { start: string; days: { date: string; people: { name: string; me: boolean }[] }[] }[];
 };
@@ -432,11 +442,10 @@ function ApprovedView({ tab, chatWith }: { tab: Tab; chatWith: string | null }) 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- initial data fetch on mount
     load();
-    // Апп руу буцаж ороход (мэдэгдэл дарсны дараа г.м) шинэчилнэ
-    const onVisible = () => document.visibilityState === "visible" && load();
-    document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
   }, [load]);
+  // Апп руу буцаж ороход (мэдэгдэл дарсны дараа г.м) болон минут тутам шинэчилнэ — товлосон мэдээлэл эхлэх цагтаа
+  // гарч ирж, хугацаа нь дууссан нь алга болно
+  usePolling(load, 60_000);
 
   // Нүүр хуудсанд байхад уншаагүй зурвасын тоо (мөн «Идэвхтэй» төлөвийг сэргээнэ); чатын жагсаалт өөрөө шинэчилнэ
   const loadUnread = useCallback(async () => {
@@ -561,7 +570,11 @@ function HomeView({ feed, onChange, onAck }: { feed: Feed; onChange: () => void;
           <Card key={a.id}>
             <div>
               <p className="font-bold text-foreground">{a.title}</p>
-              <p className="text-xs text-muted-foreground">{new Date(a.createdAt).toLocaleString("mn-MN")}</p>
+              <p className="text-xs text-muted-foreground">
+                {formatDateTime(a.startsAt)}
+                {a.endsAt && ` · ${formatDateTime(a.endsAt)} хүртэл`}
+                {a.edited && " · засварласан"}
+              </p>
             </div>
             {a.body && <p className="text-sm text-foreground whitespace-pre-line">{a.body}</p>}
             {a.acked ? (
