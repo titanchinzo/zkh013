@@ -6,7 +6,9 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export const viewport: Viewport = { themeColor: "#0a0f0a" };
+// cover — iPhone-ий доод зураас (home indicator)-ны хэмжээг env(safe-area-inset-bottom)-оор авч, доод цэс,
+// чатын бичих хэсгийг түүнээс дээш байрлуулна
+export const viewport: Viewport = { themeColor: "#0a0f0a", viewportFit: "cover" };
 
 // Утсан дээр суулгасан аппын цорын ганц хуудас — сайтын цэс, бусад хэсэг энд харагдахгүй
 export default function AlertAppPage() {

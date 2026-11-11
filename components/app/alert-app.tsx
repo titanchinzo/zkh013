@@ -1,12 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { House, MessageCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { RankSelect } from "@/components/hr/rank-select";
 import { DUTY_LABEL, DUTY_REMINDER_TEXT, formatDay, formatPhone, formatWeek, relativeDay, todayUb } from "@/lib/hr";
+import { POLL_MS } from "@/lib/chat-shared";
 import { InstallSteps, useInstall } from "@/components/app/install";
+import { Avatar } from "@/components/app/avatar";
+import { ChatList, Conversation, usePolling } from "@/components/app/chat";
 
 type DeviceStatus = "pending" | "approved" | "rejected" | "revoked";
 // direct — урилгаар орж ирсэн тул бүртгэл хүний нөөцийн зөвшөөрөлгүй шууд идэвхжинэ
@@ -35,8 +40,15 @@ function urlBase64ToUint8Array(base64: string) {
   return Uint8Array.from(atob(padded), (c) => c.charCodeAt(0));
 }
 
+// «Нүүр» — зарлан мэдээлэл, харуулын хуваарь, бүртгэл; «Чат» — алба хаагчид хоорондоо (?tab=chat, ?chat=<userId>)
+type Tab = "home" | "chat";
+
 export function AlertApp() {
   const [info, setInfo] = useState<DeviceInfo | null>(null);
+  const params = useSearchParams();
+  const chatWith = params.get("chat");
+  const tab: Tab = chatWith || params.get("tab") === "chat" ? "chat" : "home";
+  const approved = info?.device?.status === "approved";
 
   const load = useCallback(async () => {
     const res = await fetch("/api/app/device", { cache: "no-store" });
@@ -51,12 +63,12 @@ export function AlertApp() {
   }, [load]);
 
   return (
-    <div className="mx-auto max-w-md px-4 py-6 space-y-6">
+    <div className={`mx-auto max-w-md px-4 py-6 space-y-6 ${approved ? "pb-28" : ""}`}>
       <header className="flex items-center gap-3">
         <Image src="/logo.png" alt="" width={36} height={47} />
         <div>
           <p className="text-xs text-muted-foreground">Зэвсэгт хүчний 013 дугаар анги</p>
-          <h1 className="text-xl font-bold text-foreground">Зарлан мэдээлэх</h1>
+          <h1 className="text-xl font-bold text-foreground">{approved && tab === "chat" ? "Чат" : "Зарлан мэдээлэх"}</h1>
         </div>
       </header>
 
@@ -64,8 +76,8 @@ export function AlertApp() {
 
       {!info ? (
         <p className="text-sm text-muted-foreground">Ачааллаж байна...</p>
-      ) : info.device?.status === "approved" ? (
-        <ApprovedView />
+      ) : approved ? (
+        <ApprovedView tab={tab} chatWith={chatWith} />
       ) : info.device?.status === "pending" ? (
         <Card>
           <p className="font-semibold text-foreground">Хүсэлт илгээгдсэн</p>
@@ -188,31 +200,6 @@ function RequestForm({ direct, onSent }: { direct: boolean; onSent: () => void }
         </button>
       </form>
     </Card>
-  );
-}
-
-/** Профайл зураг эсвэл нэрийн эхний үсэг */
-function Avatar({ person, size = 56 }: { person: Pick<Person, "name" | "photo">; size?: number }) {
-  if (person.photo) {
-    return (
-      <Image
-        src={person.photo}
-        alt=""
-        width={size}
-        height={size}
-        unoptimized
-        className="rounded-full object-cover border border-border shrink-0"
-        style={{ width: size, height: size }}
-      />
-    );
-  }
-  return (
-    <span
-      className="rounded-full bg-muted text-foreground font-bold flex items-center justify-center shrink-0"
-      style={{ width: size, height: size }}
-    >
-      {person.name.trim().charAt(0).toUpperCase()}
-    </span>
   );
 }
 
@@ -419,8 +406,13 @@ function RegistrarSection() {
   );
 }
 
-function ApprovedView() {
+type AppBadge = Navigator & { setAppBadge?: (count?: number) => Promise<void>; clearAppBadge?: () => Promise<void> };
+
+function ApprovedView({ tab, chatWith }: { tab: Tab; chatWith: string | null }) {
   const [feed, setFeed] = useState<Feed | null>(null);
+  const [unread, setUnread] = useState(0);
+  // Чатыг апп дотроос нээсэн бол «Буцах» нь өмнөх хуудас руу (history.back) — мэдэгдлээр шууд нээсэн бол жагсаалт руу
+  const pushed = useRef(false);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/app/feed", { cache: "no-store" });
@@ -436,20 +428,121 @@ function ApprovedView() {
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, [load]);
 
+  // Нүүр хуудсанд байхад уншаагүй зурвасын тоо (мөн «Идэвхтэй» төлөвийг сэргээнэ); чатын жагсаалт өөрөө шинэчилнэ
+  const loadUnread = useCallback(async () => {
+    const res = await fetch("/api/app/chat?summary=1", { cache: "no-store" }).catch(() => null);
+    if (res?.ok) setUnread((await res.json()).unreadTotal);
+  }, []);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- refresh the unread count when returning home
+    if (tab === "home") loadUnread();
+  }, [tab, loadUnread]);
+  usePolling(loadUnread, POLL_MS.home, tab === "home");
+
+  // Аппын дүрс дээр уншаагүй зурвасын тоо
+  useEffect(() => {
+    const nav = navigator as AppBadge;
+    if (unread > 0) nav.setAppBadge?.(unread).catch(() => {});
+    else nav.clearAppBadge?.().catch(() => {});
+  }, [unread]);
+
+  useEffect(() => {
+    // Апп хаагдах/далд ороход «Идэвхтэй» төлөвийг шууд унтраана
+    const away = () => navigator.sendBeacon?.("/api/app/presence");
+    const onHidden = () => document.visibilityState === "hidden" && away();
+    document.addEventListener("visibilitychange", onHidden);
+    window.addEventListener("pagehide", away);
+    // Мэдэгдэл дарахад (апп нээлттэй үед) service worker тухайн хэсгийг нээлгэнэ
+    const onMessage = (e: MessageEvent) => {
+      const url = e.data?.type === "open" && typeof e.data.url === "string" ? e.data.url : "";
+      if (!url.startsWith("/app")) return;
+      if (url.includes("chat=")) {
+        pushed.current = true;
+        window.history.pushState(null, "", url);
+      } else window.history.replaceState(null, "", url);
+    };
+    navigator.serviceWorker?.addEventListener("message", onMessage);
+    return () => {
+      document.removeEventListener("visibilitychange", onHidden);
+      window.removeEventListener("pagehide", away);
+      navigator.serviceWorker?.removeEventListener("message", onMessage);
+    };
+  }, []);
+
+  const openChat = useCallback((userId: string) => {
+    pushed.current = true;
+    window.history.pushState(null, "", `/app?chat=${encodeURIComponent(userId)}`);
+  }, []);
+  const closeChat = useCallback(() => {
+    if (pushed.current) {
+      pushed.current = false;
+      window.history.back();
+    } else window.history.replaceState(null, "", "/app?tab=chat");
+  }, []);
+  const switchTab = (next: Tab) => {
+    if (next !== tab) window.history.replaceState(null, "", next === "chat" ? "/app?tab=chat" : "/app");
+  };
+
   async function ack(id: string) {
     await fetch(`/api/app/alerts/${id}/ack`, { method: "POST" });
     load();
   }
 
-  if (!feed) return <p className="text-sm text-muted-foreground">Ачааллаж байна...</p>;
-
   return (
     <>
-      {feed.person && <ProfileCard person={feed.person} onChange={load} />}
+      <div className={tab === "home" ? "space-y-6" : "hidden"}>
+        {feed ? <HomeView feed={feed} onChange={load} onAck={ack} /> : <p className="text-sm text-muted-foreground">Ачааллаж байна...</p>}
+      </div>
+      {tab === "chat" && !chatWith && <ChatList onOpen={openChat} onUnread={setUnread} pushEnabled={feed?.pushEnabled ?? true} />}
+      {chatWith && <Conversation key={chatWith} userId={chatWith} onBack={closeChat} />}
+      {!chatWith && <BottomNav tab={tab} unread={unread} onTab={switchTab} />}
+    </>
+  );
+}
+
+/** Доод цэс: Нүүр / Чат (уншаагүй зурвасын тоотой) */
+function BottomNav({ tab, unread, onTab }: { tab: Tab; unread: number; onTab: (tab: Tab) => void }) {
+  const item = (t: Tab) =>
+    `flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] font-semibold ${tab === t ? "text-primary" : "text-muted-foreground"}`;
+  return (
+    <nav
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 backdrop-blur"
+      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      aria-label="Аппын цэс"
+    >
+      <div className="mx-auto flex max-w-md">
+        <button onClick={() => onTab("home")} className={item("home")} aria-current={tab === "home" ? "page" : undefined}>
+          <House className="size-5" aria-hidden />
+          Нүүр
+        </button>
+        <button onClick={() => onTab("chat")} className={item("chat")} aria-current={tab === "chat" ? "page" : undefined}>
+          <span className="relative">
+            <MessageCircle className="size-5" aria-hidden />
+            {unread > 0 && (
+              <span
+                className="absolute -right-3 -top-1.5 h-4 min-w-4 rounded-full bg-red-500 px-1 text-center text-[10px] font-bold leading-4 text-white"
+                aria-label={`${unread} уншаагүй зурвас`}
+              >
+                {unread > 99 ? "99+" : unread}
+              </span>
+            )}
+          </span>
+          Чат
+        </button>
+      </div>
+    </nav>
+  );
+}
+
+/** «Нүүр»: миний бүртгэл, дараагийн манаа, мэдэгдэл, зарлан мэдээлэл, харуулын хуваарь, хүн бүртгэх */
+function HomeView({ feed, onChange, onAck }: { feed: Feed; onChange: () => void; onAck: (id: string) => void }) {
+  return (
+    <>
+      {feed.person && <ProfileCard person={feed.person} onChange={onChange} />}
 
       {feed.nextDuty && <NextDuty date={feed.nextDuty} />}
 
-      <PushToggle enabled={feed.pushEnabled} onChange={load} />
+      <PushToggle enabled={feed.pushEnabled} onChange={onChange} />
 
       <section className="space-y-3">
         <h2 className="font-bold text-foreground">Зарлан мэдээлэл</h2>
@@ -464,7 +557,7 @@ function ApprovedView() {
             {a.acked ? (
               <p className="text-sm font-semibold text-primary">✓ Хүлээн авсан</p>
             ) : (
-              <button onClick={() => ack(a.id)} className={button}>
+              <button onClick={() => onAck(a.id)} className={button}>
                 Хүлээн авлаа
               </button>
             )}
@@ -596,7 +689,7 @@ function PushToggle({ enabled, onChange }: { enabled: boolean; onChange: () => v
       <p className="text-sm text-muted-foreground">
         {state === "denied"
           ? "Мэдэгдлийг хориглосон байна. Утасныхаа тохиргооноос энэ аппын мэдэгдлийг (Notifications) зөвшөөрнө үү."
-          : "Зарлан мэдээлэл ирэхэд утас тань дуугарч мэдэгдэх болно."}
+          : "Зарлан мэдээлэл, чатын зурвас ирэхэд утас тань дуугарч мэдэгдэнэ."}
       </p>
       {error && <p className="text-sm text-red-400">{error}</p>}
       {state !== "denied" && (

@@ -6,7 +6,9 @@ import { SITE_URL } from "@/lib/site";
 // Утас руу мэдэгдэл (Web Push). Хөтчийн өөрийн push үйлчилгээгээр (Google, Apple, Mozilla) үнэгүй очно.
 // VAPID түлхүүрийг .env.local-д: VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY (npx web-push generate-vapid-keys).
 
-export type PushPayload = { title: string; body: string; url?: string; tag?: string };
+// kind: "chat" — чатын зурвас (дэлгэц дээр удаан үлдэхгүй, зурвас илгээсэн хүний зурагтай); badge — аппын
+// дүрс дээрх уншаагүй зурвасын тоо
+export type PushPayload = { title: string; body: string; url?: string; tag?: string; kind?: "chat"; icon?: string; badge?: number };
 
 let configured = false;
 

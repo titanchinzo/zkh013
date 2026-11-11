@@ -37,14 +37,34 @@ export async function getCurrentDevice() {
   return device ? { device, token } : null;
 }
 
-/** Хүний нөөц зөвшөөрсөн утас — апп-ын API-д. Хэрэглэх бүрд cookie-г сунгана. */
+// Утас сүүлд хандсан цагийг (чатын «Идэвхтэй» төлөв) ингэж олон секундын нарийвчлалтай хадгална — апп нээлттэй
+// үед утас хэдэн секунд тутам асуудаг тул өгөгдлийн сан руу хүсэлт бүрд бичихгүй
+const SEEN_WRITE_MS = 10_000;
+
+/** Хүний нөөц зөвшөөрсөн утас — апп-ын API-д. Хэрэглэх бүрд сүүлд хандсан цагийг шинэчилж, cookie-г сунгана. */
 export async function getApprovedDevice() {
   const current = await getCurrentDevice();
   if (current?.device.status !== "approved") return null;
-  current.device.lastSeenAt = new Date();
-  await current.device.save();
-  await setDeviceCookie(current.token);
-  return current.device;
+  const { device, token } = current;
+  const now = new Date();
+  if (!device.lastSeenAt || now.getTime() - device.lastSeenAt.getTime() > SEEN_WRITE_MS) {
+    device.lastSeenAt = now;
+    await Device.updateOne({ _id: device._id }, { $set: { lastSeenAt: now } });
+    await setDeviceCookie(token);
+  }
+  return device;
+}
+
+/** Апп хаагдсан/далд орсон — «Идэвхтэй» төлөвийг шууд унтраана (сүүлд хандсан цагийг идэвхтэй хугацаанаас өмнө болгоно) */
+export async function markDeviceAway(onlineMs: number) {
+  const current = await getCurrentDevice();
+  if (current?.device.status !== "approved") return null;
+  const now = Date.now();
+  await Device.updateOne(
+    { _id: current.device._id, lastSeenAt: { $gt: new Date(now - onlineMs) } },
+    { $set: { lastSeenAt: new Date(now - onlineMs) } }
+  );
+  return current.device.userId as string;
 }
 
 /** Хүний нөөцөд харуулах товч нэр: "iPhone · Safari", "Android · Chrome" */
