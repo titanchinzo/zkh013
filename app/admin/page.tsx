@@ -51,7 +51,7 @@ async function hrStats(): Promise<Stat[]> {
   return [
     { label: "Алба хаагч", value: personnel, href: "/admin/personnel" },
     { label: "Өнөөдөр ирсэн", value: present, href: "/admin/attendance" },
-    { label: "Өнөөдөр харуул хоногийн манаанд", value: dutyIds(today).length, href: "/admin/attendance" },
+    { label: "Өнөөдөр харуул хоногийн манаанд", value: dutyIds(today).length, href: "/admin/duty" },
     { label: "Утасны хүсэлт хүлээгдэж буй", value: pendingDevices, href: "/admin/devices" },
   ];
 }

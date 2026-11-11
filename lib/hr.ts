@@ -12,6 +12,16 @@ export const ATTENDANCE_LABELS = {
 export type AttendanceStatus = keyof typeof ATTENDANCE_LABELS;
 export const ATTENDANCE_STATUSES = Object.keys(ATTENDANCE_LABELS) as AttendanceStatus[];
 
+/** Ирцийн хуанлийн нүдэнд багтах богино нэр */
+export const ATTENDANCE_SHORT: Record<AttendanceStatus, string> = {
+  present: "Ирсэн",
+  leave: "Чөлөө",
+  sick: "Өвчтэй",
+  trip: "Томилолт",
+  vacation: "Амралт",
+  absent: "Тасалсан",
+};
+
 /** Нэг л төрлийн үүрэг — хуваарийг 7 хоногоор (Даваа–Ням) гаргаж, өдөр бүрд хүмүүсийг нь сонгоно */
 export const DUTY_LABEL = "Харуул хоногийн манаа";
 
@@ -98,6 +108,36 @@ export function addDays(date: string, days: number): string {
   const d = new Date(`${date}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
+}
+
+/** Хуанлийн толгой: Даваа … Ням */
+export const WEEKDAY_SHORT = ["Да", "Мя", "Лх", "Пү", "Ба", "Бя", "Ня"] as const;
+
+/** Даваа = 0 … Ням = 6 */
+export function weekdayIndex(date: string): number {
+  return (new Date(`${date}T00:00:00Z`).getUTCDay() + 6) % 7;
+}
+
+/** "2026-11" */
+export function isMonthKey(value: unknown): value is string {
+  return typeof value === "string" && /^\d{4}-(0[1-9]|1[0-2])$/.test(value);
+}
+
+export function addMonths(month: string, months: number): string {
+  const [year, m] = month.split("-").map(Number);
+  return new Date(Date.UTC(year, m - 1 + months, 1)).toISOString().slice(0, 7);
+}
+
+/** Тухайн сарын бүх өдөр: ["2026-11-01", …, "2026-11-30"] */
+export function monthDays(month: string): string[] {
+  const [year, m] = month.split("-").map(Number);
+  const count = new Date(Date.UTC(year, m, 0)).getUTCDate();
+  return Array.from({ length: count }, (_, i) => `${month}-${String(i + 1).padStart(2, "0")}`);
+}
+
+/** "2026 оны 11 сар" */
+export function formatMonth(month: string): string {
+  return `${month.slice(0, 4)} оны ${Number(month.slice(5))} сар`;
 }
 
 /** Тэр өдрийг агуулсан 7 хоногийн Даваа гараг */

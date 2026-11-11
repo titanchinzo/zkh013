@@ -24,7 +24,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     // Хүний нөөц — нийтэд биш, зөвхөн админ болон хүний нөөц
     ...(isHrRole(role)
       ? [
-          { href: "/admin/attendance", label: "Ирц, харуул хоногийн манаа" },
+          { href: "/admin/attendance", label: "Ирц" },
+          { href: "/admin/duty", label: "Харуул хоногийн манаа" },
           { href: "/admin/personnel", label: "Алба хаагчид" },
           { href: "/admin/devices", label: "Утасны бүртгэл" },
           { href: "/admin/alerts", label: "Зарлан мэдээлэх" },
