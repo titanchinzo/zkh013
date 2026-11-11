@@ -10,7 +10,7 @@ export async function PATCH(req: NextRequest) {
   const person = await Personnel.findOne({ userId: device.userId });
   if (!person) return NextResponse.json({ error: "Бүртгэл олдсонгүй" }, { status: 404 });
 
-  const parsed = parsePersonnel(await req.json().catch(() => null), true, person.rank);
+  const parsed = parsePersonnel(await req.json().catch(() => null), { partial: true, keepRank: person.rank });
   if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
   person.set(parsed.value);
   await person.save();

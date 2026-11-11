@@ -34,7 +34,51 @@ export const WEEK_DAYS = 7;
 /** Цолын товчлол — бага цолоос ахлах руу. Цолыг зөвхөн эндээс сонгоно. */
 export const RANKS = ["энг", "т/ч", "а/т", "д/а", "а/ч", "а/а", "с/а", "т/а", "д/ч", "а/д", "а/х", "х/ч", "д/х", "Хур"] as const;
 
-export const PERSONNEL_LIMITS = { rank: 60, name: 120, position: 120 } as const;
+export const PERSONNEL_LIMITS = { rank: 60, name: 120, position: 120, group: 120 } as const;
+
+/** Цолын ахлах эрэмбэ: Хур хамгийн их, энг хамгийн бага; жагсаалтад байхгүй цол -1 */
+export function rankSeniority(rank: string): number {
+  return (RANKS as readonly string[]).indexOf(rank);
+}
+
+// Excel, PDF-ээс хуулахад кирилл үгэнд орж ирдэг латин ижил дүрстэй үсэг
+const LOOKALIKES: Record<string, string> = {
+  A: "А", B: "В", C: "С", E: "Е", H: "Н", K: "К", M: "М", O: "О", P: "Р", T: "Т", X: "Х",
+  a: "а", c: "с", e: "е", k: "к", o: "о", p: "р", x: "х", y: "у",
+};
+
+/** Кирилл бичвэр дэх латин ижил дүрстэй үсгийг (с/a, Mустафа г.м) кирилл болгоно */
+export function fixLookalikes(text: string): string {
+  return /[А-Яа-яЁёӨөҮү]/.test(text) ? text.replace(/[ABCEHKMOPTXacekopxy]/g, (ch) => LOOKALIKES[ch] ?? ch) : text;
+}
+
+/** Цолын бичлэгийг жагсаалтын хэлбэрт оруулна ("хур" → "Хур", латин "с/a" → "с/а"); танигдахгүй бол null */
+export function normalizeRank(value: string): string | null {
+  const v = fixLookalikes(value).replace(/\s+/g, "").toLowerCase();
+  return (RANKS as readonly string[]).find((r) => r.toLowerCase() === v) ?? null;
+}
+
+/**
+ * Нэг нүдэнд бичсэн утасны дугааруудыг салгана: "88112233, 99112233", "9911 2233", "+976 88112233".
+ * Excel мянгатын таслалаар эвдсэн "9,811,738,699,633,330" (16 орон) → 2 дугаар. invalid — танигдаагүй хэсэг.
+ */
+export function parsePhones(text: string): { phones: string[]; invalid: string[]; repaired?: string } {
+  let value = text.trim();
+  const repaired = /^\d{1,3}(,\d{3})+$/.test(value) ? value : undefined;
+  if (repaired) value = value.replace(/,/g, "");
+  const phones: string[] = [];
+  const invalid: string[] = [];
+  for (const part of value.split(/[,;/]+/)) {
+    const raw = part.trim();
+    if (!raw || /^[-—–]+$/.test(raw)) continue;
+    let digits = raw.replace(/\D/g, "");
+    if (/^976\d{8}$/.test(digits)) digits = digits.slice(3);
+    if (digits.length >= 8 && digits.length % 8 === 0 && /^[\d\s+()-]+$/.test(raw)) {
+      for (let i = 0; i < digits.length; i += 8) phones.push(digits.slice(i, i + 8));
+    } else invalid.push(raw);
+  }
+  return { phones: [...new Set(phones)], invalid, ...(repaired && phones.length ? { repaired } : {}) };
+}
 export const ALERT_LIMITS = { title: 120, body: 1000 } as const;
 /** Зарлан мэдээллийн дуусах цаг хамгийн хол нь одооноос хойш ийм хоног */
 export const ALERT_MAX_DAYS = 365;
@@ -180,7 +224,9 @@ export function personnelLabel(p: { rank?: string | null; name: string }) {
 
 /** "9911 2233", "+976 9911-2233" → "99112233"; Монголын 8 оронтой дугаар биш бол null */
 export function normalizePhone(value: string): string | null {
-  const digits = value.replace(/[\s\-()]/g, "").replace(/^\+?976/, "");
+  let digits = value.replace(/[\s\-()]/g, "").replace(/^\+/, "");
+  // 976-аар эхэлсэн 8 оронтой дугаарыг тасдахгүй — зөвхөн +976 улсын кодыг авна
+  if (/^976\d{8}$/.test(digits)) digits = digits.slice(3);
   return /^\d{8}$/.test(digits) ? digits : null;
 }
 
@@ -190,7 +236,25 @@ export function formatPhone(phone?: string | null): string {
 }
 
 type Result<T> = { ok: true; value: T } | { ok: false; error: string };
-type PersonnelFields = { rank?: string; name?: string; position?: string; phone?: string };
+type PersonnelFields = {
+  rank?: string;
+  name?: string;
+  position?: string;
+  phone?: string;
+  group?: string;
+  extraPhones?: string[];
+  emergencyPhone?: string;
+};
+type PersonnelOptions = {
+  /** Засварт: зөвхөн ирсэн талбаруудыг шалгана */
+  partial?: boolean;
+  /** Жагсаалт гарахаас өмнө бичсэн хуучин цолыг засварт хэвээр үлдээнэ */
+  keepRank?: string;
+  /** Дугааргүй бүртгэлийг (жагсаалтаас оруулсан г.м) дугааргүйгээр засаж болно */
+  phoneOptional?: boolean;
+  /** Хүний нөөцийн талбарууд — бүлэг, бусад дугаар, «Шаардлагатай үед» (аппаас өөрчлөхгүй) */
+  hr?: boolean;
+};
 type AlertFields = { title: string; body: string; startsAt: Date; endsAt: Date };
 
 /**
@@ -218,16 +282,16 @@ export function parseAlert(body: unknown, now = new Date()): Result<AlertFields>
 }
 
 /**
- * Цол, нэр, албан тушаал, утасны дугаарыг шалгана. partial — зөвхөн ирсэн талбаруудыг (засварт).
- * Цол хоосон эсвэл RANKS-ийн нэг байна; keepRank — жагсаалт гарахаас өмнө бичсэн хуучин цолыг засварт хэвээр үлдээнэ.
- * Утасны дугаар заавал (8 оронтой).
+ * Цол, нэр, албан тушаал, утасны дугаарыг шалгана (хүний нөөцөд мөн бүлэг, бусад дугаар, «Шаардлагатай үед»).
+ * Цол хоосон эсвэл RANKS-ийн нэг байна. Утасны дугаар заавал (8 оронтой) — phoneOptional бол хоосон байж болно.
  */
-export function parsePersonnel(body: unknown, partial = false, keepRank?: string): Result<PersonnelFields> {
+export function parsePersonnel(body: unknown, options: PersonnelOptions = {}): Result<PersonnelFields> {
+  const { partial = false, keepRank, phoneOptional = false, hr = false } = options;
   const b = (body ?? {}) as Record<string, unknown>;
   const out: PersonnelFields = {};
-  for (const key of ["rank", "name", "position"] as const) {
+  for (const key of hr ? (["rank", "name", "position", "group"] as const) : (["rank", "name", "position"] as const)) {
     if (b[key] === undefined && partial) continue;
-    const value = typeof b[key] === "string" ? b[key].trim() : "";
+    const value = typeof b[key] === "string" ? b[key].trim().replace(/\s+/g, " ") : "";
     if (value.length > PERSONNEL_LIMITS[key]) return { ok: false, error: "Хэт урт утга байна" };
     out[key] = value;
   }
@@ -236,9 +300,47 @@ export function parsePersonnel(body: unknown, partial = false, keepRank?: string
     return { ok: false, error: "Цолоо жагсаалтаас сонгоно уу" };
   }
   if (b.phone !== undefined || !partial) {
-    const phone = normalizePhone(typeof b.phone === "string" ? b.phone : "");
-    if (!phone) return { ok: false, error: "Утасны дугаараа бичнэ үү (8 оронтой)" };
-    out.phone = phone;
+    const raw = typeof b.phone === "string" ? b.phone.trim() : "";
+    const phone = normalizePhone(raw);
+    if (phone) out.phone = phone;
+    else if (!raw && phoneOptional) out.phone = "";
+    else return { ok: false, error: "Утасны дугаараа бичнэ үү (8 оронтой)" };
+  }
+  if (hr && b.extraPhones !== undefined) {
+    const list = Array.isArray(b.extraPhones) ? b.extraPhones.join(",") : typeof b.extraPhones === "string" ? b.extraPhones : "";
+    const { phones, invalid } = parsePhones(list);
+    if (invalid.length) return { ok: false, error: `Бусад дугаар буруу: ${invalid.join(", ")} (8 оронтой)` };
+    out.extraPhones = phones.filter((p) => p !== out.phone).slice(0, 5);
+  }
+  if (hr && b.emergencyPhone !== undefined) {
+    const raw = typeof b.emergencyPhone === "string" ? b.emergencyPhone.trim() : "";
+    const phone = normalizePhone(raw);
+    if (raw && !phone) return { ok: false, error: "«Шаардлагатай үед» дугаар буруу (8 оронтой)" };
+    out.emergencyPhone = phone ?? "";
   }
   return { ok: true, value: out };
+}
+
+/** "Б.Болд" → { initial: "б", given: "болд" }; "Батын Болд" → { initial: "б", given: "болд" } */
+function nameParts(name: string) {
+  const clean = fixLookalikes(name).toLowerCase().replace(/\s+/g, " ").trim();
+  const dotted = clean.match(/^(\p{L})\.\s*(.+)$/u);
+  if (dotted) return { initial: dotted[1], given: dotted[2].replace(/\s+/g, "") };
+  const words = clean.split(" ");
+  return words.length > 1 ? { initial: words[0].charAt(0), given: words[words.length - 1] } : { initial: "", given: clean };
+}
+
+/** Нэг хүний нэр эсэх: нэр нь ижил, эцгийн нэрийн эхний үсэг (аль алинд байвал) ижил — "Б.Болд" ≈ "Батын Болд" */
+export function sameName(a: string, b: string): boolean {
+  const x = nameParts(a);
+  const y = nameParts(b);
+  return Boolean(x.given) && x.given === y.given && (!x.initial || !y.initial || x.initial === y.initial);
+}
+
+/** Бүлгийн дараалал → цол (ахлахаас) → нэрээр эрэмбэлэх; бүлэггүй хүмүүс төгсгөлд */
+export function comparePersonnel(groups: readonly string[]) {
+  const index = new Map(groups.map((g, i) => [g, i]));
+  const at = (group?: string) => (group ? (index.get(group) ?? groups.length) : groups.length + 1);
+  return (a: { group?: string; rank: string; name: string }, b: { group?: string; rank: string; name: string }) =>
+    at(a.group) - at(b.group) || rankSeniority(b.rank) - rankSeniority(a.rank) || a.name.localeCompare(b.name, "mn");
 }

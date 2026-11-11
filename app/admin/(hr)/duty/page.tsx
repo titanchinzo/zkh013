@@ -2,12 +2,14 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { DUTY_LABEL, addDays, formatDay, formatWeek, personnelLabel, todayUb, weekStart } from "@/lib/hr";
+import { PersonOptions } from "@/components/hr/group-select";
 
-type Person = { _id: string; rank: string; name: string; position: string; active: boolean };
+type Person = { _id: string; rank: string; name: string; position: string; group?: string; active: boolean };
 type WeekData = {
   weekStart: string;
   week: { date: string; duty: string[]; reminded: string[] }[];
   personnel: Person[];
+  groups: string[];
 };
 
 const selectClass = "h-9 rounded-md border border-border bg-background px-2 text-sm text-foreground";
@@ -143,12 +145,11 @@ export default function DutyPage() {
                             aria-label={`${formatDay(w.date)}: хүн нэмэх`}
                           >
                             <option value="">+ Хүн нэмэх</option>
-                            {available.map((p) => (
-                              <option key={p._id} value={p._id}>
-                                {personnelLabel(p)}
-                                {p.position ? ` — ${p.position}` : ""}
-                              </option>
-                            ))}
+                            <PersonOptions
+                              people={available}
+                              groups={ready.groups ?? []}
+                              label={(p) => `${personnelLabel(p)}${p.position ? ` — ${p.position}` : ""}`}
+                            />
                           </select>
                         </div>
                       </td>

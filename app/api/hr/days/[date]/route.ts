@@ -18,6 +18,7 @@ import {
   type AttendanceStatus,
 } from "@/lib/hr";
 import { pushToDevices } from "@/lib/push";
+import { listGroups } from "@/lib/personnel-groups";
 
 type DayDoc = { date: string; guard?: unknown[]; watch?: unknown[]; reminded?: unknown[]; attendance?: { personnel: unknown; status: string }[] };
 
@@ -33,9 +34,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ dat
   await connectToDatabase();
   const start = weekStart(date);
   const days = Array.from({ length: WEEK_DAYS }, (_, i) => addDays(start, i));
-  const [records, personnel] = await Promise.all([
+  const [records, personnel, groups] = await Promise.all([
     DayRecord.find({ date: { $in: [...new Set([...days, date])] } }).lean<DayDoc[]>(),
-    Personnel.find().sort({ name: 1 }).select("rank name position active userId").lean(),
+    Personnel.find().sort({ name: 1 }).select("rank name position group active userId").lean(),
+    listGroups(),
   ]);
   const byDate = new Map(records.map((r) => [r.date, r]));
 
@@ -49,6 +51,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ dat
       reminded: (byDate.get(d)?.reminded ?? []).map(String),
     })),
     personnel,
+    groups: groups.map((g) => g.name),
   });
 }
 

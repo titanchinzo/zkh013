@@ -11,13 +11,14 @@ import { isHrRole } from "@/lib/roles";
 import { parsePersonnel } from "@/lib/hr";
 import { deleteFile } from "@/lib/storage";
 import { pendingPersonnelInvitations, revokeInvitation } from "@/lib/invitation-list";
+import { ensureGroups } from "@/lib/personnel-groups";
 
 type Params = { params: Promise<{ id: string }> };
 
 /**
- * Алба хаагчийн мэдээллийг засах (үг үсгийн алдаа г.м). body: { rank?, name?, position?, phone?, active?,
- * canRegister?, photo: null } — active: false — халагдсан хүнийг түүхтэй нь үлдээж идэвхгүй болгоно; photo: null —
- * зургийг нь арилгана; canRegister — «Бүртгэх эрх» (доод хүмүүсээ урьж бүртгэх).
+ * Алба хаагчийн мэдээллийг засах (үг үсгийн алдаа г.м). body: { rank?, name?, position?, phone?, group?,
+ * extraPhones?, emergencyPhone?, active?, canRegister?, photo: null } — active: false — халагдсан хүнийг түүхтэй нь
+ * үлдээж идэвхгүй болгоно; photo: null — зургийг нь арилгана; canRegister — «Бүртгэх эрх» (доод хүмүүсээ урьж бүртгэх).
  */
 export async function PATCH(req: NextRequest, { params }: Params) {
   if (!isHrRole(await getCurrentRole())) return NextResponse.json({ error: "Зөвшөөрөлгүй" }, { status: 403 });
@@ -28,7 +29,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const person = await Personnel.findById(id);
   if (!person) return NextResponse.json({ error: "Олдсонгүй" }, { status: 404 });
   const body = await req.json().catch(() => null);
-  const parsed = parsePersonnel(body, true, person.rank);
+  // Жагсаалтаас дугааргүй орж ирсэн хүнийг дугааргүйгээр засаж болно
+  const parsed = parsePersonnel(body, { partial: true, keepRank: person.rank, phoneOptional: !person.phone, hr: true });
   if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
 
   const oldPhoto = body?.photo === null ? person.photo : "";
@@ -39,6 +41,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     ...(body?.photo === null ? { photo: "" } : {}),
   });
   await person.save();
+  if (parsed.value.group) await ensureGroups([parsed.value.group]);
   if (oldPhoto) await deleteFile(oldPhoto).catch(() => {});
   return NextResponse.json({ person });
 }

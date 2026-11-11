@@ -33,8 +33,8 @@ export async function GET(req: NextRequest, { params }: Params) {
 
   const [person, seen, incoming, myUnread] = await Promise.all([
     Personnel.findOne({ userId: other })
-      .select("rank name position photo active")
-      .lean<{ rank: string; name: string; position: string; photo?: string; active: boolean }>(),
+      .select("rank name position group photo active")
+      .lean<{ rank: string; name: string; position: string; group?: string; photo?: string; active: boolean }>(),
     approvedLastSeen([other]),
     ChatMessage.find({ recipient: me, sender: other }).sort({ _id: 1 }).limit(200).lean<MessageDoc[]>(),
     ChatMessage.findOne({ recipient: other, sender: me }).sort({ _id: 1 }).select("_id").lean<{ _id: unknown }>(),
@@ -50,7 +50,7 @@ export async function GET(req: NextRequest, { params }: Params) {
       userId: other,
       rank: person?.rank ?? "",
       name: person?.name ?? "Хасагдсан хэрэглэгч",
-      position: person?.position ?? "",
+      position: person?.position || person?.group || "",
       photo: person?.photo ?? "",
     },
     online: isOnline(lastSeenAt),

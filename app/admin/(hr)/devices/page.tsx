@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
-import { formatPhone, personnelLabel } from "@/lib/hr";
+import { formatPhone, personnelLabel, sameName } from "@/lib/hr";
+import { PersonOptions } from "@/components/hr/group-select";
 import { usePolling } from "@/lib/use-polling";
 
 type DeviceRow = {
@@ -20,8 +21,17 @@ type DeviceRow = {
   lastSeenAt?: string;
   pushEnabled?: boolean;
 };
-type Person = { _id: string; rank: string; name: string; position: string; phone?: string; userId?: string };
-type Data = { pending: DeviceRow[]; approved: DeviceRow[]; history: DeviceRow[]; personnel: Person[] };
+type Person = {
+  _id: string;
+  rank: string;
+  name: string;
+  position: string;
+  group?: string;
+  phone?: string;
+  extraPhones?: string[];
+  userId?: string;
+};
+type Data = { pending: DeviceRow[]; approved: DeviceRow[]; history: DeviceRow[]; personnel: Person[]; groups: string[] };
 
 const smallButton = "px-3 py-1.5 text-xs font-semibold rounded-md border border-border text-foreground";
 const dangerButton = "px-3 py-1.5 text-xs font-semibold rounded-md border border-red-400/40 text-red-400";
@@ -93,7 +103,13 @@ export default function DevicesPage() {
         <h2 className="font-bold text-foreground">Шийдвэр хүлээж буй хүсэлт ({data.pending.length})</h2>
         {data.pending.length === 0 && <p className="text-sm text-muted-foreground">Хүсэлт алга.</p>}
         {data.pending.map((d) => (
-          <PendingRequest key={d._id} device={d} personnel={data.personnel} onDecide={(body) => decide(d._id, body)} />
+          <PendingRequest
+            key={d._id}
+            device={d}
+            personnel={data.personnel}
+            groups={data.groups ?? []}
+            onDecide={(body) => decide(d._id, body)}
+          />
         ))}
       </section>
 
@@ -161,21 +177,31 @@ function suggestPerson(device: DeviceRow, personnel: Person[]) {
   const linked = personnel.find((p) => p.userId === device.userId);
   if (linked) return { person: linked, why: "Бүртгэлтэй алба хаагч — шинэ утаснаас хүсэлт илгээсэн" };
   const free = personnel.filter((p) => !p.userId);
-  const samePhone = device.phone ? free.filter((p) => p.phone === device.phone) : [];
+  // Үндсэн эсвэл бусад дугаарын аль нэг нь таарвал
+  const samePhone = device.phone ? free.filter((p) => p.phone === device.phone || p.extraPhones?.includes(device.phone!)) : [];
   if (samePhone.length === 1) return { person: samePhone[0], why: "Утасны дугаар нь хүний нөөцийн бүртгэлтэй таарлаа" };
-  const norm = (s: string) => s.trim().toLowerCase();
-  const sameName = free.filter((p) => norm(p.name) === norm(device.name));
-  if (sameName.length === 1) return { person: sameName[0], why: "Нэр нь хүний нөөцийн бүртгэлтэй таарлаа — шалгаад зөвшөөрнө үү" };
+  // "Б.Болд" ≈ "Батын Болд"; дундын утастай хүмүүсээс нэрээр нь ялгана
+  const named = (samePhone.length ? samePhone : free).filter((p) => sameName(p.name, device.name));
+  if (named.length === 1) {
+    return {
+      person: named[0],
+      why: samePhone.length
+        ? "Утасны дугаар, нэр нь хүний нөөцийн бүртгэлтэй таарлаа"
+        : "Нэр нь хүний нөөцийн бүртгэлтэй таарлаа — шалгаад зөвшөөрнө үү",
+    };
+  }
   return null;
 }
 
 function PendingRequest({
   device,
   personnel,
+  groups,
   onDecide,
 }: {
   device: DeviceRow;
   personnel: Person[];
+  groups: string[];
   onDecide: (body: Record<string, unknown>) => void;
 }) {
   const match = suggestPerson(device, personnel);
@@ -204,13 +230,13 @@ function PendingRequest({
           aria-label="Алба хаагчтай холбох"
         >
           <option value="new">Шинэ алба хаагчаар бүртгэх</option>
-          {choices.map((p) => (
-            <option key={p._id} value={p._id}>
-              {personnelLabel(p)}
-              {p.position ? ` — ${p.position}` : ""}
-              {p.phone ? ` · ${formatPhone(p.phone)}` : ""}
-            </option>
-          ))}
+          <PersonOptions
+            people={choices}
+            groups={groups}
+            label={(p) =>
+              `${personnelLabel(p)}${p.position ? ` — ${p.position}` : ""}${p.phone ? ` · ${formatPhone(p.phone)}` : ""}`
+            }
+          />
         </select>
         <button
           onClick={() => onDecide({ action: "approve", personnelId })}

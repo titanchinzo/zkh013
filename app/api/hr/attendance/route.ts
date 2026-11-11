@@ -5,6 +5,7 @@ import Personnel from "@/lib/models/Personnel";
 import { getCurrentRole } from "@/lib/auth-role";
 import { isHrRole } from "@/lib/roles";
 import { isMonthKey, monthDays, todayUb } from "@/lib/hr";
+import { listGroups } from "@/lib/personnel-groups";
 
 type DayDoc = { date: string; guard?: unknown[]; watch?: unknown[]; attendance?: { personnel: unknown; status: string }[] };
 
@@ -19,11 +20,12 @@ export async function GET(req: NextRequest) {
 
   const days = monthDays(month);
   await connectToDatabase();
-  const [records, personnel] = await Promise.all([
+  const [records, personnel, groups] = await Promise.all([
     DayRecord.find({ date: { $gte: days[0], $lte: days[days.length - 1] } })
       .select("date attendance guard watch")
       .lean<DayDoc[]>(),
-    Personnel.find().sort({ name: 1 }).select("rank name position active createdAt").lean(),
+    Personnel.find().sort({ name: 1 }).select("rank name position group active createdAt").lean(),
+    listGroups(),
   ]);
 
   return NextResponse.json({
@@ -36,5 +38,6 @@ export async function GET(req: NextRequest) {
         duty: dutyIds(r),
       })),
     personnel,
+    groups: groups.map((g) => g.name),
   });
 }

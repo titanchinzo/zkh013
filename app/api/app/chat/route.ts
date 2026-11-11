@@ -3,7 +3,7 @@ import ChatMessage from "@/lib/models/ChatMessage";
 import Personnel from "@/lib/models/Personnel";
 import { approvedLastSeen, getChatUser, isOnline } from "@/lib/chat";
 
-type PersonDoc = { userId: string; rank: string; name: string; position: string; photo?: string; active: boolean };
+type PersonDoc = { userId: string; rank: string; name: string; position: string; group?: string; photo?: string; active: boolean };
 type PendingDoc = { _id: string; count: number; text: string; at: Date };
 
 /**
@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
   const pendingOf = new Map(pending.map((p) => [p._id, p]));
   const ids = [...new Set([...seen.keys(), ...pendingOf.keys()])].filter((id) => id !== me);
   const people = await Personnel.find({ userId: { $in: ids } })
-    .select("userId rank name position photo active")
+    .select("userId rank name position group photo active")
     .lean<PersonDoc[]>();
   const personOf = new Map(people.map((p) => [p.userId, p]));
 
@@ -47,7 +47,8 @@ export async function GET(req: NextRequest) {
         userId: id,
         rank: person?.rank ?? "",
         name: person?.name ?? "Хасагдсан хэрэглэгч",
-        position: person?.position ?? "",
+        // Албан тушаалгүй бол бүлэг (рот, алба…) — олон хүнтэй жагсаалтад ялгагдана
+        position: person?.position || person?.group || "",
         photo: person?.photo ?? "",
         online: isOnline(lastSeenAt, now),
         lastSeenAt,

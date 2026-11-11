@@ -7,6 +7,7 @@ import {
   ATTENDANCE_STATUSES,
   WEEKDAY_SHORT,
   addMonths,
+  comparePersonnel,
   formatDay,
   formatMonth,
   monthDays,
@@ -16,10 +17,11 @@ import {
   weekdayIndex,
   type AttendanceStatus,
 } from "@/lib/hr";
+import { PersonOptions } from "@/components/hr/group-select";
 
-type Person = { _id: string; rank: string; name: string; position: string; active: boolean; createdAt: string };
+type Person = { _id: string; rank: string; name: string; position: string; group?: string; active: boolean; createdAt: string };
 type Day = { date: string; attendance: Record<string, AttendanceStatus>; duty: string[] };
-type MonthData = { month: string; days: Day[]; personnel: Person[] };
+type MonthData = { month: string; days: Day[]; personnel: Person[]; groups: string[] };
 type Marks = Record<string, AttendanceStatus | "">;
 
 // Төлөв бүрийн өнгө — хуанлийн зурвас, тэмдэг
@@ -34,6 +36,12 @@ const STATUS_STYLE: Record<AttendanceStatus, { dot: string; badge: string }> = {
 
 const selectClass = "h-9 rounded-md border border-border bg-background px-2 text-sm text-foreground";
 const navButton = "h-9 px-3 rounded-md border border-border text-sm text-foreground";
+const NO_GROUP = "\u0000none";
+
+/** Зөвхөн сонгосон бүлгийн хүмүүсийн тэмдэглэл */
+function within(marks: Record<string, AttendanceStatus>, ids: Set<string>): Marks {
+  return Object.fromEntries(Object.entries(marks).filter(([id]) => ids.has(id)));
+}
 
 /** Хүний нөөцөд бүртгэгдсэн өдөр (Улаанбаатарын цагаар) — түүнээс өмнөх өдрүүдэд ирц нь шаардлагагүй */
 const sinceOf = (p: Person) => (p.createdAt ? todayUb(new Date(p.createdAt)) : "");
@@ -53,6 +61,7 @@ export default function AttendancePage() {
   const [month, setMonth] = useState(() => todayUb().slice(0, 7));
   const [selected, setSelected] = useState(todayUb);
   const [person, setPerson] = useState("");
+  const [group, setGroup] = useState("");
   const [data, setData] = useState<MonthData | null>(null);
   // Сонгосон өдрийн хадгалаагүй өөрчлөлт; null — өөрчлөөгүй
   const [draft, setDraft] = useState<Marks | null>(null);
@@ -112,7 +121,12 @@ export default function AttendancePage() {
 
   const today = todayUb();
   const ready = data?.month === month ? data : null;
-  const personnel = ready?.personnel ?? [];
+  const groups = ready?.groups ?? [];
+  // Сонгосон бүлгийн хүмүүс (бүх бүлэг бол бүгд) — хуанлийн тоо, жагсаалт зөвхөн тэднийх
+  const personnel = (ready?.personnel ?? [])
+    .filter((p) => !group || (group === NO_GROUP ? !p.group : p.group === group))
+    .sort(comparePersonnel(groups));
+  const scopeIds = new Set(personnel.map((p) => p._id));
   const byDate = new Map((ready?.days ?? []).map((d) => [d.date, d]));
   const dates = monthDays(month);
   const chosen = personnel.find((p) => p._id === person);
@@ -127,6 +141,14 @@ export default function AttendancePage() {
     setDraft({ ...values, [id]: status });
     setMessage("");
   };
+  const markPresent = (people: Person[]) => {
+    setDraft({ ...values, ...Object.fromEntries(people.filter((p) => !values[p._id]).map((p) => [p._id, "present"])) });
+    setMessage("");
+  };
+  // Өдрийн жагсаалт бүлэг бүрээр (бүлэггүй хүмүүс төгсгөлд)
+  const sections = [...groups, ""]
+    .map((name) => ({ name, people: rows.filter((p) => (p.group ?? "") === name) }))
+    .filter((s) => s.people.length);
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -134,7 +156,7 @@ export default function AttendancePage() {
         <h1 className="text-2xl font-bold text-foreground">Ирц</h1>
         <p className="text-sm text-muted-foreground mt-1">
           Хуанлийн өдөр дээр дарж тэр өдрийн ирцийг тэмдэглэнэ. Нүд бүрд хэдэн хүн ирсэн, хэн чөлөөтэй, өвчтэй г.м
-          харагдана. Алба хаагч сонговол тухайн хүний сарын ирц гарна.
+          харагдана. Бүлэг (алба, рот…) сонговол зөвхөн тэр бүлгийнх, алба хаагч сонговол тухайн хүний сарын ирц гарна.
         </p>
       </div>
 
@@ -151,20 +173,40 @@ export default function AttendancePage() {
             Өнөөдөр
           </button>
         </div>
-        <select
-          value={person}
-          onChange={(e) => setPerson(e.target.value)}
-          className={selectClass}
-          aria-label="Алба хаагчаар харах"
-        >
-          <option value="">Бүх алба хаагч</option>
-          {personnel.map((p) => (
-            <option key={p._id} value={p._id}>
-              {personnelLabel(p)}
-              {p.active ? "" : " (идэвхгүй)"}
-            </option>
-          ))}
-        </select>
+        <div className="flex flex-wrap items-center gap-2">
+          {groups.length > 0 && (
+            <select
+              value={group}
+              onChange={(e) => {
+                setGroup(e.target.value);
+                setPerson("");
+              }}
+              className={selectClass}
+              aria-label="Бүлгээр харах"
+            >
+              <option value="">Бүх бүлэг</option>
+              {groups.map((g) => (
+                <option key={g} value={g}>
+                  {g}
+                </option>
+              ))}
+              {(ready?.personnel ?? []).some((p) => !p.group) && <option value={NO_GROUP}>Бүлэггүй</option>}
+            </select>
+          )}
+          <select
+            value={person}
+            onChange={(e) => setPerson(e.target.value)}
+            className={selectClass}
+            aria-label="Алба хаагчаар харах"
+          >
+            <option value="">Бүх алба хаагч</option>
+            <PersonOptions
+              people={personnel}
+              groups={groups}
+              label={(p) => `${personnelLabel(p)}${p.active ? "" : " (идэвхгүй)"}`}
+            />
+          </select>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
@@ -196,7 +238,7 @@ export default function AttendancePage() {
               date={date}
               today={today}
               selected={date === selected}
-              marks={byDate.get(date)?.attendance ?? {}}
+              marks={within(byDate.get(date)?.attendance ?? {}, scopeIds)}
               personnel={personnel}
               person={person}
               onPick={() => pick(date, true)}
@@ -211,13 +253,7 @@ export default function AttendancePage() {
             Ирц — {formatDay(selected)}{" "}
             <span className="text-sm font-normal text-muted-foreground">({relativeDay(selected, today)})</span>
           </h2>
-          <button
-            onClick={() => {
-              setDraft({ ...values, ...Object.fromEntries(rows.filter((p) => !values[p._id]).map((p) => [p._id, "present"])) });
-              setMessage("");
-            }}
-            className={navButton}
-          >
+          <button onClick={() => markPresent(rows)} className={navButton}>
             Тэмдэглээгүйг «Ирсэн» болгох
           </button>
         </div>
@@ -233,32 +269,57 @@ export default function AttendancePage() {
         ) : (
           <div className="rounded-xl border border-border overflow-hidden">
             <table className="w-full text-sm">
-              <tbody>
-                {rows.map((p) => (
-                  <tr key={p._id} className={`border-t border-border first:border-t-0 ${p._id === person ? "bg-muted/40" : ""}`}>
-                    <td className="px-4 py-2.5 text-foreground">{personnelLabel(p)}</td>
-                    <td className="px-4 py-2.5 text-muted-foreground">{p.position}</td>
-                    <td className="px-4 py-2.5 text-primary text-xs font-semibold">
-                      {day?.duty.includes(p._id) && "Манаанд"}
-                    </td>
-                    <td className="px-4 py-2.5 text-right">
-                      <select
-                        value={values[p._id] ?? ""}
-                        onChange={(e) => mark(p._id, e.target.value as AttendanceStatus | "")}
-                        className={selectClass}
-                        aria-label={`${p.name} ирц`}
-                      >
-                        <option value="">—</option>
-                        {ATTENDANCE_STATUSES.map((s) => (
-                          <option key={s} value={s}>
-                            {ATTENDANCE_LABELS[s]}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
+              {sections.map((section) => {
+                const open = section.people.filter((p) => !values[p._id]).length;
+                return (
+                  <tbody key={section.name || NO_GROUP} data-group={section.name}>
+                    {(groups.length > 0 || section.name) && (
+                      <tr className="border-t border-border first:border-t-0 bg-muted/20">
+                        <th colSpan={4} className="px-4 py-2 text-left">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span className="font-bold text-foreground">
+                              {section.name || "Бүлэггүй"}{" "}
+                              <span className="text-xs font-normal text-muted-foreground">
+                                ({section.people.length}
+                                {open ? `, ${open} тэмдэглээгүй` : ""})
+                              </span>
+                            </span>
+                            {open > 0 && (
+                              <button onClick={() => markPresent(section.people)} className="text-xs font-semibold text-primary">
+                                «Ирсэн» болгох
+                              </button>
+                            )}
+                          </div>
+                        </th>
+                      </tr>
+                    )}
+                    {section.people.map((p) => (
+                      <tr key={p._id} className={`border-t border-border ${p._id === person ? "bg-muted/40" : ""}`}>
+                        <td className="px-4 py-2.5 text-foreground">{personnelLabel(p)}</td>
+                        <td className="px-4 py-2.5 text-muted-foreground">{p.position}</td>
+                        <td className="px-4 py-2.5 text-primary text-xs font-semibold">
+                          {day?.duty.includes(p._id) && "Манаанд"}
+                        </td>
+                        <td className="px-4 py-2.5 text-right">
+                          <select
+                            value={values[p._id] ?? ""}
+                            onChange={(e) => mark(p._id, e.target.value as AttendanceStatus | "")}
+                            className={selectClass}
+                            aria-label={`${p.name} ирц`}
+                          >
+                            <option value="">—</option>
+                            {ATTENDANCE_STATUSES.map((s) => (
+                              <option key={s} value={s}>
+                                {ATTENDANCE_LABELS[s]}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                );
+              })}
             </table>
           </div>
         )}
@@ -337,7 +398,8 @@ function DayCell({
         </ul>
       </>
     );
-  } else if (past) {
+  } else if (past && expectedOn(date, personnel, marks).length) {
+    // Тэр өдөр бүртгэлтэй хүн байгаагүй бол (жагсаалтыг өнөөдөр оруулсан г.м) сануулахгүй
     body = <span className="mt-1 block text-[11px] text-muted-foreground">Тэмдэглээгүй</span>;
   }
 

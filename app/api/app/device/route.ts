@@ -34,18 +34,27 @@ async function linkPersonnel(userId: string, fields: Fields, trust: { invitedBy:
     if (target && !target.userId) person = target;
   }
   if (!person && fields.phone) {
-    // Ижил дугаартай холбогдоогүй бүртгэл нэгээс олон бол (дундын утас г.м) аль нь болохыг мэдэхгүй тул шинээр үүсгэнэ
-    const samePhone = await Personnel.find({ phone: fields.phone, active: true, userId: null }).limit(2);
+    // Ижил дугаартай холбогдоогүй бүртгэл нэгээс олон бол (дундын утас г.м) аль нь болохыг мэдэхгүй тул шинээр үүсгэнэ.
+    // Хүний нөөцийн бүртгэлийн үндсэн эсвэл бусад дугаарын аль нэгтэй таарна.
+    const samePhone = await Personnel.find({
+      $or: [{ phone: fields.phone }, { extraPhones: fields.phone }],
+      active: true,
+      userId: null,
+    }).limit(2);
     if (samePhone.length === 1) person = samePhone[0];
   }
   if (!person) {
     await Personnel.create({ ...fields, userId, invitedBy });
     return;
   }
-  // Хүний нөөцийн бичсэн мэдээллийг хэвээр үлдээж, дутууг нь бөглөнө
+  // Хүний нөөцийн бичсэн мэдээллийг хэвээр үлдээж, дутууг нь бөглөнө. Бусад дугаараараа бүртгүүлсэн бол тэр нь
+  // үндсэн дугаар болж, хуучин үндсэн нь бусад дугаарт шилжинэ.
+  const extras: string[] = person.extraPhones ?? [];
+  const swapped = Boolean(fields.phone && extras.includes(fields.phone));
   person.set({
     userId,
     phone: fields.phone,
+    extraPhones: swapped ? [person.phone, ...extras.filter((p) => p !== fields.phone)].filter(Boolean) : extras,
     rank: person.rank || fields.rank,
     name: person.name || fields.name,
     position: person.position || fields.position,
