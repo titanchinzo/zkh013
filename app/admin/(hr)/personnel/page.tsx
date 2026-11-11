@@ -21,6 +21,7 @@ type Person = {
 type Invitation = { id: string; email: string; invitedByName: string; createdAt: number };
 
 const smallButton = "px-3 py-1.5 text-xs font-semibold rounded-md border border-border text-foreground";
+const dangerButton = "px-3 py-1.5 text-xs font-semibold rounded-md border border-red-400/40 text-red-400";
 const phoneInput = { name: "phone", type: "tel", inputMode: "numeric" as const, required: true, maxLength: 16 };
 
 function Avatar({ person }: { person: Person }) {
@@ -106,6 +107,23 @@ export default function PersonnelPage() {
     if (await send(`/api/hr/personnel/${p._id}`, "PATCH", body)) load();
   }
 
+  async function remove(p: Person) {
+    const name = [p.rank, p.name].filter(Boolean).join(" ");
+    const question = [
+      `${name}-г бүр мөсөн устгах уу? Буцаах боломжгүй.`,
+      "Ирц, харуулын хуваарийн түүх нь хамт устна.",
+      p.userId ? "Утасны апп нь хаагдаж, дахин бүртгүүлэхэд хүний нөөцийн зөвшөөрөл хэрэгтэй болно." : "",
+      "Халагдсан хүний түүхийг үлдээх бол «Идэвхгүй болгох»-ыг ашиглана уу.",
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+    if (!confirm(question)) return;
+    if (await send(`/api/hr/personnel/${p._id}`, "DELETE")) {
+      setNotice(`${name}-г устгалаа.`);
+      load();
+    }
+  }
+
   const active = people.filter((p) => p.active);
   const inactive = people.filter((p) => !p.active);
   const unlinked = active.filter((p) => !p.userId);
@@ -116,6 +134,7 @@ export default function PersonnelPage() {
         <h1 className="text-2xl font-bold text-foreground">Алба хаагчид</h1>
         <p className="text-sm text-muted-foreground mt-1">
           Ирц, харуул хоногийн манаанд сонгогдох алба хаагчид. Мэдээллийн үг үсгийн алдааг «Засах»-аар засна.
+          Халагдсан хүнийг «Идэвхгүй болгох»-д ирц, хуваарийн түүх нь үлдэнэ; «Устгах» нь бүр мөсөн устгана.
           «Бүртгэх эрх» олгосон хүн (албадын дарга) утсан дээрх аппаасаа доод хүмүүсээ и-мэйлээр урьж бүртгэнэ.
         </p>
       </div>
@@ -283,6 +302,9 @@ export default function PersonnelPage() {
                           className={smallButton}
                         >
                           {p.active ? "Идэвхгүй болгох" : "Сэргээх"}
+                        </button>
+                        <button onClick={() => remove(p)} className={dangerButton}>
+                          Устгах
                         </button>
                       </td>
                     </tr>
