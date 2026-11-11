@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { RankSelect } from "@/components/hr/rank-select";
 import { formatPhone } from "@/lib/hr";
@@ -136,6 +137,13 @@ export default function PersonnelPage() {
           Ирц, харуул хоногийн манаанд сонгогдох алба хаагчид. Мэдээллийн үг үсгийн алдааг «Засах»-аар засна.
           Халагдсан хүнийг «Идэвхгүй болгох»-д ирц, хуваарийн түүх нь үлдэнэ; «Устгах» нь бүр мөсөн устгана.
           «Бүртгэх эрх» олгосон хүн (албадын дарга) утсан дээрх аппаасаа доод хүмүүсээ и-мэйлээр урьж бүртгэнэ.
+        </p>
+        <p className="text-sm text-muted-foreground mt-1">
+          Урилга заавал биш: аппаа татсан хүн өөрөө хүсэлт илгээж, түүнийг{" "}
+          <Link href="/admin/devices" className="text-primary hover:underline">
+            «Утасны бүртгэл»
+          </Link>
+          -ээс зөвшөөрнө. Энд урьдчилж бүртгэсэн бол утасны дугаар, нэрээр нь таарах бүртгэлийг санал болгоно.
         </p>
       </div>
 

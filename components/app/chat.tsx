@@ -4,6 +4,7 @@ import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } f
 import { ArrowDown, ArrowLeft, Lock, Search, SendHorizontal } from "lucide-react";
 import { Avatar } from "@/components/app/avatar";
 import { CHAT_LIMITS, POLL_MS, chatDay, chatListTime, chatTime, presenceText, sameDay } from "@/lib/chat-shared";
+import { usePolling } from "@/lib/use-polling";
 import {
   clearChatHistory,
   historyOwner,
@@ -36,26 +37,6 @@ const OFFLINE = "Сервертэй холбогдож чадсангүй";
 
 async function errorOf(res: Response | null, fallback: string) {
   return (await res?.json().catch(() => null))?.error ?? fallback;
-}
-
-/** Апп дэлгэц дээр харагдаж байх үед fn-ийг ms тутам дуудна; апп руу буцаж ороход шууд дуудна */
-export function usePolling(fn: () => void, ms: number, enabled = true) {
-  const latest = useRef(fn);
-  useEffect(() => {
-    latest.current = fn;
-  });
-  useEffect(() => {
-    if (!enabled) return;
-    const tick = () => {
-      if (document.visibilityState === "visible") latest.current();
-    };
-    const id = window.setInterval(tick, ms);
-    document.addEventListener("visibilitychange", tick);
-    return () => {
-      window.clearInterval(id);
-      document.removeEventListener("visibilitychange", tick);
-    };
-  }, [ms, enabled]);
 }
 
 // Чатаас буцаж ороход жагсаалт шууд харагдана (дараа нь шинэчилнэ)

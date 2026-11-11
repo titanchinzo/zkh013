@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import { formatPhone, personnelLabel } from "@/lib/hr";
+import { usePolling } from "@/lib/use-polling";
 
 type DeviceRow = {
   _id: string;
@@ -31,14 +32,18 @@ export default function DevicesPage() {
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
-    const res = await fetch("/api/hr/devices");
-    setData(await res.json());
+    const res = await fetch("/api/hr/devices", { cache: "no-store" }).catch(() => null);
+    // Сүлжээ тасарсан, сервер дахин ачаалж буй үед өмнөх жагсаалтаа хэвээр үлдээнэ
+    if (res?.ok) setData(await res.json());
   }, []);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- initial data fetch on mount
     load();
   }, [load]);
+
+  // Шинэ хүсэлт хуудсыг дахин ачаалахгүйгээр гарч ирнэ — олон хүн зэрэг бүртгүүлж байхад
+  usePolling(load, 15_000);
 
   async function decide(id: string, body: Record<string, unknown>) {
     setError("");
@@ -64,8 +69,10 @@ export default function DevicesPage() {
       <div>
         <h1 className="text-2xl font-bold text-foreground">Утасны бүртгэл</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Зарлан мэдээллийн аппыг утсандаа суулгасан хүн энд хүсэлт илгээнэ. Хүн бүр нэг л утастай — шинэ утсыг
-          зөвшөөрөхөд хуучин утас нь автоматаар хүчингүй болно. Гээсэн утсыг доороос хүчингүй болгоно.
+          Аппыг утсандаа суулгасан хүн урилгагүйгээр энд хүсэлт илгээнэ — хүний нөөцөд урьдчилж бүртгэсэн бол
+          утасны дугаар, нэрээр нь таарах бүртгэлийг санал болгоно, үгүй бол шинээр бүртгэнэ. Зөвшөөрмөгц тэр хүний
+          апп нээгдэнэ. Хүн бүр нэг л утастай — шинэ утсыг зөвшөөрөхөд хуучин утас нь автоматаар хүчингүй болно.
+          Гээсэн утсыг доороос хүчингүй болгоно.
         </p>
       </div>
 

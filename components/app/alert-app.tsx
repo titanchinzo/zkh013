@@ -11,7 +11,8 @@ import { DUTY_LABEL, DUTY_REMINDER_TEXT, formatDay, formatPhone, formatWeek, rel
 import { POLL_MS } from "@/lib/chat-shared";
 import { InstallSteps, useInstall } from "@/components/app/install";
 import { Avatar } from "@/components/app/avatar";
-import { ChatList, Conversation, usePolling } from "@/components/app/chat";
+import { ChatList, Conversation } from "@/components/app/chat";
+import { usePolling } from "@/lib/use-polling";
 import { clearChatHistory } from "@/lib/chat-store";
 
 type DeviceStatus = "pending" | "approved" | "rejected" | "revoked";
@@ -52,7 +53,9 @@ export function AlertApp() {
   const approved = info?.device?.status === "approved";
 
   const load = useCallback(async () => {
-    const res = await fetch("/api/app/device", { cache: "no-store" });
+    const res = await fetch("/api/app/device", { cache: "no-store" }).catch(() => null);
+    // Сүлжээ тасарсан, сервер дахин ачаалж буй үед өмнөх төлөвөө хэвээр үлдээнэ
+    if (!res?.ok) return;
     const data: DeviceInfo = await res.json();
     // Утсыг хүний нөөц хүчингүй болгосон (гээсэн г.м) эсвэл бүртгэлгүй бол утсан дээрх чатын түүхийг арилгана
     if (data.device?.status !== "approved") await clearChatHistory();
@@ -65,6 +68,9 @@ export function AlertApp() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- initial data fetch on mount
     load();
   }, [load]);
+
+  // Хүсэлт хүлээгдэж байх хооронд байнга шалгана — хүний нөөц зөвшөөрмөгц апп өөрөө нээгдэнэ
+  usePolling(load, 10_000, info?.device?.status === "pending");
 
   return (
     <div className={`mx-auto max-w-md px-4 py-6 space-y-6 ${approved ? "pb-28" : ""}`}>
@@ -86,7 +92,7 @@ export function AlertApp() {
         <Card>
           <p className="font-semibold text-foreground">Хүсэлт илгээгдсэн</p>
           <p className="text-sm text-muted-foreground">
-            Хүний нөөц энэ утсыг зөвшөөрсний дараа зарлан мэдээлэл энд харагдана.
+            Хүний нөөц энэ утсыг зөвшөөрмөгц апп өөрөө нээгдэнэ.
           </p>
           <button onClick={load} className={secondary}>
             Дахин шалгах

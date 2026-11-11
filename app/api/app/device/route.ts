@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { currentUser } from "@clerk/nextjs/server";
+import { auth, currentUser } from "@clerk/nextjs/server";
 import { isValidObjectId } from "mongoose";
 import { connectToDatabase } from "@/lib/mongodb";
 import Device from "@/lib/models/Device";
@@ -55,13 +55,18 @@ async function linkPersonnel(userId: string, fields: Fields, trust: { invitedBy:
   await person.save();
 }
 
-/** Энэ утасны төлөв: { signedIn, direct, device } — direct: урилгаар орж ирсэн тул бүртгэл шууд идэвхжинэ */
+/**
+ * Энэ утасны төлөв: { signedIn, direct, device } — direct: урилгаар орж ирсэн тул бүртгэл шууд идэвхжинэ.
+ * Апп нээх бүрд, хүсэлт хүлээж буй утас 10 секунд тутам асуудаг тул Clerk-ээс хэрэглэгчийн мэдээллийг зөвхөн
+ * бүртгэлгүй утсанд (урилгатай эсэхийг мэдэхэд) л татна.
+ */
 export async function GET() {
-  const [user, current] = await Promise.all([currentUser(), getCurrentDevice()]);
+  const [{ userId }, current] = await Promise.all([auth(), getCurrentDevice()]);
   const d = current?.device;
+  const user = userId && !d ? await currentUser() : null;
   return NextResponse.json({
-    signedIn: Boolean(user),
-    direct: user && !d ? Boolean(await directTrust(user)) : false,
+    signedIn: Boolean(userId),
+    direct: user ? Boolean(await directTrust(user)) : false,
     device: d ? { status: d.status, rank: d.rank, name: d.name, position: d.position, label: d.label } : null,
   });
 }
