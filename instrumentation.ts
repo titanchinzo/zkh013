@@ -7,6 +7,8 @@ export async function register() {
     startDutyReminders();
     const { startAlertScheduler } = await import("./lib/alerts");
     startAlertScheduler();
+    const { startChatFileSweeper } = await import("./lib/chat-files");
+    startChatFileSweeper();
     const { migrateLegacyChat } = await import("./lib/chat-migrate");
     migrateLegacyChat().catch((err) => console.error("[chat] хуучин чатыг цэвэрлэж чадсангүй:", err));
   }

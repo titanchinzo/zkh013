@@ -1,7 +1,19 @@
 // Чатын түүх зөвхөн утсан дээр (хөтчийн IndexedDB) хадгалагдана — сервер зурвасыг хүлээн авагч уншмагц устгадаг.
 // Утсыг хүний нөөц хүчингүй болгох, өөр хүн энэ утсаар нэвтрэх үед түүхийг арилгана. Зөвхөн хөтөч дээр дуудна.
 
-export type StoredMessage = { id: string; text: string; mine: boolean; at: string; read?: boolean };
+// file — хавсаргасан файл (fileStatus: ready — серверт байгаа, downloaded — хүлээн авагч татаж авсан тул серверээс
+// устсан, gone — хугацаа дууссан); ephemeral — уншсанаас (readAt) хойш 2 минутад хоёр утаснаас устах зурвас
+export type StoredMessage = {
+  id: string;
+  text: string;
+  mine: boolean;
+  at: string;
+  read?: boolean;
+  file?: { id: string; name: string; size: number; type: string };
+  fileStatus?: "ready" | "downloaded" | "gone";
+  ephemeral?: boolean;
+  readAt?: number;
+};
 export type StoredPerson = { userId: string; rank: string; name: string; position: string; photo: string };
 // ack — серверээс хүлээн авч хадгалсан хамгийн сүүлийн зурвас (түүнийг хүртэлх зурвасыг сервер устгана)
 export type StoredThread = { key: string; me: string; person: StoredPerson; messages: StoredMessage[]; ack: string | null };

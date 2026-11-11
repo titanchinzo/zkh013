@@ -12,6 +12,7 @@ import { parsePersonnel } from "@/lib/hr";
 import { deleteFile } from "@/lib/storage";
 import { pendingPersonnelInvitations, revokeInvitation } from "@/lib/invitation-list";
 import { ensureGroups } from "@/lib/personnel-groups";
+import { deleteChatFilesOf } from "@/lib/chat-files";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -73,6 +74,8 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
       { $set: { status: "revoked", decidedBy, decidedAt: new Date() }, $unset: { push: 1 } }
     );
     await ChatMessage.deleteMany({ recipient: userId });
+    // Түүний илгээсэн, түүнд ирсэн чатын файлууд (серверийн хувийн хавтсаас)
+    await deleteChatFilesOf(userId);
   }
   try {
     const invitations = await pendingPersonnelInvitations();

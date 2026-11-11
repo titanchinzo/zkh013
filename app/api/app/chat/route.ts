@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import ChatMessage from "@/lib/models/ChatMessage";
 import Personnel from "@/lib/models/Personnel";
 import { approvedLastSeen, getChatUser, isOnline } from "@/lib/chat";
+import { previewText } from "@/lib/chat-shared";
 
 type PersonDoc = { userId: string; rank: string; name: string; position: string; group?: string; photo?: string; active: boolean };
-type PendingDoc = { _id: string; count: number; text: string; at: Date };
+type PendingDoc = { _id: string; count: number; text: string; file?: { name: string } | null; ephemeral?: boolean; at: Date };
 
 /**
  * Утсан дээрх чатын жагсаалт: апп ашиглаж буй алба хаагчид (идэвхтэй эсэх, сүүлд хэзээ идэвхтэй байсан), тэднээс
@@ -20,7 +21,16 @@ export async function GET(req: NextRequest) {
   const pending = await ChatMessage.aggregate<PendingDoc>([
     { $match: { recipient: me } },
     { $sort: { _id: -1 } },
-    { $group: { _id: "$sender", count: { $sum: 1 }, text: { $first: "$text" }, at: { $first: "$createdAt" } } },
+    {
+      $group: {
+        _id: "$sender",
+        count: { $sum: 1 },
+        text: { $first: "$text" },
+        file: { $first: "$file" },
+        ephemeral: { $first: "$ephemeral" },
+        at: { $first: "$createdAt" },
+      },
+    },
   ]);
   const unreadTotal = pending.reduce((sum, p) => sum + p.count, 0);
   if (req.nextUrl.searchParams.get("summary") === "1") return NextResponse.json({ unreadTotal });
@@ -53,7 +63,8 @@ export async function GET(req: NextRequest) {
         online: isOnline(lastSeenAt, now),
         lastSeenAt,
         canMessage: Boolean(person?.active),
-        pending: waiting ? { count: waiting.count, text: waiting.text.slice(0, 200), at: waiting.at } : null,
+        // Нууц зурвасын текстийг жагсаалтад харуулахгүй, файлыг нэрээр нь
+        pending: waiting ? { count: waiting.count, text: previewText(waiting).slice(0, 200), at: waiting.at } : null,
       },
     ];
   });

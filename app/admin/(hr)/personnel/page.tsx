@@ -24,7 +24,7 @@ type Person = {
   canRegister?: boolean;
   invitedByName?: string;
 };
-type Group = { name: string; count: number };
+type Group = { name: string; count: number; seesAll?: boolean };
 type Invitation = { id: string; email: string; invitedByName: string; createdAt: number };
 type ImportResult = {
   committed: boolean;
@@ -163,6 +163,13 @@ export default function PersonnelPage() {
     if (from < 0 || to < 0 || to >= order.length) return;
     [order[from], order[to]] = [order[to], order[from]];
     if (await send("/api/hr/groups", "PUT", { order })) load();
+  }
+
+  async function setSeesAll(name: string, seesAll: boolean) {
+    if (await send("/api/hr/groups", "PATCH", { name, seesAll })) {
+      setNotice(seesAll ? `«${name}» бүлгийнхэн бүх хүний утасны жагсаалтыг харна.` : `«${name}» бүлгийнхэн зөвхөн өөрийн бүлгийнхний утсыг харна.`);
+      load();
+    }
   }
 
   async function renameGroup(name: string) {
@@ -339,7 +346,19 @@ export default function PersonnelPage() {
                               <span className="text-xs font-normal text-muted-foreground">({section.people.length})</span>
                             </span>
                             {section.name && (
-                              <span className="flex items-center gap-1">
+                              <span className="flex flex-wrap items-center gap-1">
+                                <label
+                                  className="mr-2 flex items-center gap-1.5 text-xs font-normal text-muted-foreground"
+                                  title="Энэ бүлгийнхэн утсан дээрх аппад бүх хүний утасны жагсаалтыг (бүлэг бүрээр) харна"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={Boolean(groups.find((g) => g.name === section.name)?.seesAll)}
+                                    onChange={(e) => setSeesAll(section.name, e.target.checked)}
+                                    className="size-3.5 accent-[var(--primary)]"
+                                  />
+                                  Бүх утас харна
+                                </label>
                                 <button
                                   onClick={() => moveGroup(section.name, -1)}
                                   disabled={index <= 0}

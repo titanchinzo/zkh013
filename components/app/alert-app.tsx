@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { House, MessageCircle, Newspaper } from "lucide-react";
+import { House, MessageCircle, Newspaper, Phone } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { RankSelect } from "@/components/hr/rank-select";
 import {
@@ -22,6 +22,7 @@ import { InstallSteps, useInstall } from "@/components/app/install";
 import { Avatar } from "@/components/app/avatar";
 import { ChatList, Conversation } from "@/components/app/chat";
 import { NewsDetail, NewsList, NewsWrite } from "@/components/app/news";
+import { Directory } from "@/components/app/directory";
 import { usePolling } from "@/lib/use-polling";
 import { clearChatHistory } from "@/lib/chat-store";
 
@@ -56,9 +57,9 @@ function urlBase64ToUint8Array(base64: string) {
 }
 
 // «Нүүр» — зарлан мэдээлэл, харуулын хуваарь, бүртгэл; «Мэдээ» — сайтын мэдээ, хянах, бичих (?tab=news, ?news=<id>,
-// ?write=new|<id>); «Чат» — алба хаагчид хоорондоо (?tab=chat, ?chat=<userId>)
-type Tab = "home" | "news" | "chat";
-const TITLES: Record<Tab, string> = { home: "Зарлан мэдээлэх", news: "Мэдээ", chat: "Чат" };
+// ?write=new|<id>); «Чат» — алба хаагчид хоорондоо (?tab=chat, ?chat=<userId>); «Утас» — утасны жагсаалт (?tab=phones)
+type Tab = "home" | "news" | "chat" | "phones";
+const TITLES: Record<Tab, string> = { home: "Зарлан мэдээлэх", news: "Мэдээ", chat: "Чат", phones: "Утасны жагсаалт" };
 
 export function AlertApp() {
   const [info, setInfo] = useState<DeviceInfo | null>(null);
@@ -67,7 +68,13 @@ export function AlertApp() {
   const newsId = params.get("news");
   const write = params.get("write");
   const tab: Tab =
-    chatWith || params.get("tab") === "chat" ? "chat" : newsId || write || params.get("tab") === "news" ? "news" : "home";
+    chatWith || params.get("tab") === "chat"
+      ? "chat"
+      : newsId || write || params.get("tab") === "news"
+        ? "news"
+        : params.get("tab") === "phones"
+          ? "phones"
+          : "home";
   const approved = info?.device?.status === "approved";
 
   const load = useCallback(async () => {
@@ -592,6 +599,7 @@ function ApprovedView({
       {newsId && <NewsDetail key={newsId} id={newsId} onBack={closeNews} onEdit={openWrite} onChanged={newsChanged} />}
       {write && <NewsWrite key={write} id={write === "new" ? null : write} onBack={closeNews} onDone={newsChanged} />}
       {tab === "chat" && !chatWith && <ChatList onOpen={openChat} onUnread={setUnread} pushEnabled={feed?.pushEnabled ?? true} />}
+      {tab === "phones" && <Directory />}
       {chatWith && <Conversation key={chatWith} userId={chatWith} onBack={closeChat} />}
       {!chatWith && !newsId && !write && <BottomNav tab={tab} unread={unread} news={newsBadge} onTab={switchTab} />}
     </>
@@ -601,7 +609,7 @@ function ApprovedView({
 const badgeClass =
   "absolute -right-3 -top-1.5 h-4 min-w-4 rounded-full bg-red-500 px-1 text-center text-[10px] font-bold leading-4 text-white";
 
-/** Доод цэс: Нүүр / Мэдээ (хянах мэдээний тоо, шинэ мэдээ) / Чат (уншаагүй зурвасын тоо) */
+/** Доод цэс: Нүүр / Мэдээ (хянах мэдээний тоо, шинэ мэдээ) / Чат (уншаагүй зурвасын тоо) / Утас (утасны жагсаалт) */
 function BottomNav({
   tab,
   unread,
@@ -649,6 +657,10 @@ function BottomNav({
             )}
           </span>
           Чат
+        </button>
+        <button onClick={() => onTab("phones")} className={item("phones")} aria-current={tab === "phones" ? "page" : undefined}>
+          <Phone className="size-5" aria-hidden />
+          Утас
         </button>
       </div>
     </nav>

@@ -1,9 +1,21 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ArrowDown, ArrowLeft, Lock, Search, SendHorizontal } from "lucide-react";
+import { ArrowDown, ArrowLeft, Download, File as FileIcon, Lock, Paperclip, Search, SendHorizontal, Timer } from "lucide-react";
 import { Avatar } from "@/components/app/avatar";
-import { CHAT_LIMITS, POLL_MS, chatDay, chatListTime, chatTime, presenceText, sameDay } from "@/lib/chat-shared";
+import {
+  CHAT_FILE,
+  CHAT_LIMITS,
+  POLL_MS,
+  chatDay,
+  chatListTime,
+  chatTime,
+  expiresAt,
+  formatBytes,
+  presenceText,
+  previewText,
+  sameDay,
+} from "@/lib/chat-shared";
 import { usePolling } from "@/lib/use-polling";
 import {
   clearChatHistory,
@@ -28,9 +40,16 @@ type ServerPerson = StoredPerson & {
   pending: { count: number; text: string; at: string } | null;
 };
 type ChatRowData = ServerPerson & { lastMessage: LastMessage | null; unread: number };
-type Message = StoredMessage & { pending?: boolean; failed?: string };
+// progress — илгээж буй файлын хувь (0–1)
+type Message = StoredMessage & { pending?: boolean; failed?: string; progress?: number };
 type ThreadInfo = { person: StoredPerson; online: boolean; lastSeenAt: string | null; canMessage: boolean };
-type ThreadResponse = ThreadInfo & { me: string; messages: Message[]; unreadFrom: string | null };
+type ThreadResponse = ThreadInfo & {
+  me: string;
+  messages: Message[];
+  unreadFrom: string | null;
+  readUpTo: { id: string; at: string } | null;
+  files: { id: string; status: "ready" | "downloaded" }[];
+};
 
 const fullName = (p: { rank: string; name: string }) => (p.rank ? `${p.rank} ${p.name}` : p.name);
 const OFFLINE = "Сервертэй холбогдож чадсангүй";
@@ -44,7 +63,14 @@ let listCache: ChatRowData[] | null = null;
 // Илгээж буй зурвасын түр id
 let tempSeq = 0;
 
-const lastOf = (thread?: StoredThread) => (thread?.messages.length ? thread.messages[thread.messages.length - 1] : null);
+/** «Уншаад 2 минутад устах» зурвасын хугацаа дуусаагүй эсэх */
+const alive = (m: StoredMessage, now = Date.now()) => (expiresAt(m) ?? Infinity) > now;
+
+/** Утсан дээрх сүүлийн зурвас (хугацаа нь дууссан нууц зурвасыг тооцохгүй) */
+const lastOf = (thread?: StoredThread) => {
+  const kept = (thread?.messages ?? []).filter((m) => alive(m));
+  return kept.length ? kept[kept.length - 1] : null;
+};
 
 /** Серверийн жагсаалт (хүмүүс, уншаагүй зурвас) + утсан дээрх чатын түүх → мөрүүд, сүүлд чатласан нь эхэндээ */
 function toRows(people: ServerPerson[], threads: StoredThread[]): ChatRowData[] {
@@ -54,7 +80,7 @@ function toRows(people: ServerPerson[], threads: StoredThread[]): ChatRowData[] 
     threadOf.delete(p.userId);
     const waiting = p.pending ? { text: p.pending.text, mine: false, at: p.pending.at } : null;
     const lastMessage =
-      local && (!waiting || new Date(local.at) >= new Date(waiting.at)) ? { text: local.text, mine: local.mine, at: local.at } : waiting;
+      local && (!waiting || new Date(local.at) >= new Date(waiting.at)) ? { text: previewText(local), mine: local.mine, at: local.at } : waiting;
     return { ...p, lastMessage, unread: p.pending?.count ?? 0 };
   });
   // Сервер дээр байхгүй болсон (халагдсан, хасагдсан) хүнтэй хийсэн өмнөх чат — зөвхөн уншина
@@ -67,7 +93,7 @@ function toRows(people: ServerPerson[], threads: StoredThread[]): ChatRowData[] 
       lastSeenAt: null,
       canMessage: false,
       pending: null,
-      lastMessage: { text: local.text, mine: local.mine, at: local.at },
+      lastMessage: { text: previewText(local), mine: local.mine, at: local.at },
       unread: 0,
     });
   }
@@ -248,6 +274,65 @@ function useVisualViewport() {
 }
 
 type Local = { me: string | null; person: StoredPerson | null; messages: Message[]; ack: string | null };
+type UploadJob = { file: File; fileId: string; uploadId: string; chunkSize: number };
+
+const EPHEMERAL_KEY = "zkh013-chat-ephemeral:";
+
+/** 95000 → "1:35" */
+const countdown = (ms: number) => {
+  const seconds = Math.max(0, Math.ceil(ms / 1000));
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+};
+
+/** Чатын файл: илгээж буй явц, хүлээн авагчид «Татах» (татаж авмагц серверээс устна), төлөв */
+function FileCard({ message: m, downloading, onDownload }: { message: Message; downloading: boolean; onDownload: () => void }) {
+  const file = m.file!;
+  const status = m.fileStatus ?? "ready";
+  const note = m.pending
+    ? m.failed
+      ? "Илгээгдсэнгүй"
+      : `Илгээж байна… ${Math.round((m.progress ?? 0) * 100)}%`
+    : status === "downloaded"
+      ? m.mine
+        ? "✓ Татаж авсан"
+        : "Татаж авсан — серверээс устсан"
+      : status === "gone"
+        ? "Серверээс устсан"
+        : m.mine
+          ? "Хүлээн авагч татаагүй"
+          : downloading
+            ? "Татаж байна… дуусмагц серверээс устна"
+            : "Нэг удаа татна — дараа нь серверээс устна";
+  return (
+    <span className="mb-1 flex min-w-[200px] items-center gap-2.5">
+      <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-black/15">
+        <FileIcon className="size-5" aria-hidden />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate font-semibold">{file.name}</span>
+        <span className="block text-xs opacity-80">
+          {formatBytes(file.size)} · {note}
+        </span>
+        {m.pending && !m.failed && (
+          <span className="mt-1 block h-1 overflow-hidden rounded-full bg-black/20">
+            <span className="block h-full bg-current" style={{ width: `${Math.round((m.progress ?? 0) * 100)}%` }} />
+          </span>
+        )}
+      </span>
+      {!m.mine && !m.pending && status === "ready" && !downloading && (
+        <a
+          href={`/api/app/chat/files/${file.id}`}
+          download={file.name}
+          onClick={onDownload}
+          aria-label={`${file.name} татах`}
+          className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground"
+        >
+          <Download className="size-4" aria-hidden />
+        </a>
+      )}
+    </span>
+  );
+}
 
 /** Хоёр хүний чат — бүтэн дэлгэцээр */
 export function Conversation({ userId, onBack }: { userId: string; onBack: () => void }) {
@@ -274,6 +359,22 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
   // Асуулга бүрийн дугаар; илгээсэн зурвас аль асуулгын үед баталгаажсан — асуулга эхлэхээс өмнө илгээгдсэнийг л уншсан эсэхийг шалгана
   const tick = useRef(0);
   const confirmedAt = useRef(new Map<string, number>());
+  // Илгээж буй файлууд (түр id → файл, оруулалт) — тасарвал үргэлжлүүлэхэд
+  const uploads = useRef(new Map<string, UploadJob>());
+  const picked = useRef(new Map<string, File>());
+  // «Уншаад 2 минутад устах» горим (энэ хүнтэй чатад, утсан дээр хадгална)
+  const [ephemeral, setEphemeral] = useState(false);
+  // Нууц зурвасын үлдсэн хугацааг секунд тутам шинэчилнэ
+  const [now, setNow] = useState(0);
+  // Татаж эхэлсэн файлууд — дуусахад сервер «татаж авсан» гэж тэмдэглэнэ
+  const [downloading, setDownloading] = useState<Set<string>>(() => new Set());
+
+  useEffect(() => {
+    try {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- per-chat setting stored on this phone
+      setEphemeral(localStorage.getItem(`${EPHEMERAL_KEY}${userId}`) === "1");
+    } catch {}
+  }, [userId]);
 
   const show = useCallback((next: Message[]) => {
     local.current.messages = next;
@@ -283,9 +384,35 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
   const persist = useCallback(async () => {
     const { me, person, messages: all, ack } = local.current;
     if (!me || !person) return;
-    const saved = all.filter((m) => !m.pending).map(({ id, text, mine, at, read }) => ({ id, text, mine, at, read }));
+    const saved = all
+      .filter((m) => !m.pending)
+      .map(({ id, text, mine, at, read, file, fileStatus, ephemeral, readAt }) => ({
+        id,
+        text,
+        mine,
+        at,
+        read,
+        file,
+        fileStatus,
+        ephemeral,
+        readAt,
+      }));
     await saveThread(me, person, saved, ack);
   }, []);
+
+  useEffect(() => {
+    if (!messages.some((m) => m.ephemeral && m.readAt)) return;
+    const timer = window.setInterval(() => {
+      const t = Date.now();
+      setNow(t);
+      const kept = local.current.messages.filter((m) => alive(m, t));
+      if (kept.length !== local.current.messages.length) {
+        show(kept);
+        persist();
+      }
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [messages, show, persist]);
 
   const lose = useCallback(
     async (res: Response) => {
@@ -337,14 +464,37 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
     const before = local.current.messages;
     const fresh = data.messages.filter((m) => !before.some((k) => k.id === m.id));
     let changed = first || data.messages.length > 0;
-    // Миний илгээснээс unreadFrom-оос өмнөх нь уншигдсан (асуулга эхлэхээс өмнө илгээгдсэн нь л)
-    const next = merge(before, data.messages).map((m) => {
-      if (!m.mine || m.pending || m.read) return m;
-      if ((confirmedAt.current.get(m.id) ?? 0) >= startedAt) return m;
-      if (data.unreadFrom && m.id >= data.unreadFrom) return m;
-      changed = true;
-      return { ...m, read: true };
-    });
+    const now = Date.now();
+    const statusOf = new Map(data.files.map((x) => [x.id, x.status]));
+    const merged = merge(before, data.messages);
+    const next = merged
+      .map((m) => {
+        let n = m;
+        // Миний илгээснээс unreadFrom-оос өмнөх нь уншигдсан (асуулга эхлэхээс өмнө илгээгдсэн нь л)
+        if (
+          n.mine &&
+          !n.pending &&
+          !n.read &&
+          (confirmedAt.current.get(n.id) ?? 0) < startedAt &&
+          !(data.unreadFrom && n.id >= data.unreadFrom)
+        ) {
+          n = { ...n, read: true };
+        }
+        // Нууц зурвас: ирснийг одоо уншиж байна; илгээснийг нөгөө хүн уншсан цагаас 2 минут тоолно
+        if (n.ephemeral && !n.readAt && !n.pending) {
+          if (!n.mine) n = { ...n, readAt: now };
+          else if (data.readUpTo && n.id <= data.readUpTo.id) n = { ...n, readAt: Date.parse(data.readUpTo.at) };
+        }
+        // Файл: серверт байгаа эсэх (татаж авмагц устдаг)
+        if (n.file && !n.pending) {
+          const status = statusOf.get(n.file.id) ?? "gone";
+          if (status !== n.fileStatus) n = { ...n, fileStatus: status };
+        }
+        if (n !== m) changed = true;
+        return n;
+      })
+      .filter((m) => alive(m, now));
+    if (next.length !== merged.length) changed = true;
     if (!changed) return false;
     if (fresh.length) {
       if (atBottom.current) stick.current = true;
@@ -383,10 +533,11 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
       const owner = historyOwner();
       const stored = owner ? await loadThread(owner, userId) : undefined;
       if (cancelled) return;
-      local.current = { me: owner, person: stored?.person ?? null, messages: stored?.messages ?? [], ack: stored?.ack ?? null };
+      const kept = (stored?.messages ?? []).filter((m) => alive(m));
+      local.current = { me: owner, person: stored?.person ?? null, messages: kept, ack: stored?.ack ?? null };
       if (stored) {
         setInfo((current) => current ?? { person: stored.person, online: false, lastSeenAt: null, canMessage: true });
-        setMessages(stored.messages);
+        setMessages(kept);
       }
       ready.current = true;
       poll();
@@ -444,13 +595,20 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
   async function send(value: string, retryId?: string) {
     const body = value.trim();
     if (!body) return;
-    const temp: Message = { id: retryId ?? `tmp-${++tempSeq}`, text: body, mine: true, at: new Date().toISOString(), pending: true };
+    const temp: Message = {
+      id: retryId ?? `tmp-${++tempSeq}`,
+      text: body,
+      mine: true,
+      at: new Date().toISOString(),
+      pending: true,
+      ...(ephemeral ? { ephemeral: true } : {}),
+    };
     stick.current = true;
     show([...local.current.messages.filter((m) => m.id !== temp.id), temp]);
     const res = await fetch(`/api/app/chat/${userId}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: body }),
+      body: JSON.stringify({ text: body, ephemeral: temp.ephemeral === true }),
     }).catch(() => null);
     if (res?.status === 403) {
       await lose(res);
@@ -465,6 +623,105 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
     confirmedAt.current.set(message.id, tick.current);
     show(merge(local.current.messages.filter((m) => m.id !== temp.id), [message]));
     await persist();
+  }
+
+  /** Файлыг 4MB-аар хэсэгчлэн оруулна; тасарвал серверт ирсэн газраас нь үргэлжилнэ */
+  async function uploadChunks(job: UploadJob, tempId: string) {
+    let offset = 0;
+    while (offset < job.file.size) {
+      const chunk = job.file.slice(offset, Math.min(offset + job.chunkSize, job.file.size));
+      let res: Response | null = null;
+      for (let attempt = 1; attempt <= 3 && !res; attempt++) {
+        res = await fetch(`/api/uploads/${job.uploadId}?offset=${offset}`, { method: "PUT", body: chunk }).catch(() => null);
+        if (!res) await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
+      }
+      if (!res) throw new Error(OFFLINE);
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 409 && typeof data.received === "number") {
+        offset = data.received;
+        continue;
+      }
+      if (!res.ok) throw new Error(data.error ?? "Файл илгээж чадсангүй");
+      offset = data.received;
+      const progress = offset / job.file.size;
+      show(local.current.messages.map((m) => (m.id === tempId ? { ...m, progress } : m)));
+    }
+  }
+
+  /** Файл илгээх: эхлүүлэх → хэсэгчлэн оруулах → зурвас болгон илгээх. Тасарвал «дахин оролдох» нь үргэлжлүүлнэ. */
+  async function sendFile(file: File, retryId?: string) {
+    if (file.size > CHAT_FILE.maxBytes) {
+      setError(`Файлын хэмжээ ${formatBytes(CHAT_FILE.maxBytes)}-аас ихгүй байна`);
+      return;
+    }
+    const id = retryId ?? `tmp-${++tempSeq}`;
+    picked.current.set(id, file);
+    const previous = local.current.messages.find((m) => m.id === id);
+    const temp: Message = {
+      id,
+      text: "",
+      mine: true,
+      at: previous?.at ?? new Date().toISOString(),
+      pending: true,
+      progress: previous?.progress ?? 0,
+      file: { id: "", name: file.name, size: file.size, type: file.type },
+      ...((previous ? previous.ephemeral : ephemeral) ? { ephemeral: true } : {}),
+    };
+    stick.current = true;
+    show([...local.current.messages.filter((m) => m.id !== id), temp]);
+    const fail = (failed: string) => show(local.current.messages.map((m) => (m.id === id ? { ...m, failed } : m)));
+    try {
+      let job = uploads.current.get(id);
+      if (!job) {
+        const start = await fetch(`/api/app/chat/${userId}/files`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: file.name, size: file.size, type: file.type }),
+        }).catch(() => null);
+        if (!start?.ok) return fail(await errorOf(start, OFFLINE));
+        const started = await start.json();
+        job = { file, fileId: started.fileId, uploadId: started.uploadId, chunkSize: started.chunkSize };
+        uploads.current.set(id, job);
+      }
+      await uploadChunks(job, id);
+      const res = await fetch(`/api/app/chat/${userId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileId: job.fileId, ephemeral: temp.ephemeral === true }),
+      }).catch(() => null);
+      if (res?.status === 403) return lose(res);
+      if (!res?.ok) return fail(await errorOf(res, "Илгээгдсэнгүй"));
+      uploads.current.delete(id);
+      picked.current.delete(id);
+      const { message }: { message: Message } = await res.json();
+      confirmedAt.current.set(message.id, tick.current);
+      show(merge(local.current.messages.filter((m) => m.id !== id), [{ ...message, fileStatus: "ready" }]));
+      await persist();
+    } catch (err) {
+      fail(err instanceof Error ? err.message : "Файл илгээж чадсангүй");
+    }
+  }
+
+  /** Тасарсан файлыг үргэлжлүүлэн илгээнэ (серверт ирсэн хэсгээс нь) */
+  function retryFile(id: string) {
+    const file = picked.current.get(id);
+    if (file) sendFile(file, id);
+    else show(local.current.messages.filter((m) => m.id !== id));
+  }
+
+  function pickFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = [...(e.target.files ?? [])];
+    e.target.value = "";
+    for (const file of files) sendFile(file);
+  }
+
+  function toggleEphemeral() {
+    const next = !ephemeral;
+    setEphemeral(next);
+    try {
+      if (next) localStorage.setItem(`${EPHEMERAL_KEY}${userId}`, "1");
+      else localStorage.removeItem(`${EPHEMERAL_KEY}${userId}`);
+    } catch {}
   }
 
   function submit(e?: { preventDefault(): void }) {
@@ -523,7 +780,8 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
         <div className="mx-auto max-w-md space-y-0.5 px-3 py-3">
           <p className="mx-auto mb-3 flex max-w-xs items-start justify-center gap-1.5 text-center text-[11px] leading-snug text-muted-foreground">
             <Lock className="mt-px size-3 shrink-0" aria-hidden />
-            Зурвас хүлээн авагч уншмагц серверээс устна. Чатын түүх зөвхөн та хоёрын утсанд хадгалагдана.
+            Зурвас хүлээн авагч уншмагц, файл татаж авмагц серверээс устна. Чатын түүх зөвхөн та хоёрын утсанд
+            хадгалагдана.
           </p>
           {person && messages.length === 0 && (
             <div className="space-y-2 py-12 text-center">
@@ -550,16 +808,32 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
                       m.mine ? "rounded-br-md bg-primary text-primary-foreground" : "rounded-bl-md bg-muted text-foreground"
                     } ${m.pending ? "opacity-60" : ""}`}
                   >
+                    {m.file && (
+                      <FileCard
+                        message={m}
+                        downloading={downloading.has(m.file.id)}
+                        onDownload={() => setDownloading((current) => new Set(current).add(m.file!.id))}
+                      />
+                    )}
                     {m.text}
                     <span
-                      className={`mt-1 block text-right text-[10px] leading-none ${m.mine ? "text-primary-foreground/70" : "text-muted-foreground"}`}
+                      className={`mt-1 flex items-center justify-end gap-1 text-[10px] leading-none ${m.mine ? "text-primary-foreground/70" : "text-muted-foreground"}`}
                     >
-                      {m.pending && !m.failed ? "Илгээж байна…" : chatTime(m.at)}
+                      {m.ephemeral && (
+                        <span className="inline-flex items-center gap-0.5" title="Уншсаны дараа 2 минутад устна">
+                          <Timer className="size-3" aria-hidden />
+                          {m.readAt && now ? countdown(expiresAt(m)! - now) : ""}
+                        </span>
+                      )}
+                      {m.pending && !m.failed ? (m.file ? "" : "Илгээж байна…") : chatTime(m.at)}
                     </span>
                   </div>
                 </div>
                 {m.failed && (
-                  <button onClick={() => send(m.text, m.id)} className="ml-auto block pt-0.5 text-[11px] text-red-400">
+                  <button
+                    onClick={() => (m.file ? retryFile(m.id) : send(m.text, m.id))}
+                    className="ml-auto block pt-0.5 text-[11px] text-red-400"
+                  >
                     {m.failed} — дахин оролдох
                   </button>
                 )}
@@ -593,7 +867,33 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
           className="shrink-0 border-t border-border bg-background"
           style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
         >
-          <div className="mx-auto flex max-w-md items-end gap-2 px-2 py-2">
+          {ephemeral && (
+            <p className="mx-auto flex max-w-md items-center gap-1.5 px-3 pt-2 text-[11px] text-yellow-400">
+              <Timer className="size-3.5 shrink-0" aria-hidden />
+              Нууц горим: илгээх зурвас, файл уншигдсанаас хойш 2 минутад хоёр утаснаас устна.
+            </p>
+          )}
+          <div className="mx-auto flex max-w-md items-end gap-1 px-2 py-2">
+            <label
+              className="flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground active:bg-muted"
+              title={`Файл илгээх (${formatBytes(CHAT_FILE.maxBytes)} хүртэл)`}
+            >
+              <Paperclip className="size-5" aria-hidden />
+              <span className="sr-only">Файл илгээх</span>
+              <input type="file" multiple onChange={pickFiles} disabled={!person} className="sr-only" />
+            </label>
+            <button
+              type="button"
+              onClick={toggleEphemeral}
+              onMouseDown={(e) => e.preventDefault()}
+              aria-pressed={ephemeral}
+              aria-label="Уншаад 2 минутад устах горим"
+              className={`flex size-10 shrink-0 items-center justify-center rounded-full active:bg-muted ${
+                ephemeral ? "bg-yellow-400/15 text-yellow-400" : "text-muted-foreground"
+              }`}
+            >
+              <Timer className="size-5" aria-hidden />
+            </button>
             <textarea
               ref={inputRef}
               value={text}
@@ -601,7 +901,7 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
               onKeyDown={onKeyDown}
               rows={1}
               maxLength={CHAT_LIMITS.text}
-              placeholder="Зурвас бичих..."
+              placeholder={ephemeral ? "Нууц зурвас..." : "Зурвас бичих..."}
               aria-label="Зурвас"
               className="min-h-10 flex-1 resize-none rounded-2xl border border-border bg-muted/40 px-3.5 py-2 text-base leading-snug text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
             />

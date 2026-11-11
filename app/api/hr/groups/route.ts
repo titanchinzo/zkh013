@@ -5,6 +5,7 @@ import PersonnelGroup from "@/lib/models/PersonnelGroup";
 import { getCurrentRole } from "@/lib/auth-role";
 import { isHrRole } from "@/lib/roles";
 import { PERSONNEL_LIMITS } from "@/lib/hr";
+import { ensureGroups } from "@/lib/personnel-groups";
 
 const FORBIDDEN = { error: "Зөвшөөрөлгүй" };
 const cleanName = (value: unknown) => (typeof value === "string" ? value.trim().replace(/\s+/g, " ") : "");
@@ -24,10 +25,21 @@ export async function PUT(req: NextRequest) {
   return NextResponse.json({ ok: true });
 }
 
-/** Бүлгийн нэрийг солино (байгаа бүлгийн нэр өгвөл нийлүүлнэ). body: { from, to } */
+/**
+ * Бүлгийн нэрийг солино (байгаа бүлгийн нэр өгвөл нийлүүлнэ): body: { from, to }.
+ * Эсвэл бүлгийнхэн бүх хүний утасны жагсаалтыг харах эсэх: body: { name, seesAll }.
+ */
 export async function PATCH(req: NextRequest) {
   if (!isHrRole(await getCurrentRole())) return NextResponse.json(FORBIDDEN, { status: 403 });
   const body = await req.json().catch(() => null);
+  if (typeof body?.seesAll === "boolean") {
+    const name = cleanName(body?.name);
+    if (!name) return NextResponse.json({ error: "Бүлгийн нэрийг бичнэ үү" }, { status: 400 });
+    await connectToDatabase();
+    await ensureGroups([name]);
+    await PersonnelGroup.updateOne({ name }, { $set: { seesAll: body.seesAll } });
+    return NextResponse.json({ ok: true });
+  }
   const from = cleanName(body?.from);
   const to = cleanName(body?.to);
   if (!from || !to) return NextResponse.json({ error: "Бүлгийн нэрийг бичнэ үү" }, { status: 400 });

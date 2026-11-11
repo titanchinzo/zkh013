@@ -11,6 +11,8 @@ import { UPLOAD_KINDS, type UploadKind } from "@/lib/uploads";
 // түр байна (нийтэд нээгдэхгүй, нэг дискэнд тул эцэст нь зөөхөд хуулах шаардлагагүй).
 const UPLOAD_DIR = process.env.UPLOAD_DIR ? path.resolve(process.env.UPLOAD_DIR) : null;
 const TMP_DIR = UPLOAD_DIR ? path.join(path.dirname(UPLOAD_DIR), "upload-tmp") : null;
+// Чатаар илгээсэн файлууд — нийтэд нээгдэхгүй (nginx зөвхөн UPLOAD_DIR-ийг үйлчилнэ), зөвхөн хүлээн авагч API-аар татна
+const PRIVATE_DIR = UPLOAD_DIR ? path.join(path.dirname(UPLOAD_DIR), "chat-files") : null;
 
 // Нэг хэсгийн хэмжээ: Next.js proxy хүсэлтийн биеийг 10MB хүртэл л санах ойд хадгалдаг тул түүнээс бага
 export const CHUNK_BYTES = 4 * 1024 * 1024;
@@ -55,9 +57,28 @@ export async function deleteFile(url: string) {
   }
 }
 
+/* ---------- Чатын хувийн файл ---------- */
+
+/** Хувийн хавтас дахь файлын бүрэн зам (нэр нь ChatFile-ийн _id). Хувийн хадгалалтгүй (Vercel) бол null. */
+export function privateFilePath(name: string) {
+  return PRIVATE_DIR && /^[a-f0-9]{24}$/.test(name) ? path.join(PRIVATE_DIR, name) : null;
+}
+
+export async function deletePrivateFile(name: string) {
+  const full = privateFilePath(name);
+  if (full) await rm(full, { force: true });
+}
+
+/** Хувийн хавтас дахь бүх файлын нэр (цэвэрлэхэд) */
+export async function listPrivateFiles(): Promise<string[]> {
+  if (!PRIVATE_DIR) return [];
+  return (await readdir(PRIVATE_DIR).catch(() => [] as string[])).filter((name) => /^[a-f0-9]{24}$/.test(name));
+}
+
 /* ---------- Том файлыг (бичлэг) хэсэгчлэн оруулах ---------- */
 
-type UploadSession = { kind: UploadKind; target: string; size: number; userId: string };
+// privateName — чатын файл: хувийн хавтсанд энэ нэрээр хадгална, агуулгын төрлийг шалгахгүй
+type UploadSession = { kind: UploadKind; target: string; size: number; userId: string; privateName?: string };
 
 const sessionFiles = (id: string) => ({
   meta: path.join(TMP_DIR!, `${id}.json`),
@@ -74,12 +95,21 @@ async function sweepStaleSessions() {
   }
 }
 
-/** Оруулалт эхлүүлж id буцаана. Файлын төрөл, хэмжээг дуудагч тал шалгасан байна. */
-export async function createUploadSession(kind: UploadKind, ext: string, size: number, userId: string) {
+/**
+ * Оруулалт эхлүүлж id буцаана. Файлын төрөл, хэмжээг дуудагч тал шалгасан байна. privateName өгвөл (чатын файл)
+ * нийтэд нээгдэхгүй хувийн хавтсанд тэр нэрээр хадгална.
+ */
+export async function createUploadSession(kind: UploadKind, ext: string, size: number, userId: string, privateName?: string) {
   await mkdir(TMP_DIR!, { recursive: true });
   await sweepStaleSessions();
   const id = randomBytes(16).toString("hex");
-  const session: UploadSession = { kind, target: newRelativePath(UPLOAD_KINDS[kind].folder, ext), size, userId };
+  const session: UploadSession = {
+    kind,
+    target: privateName ?? newRelativePath(UPLOAD_KINDS[kind].folder, ext),
+    size,
+    userId,
+    ...(privateName ? { privateName } : {}),
+  };
   const files = sessionFiles(id);
   await writeFile(files.meta, JSON.stringify(session));
   await writeFile(files.part, "");
@@ -129,7 +159,7 @@ export async function appendChunk(id: string, userId: string, offset: number, ch
   const received = (await stat(/*turbopackIgnore: true*/ files.part)).size;
   if (offset !== received) return { ok: false, status: 409, error: "Хэсгийн байрлал таарахгүй байна", received };
   if (received + chunk.length > session.size) return { ok: false, status: 400, error: "Файлын хэмжээ таарахгүй байна" };
-  if (received === 0) {
+  if (received === 0 && !session.privateName) {
     const ext = path.extname(session.target).slice(1);
     if (!SIGNATURES[ext]?.(chunk)) {
       await Promise.all([rm(files.meta, { force: true }), rm(files.part, { force: true })]);
@@ -145,6 +175,16 @@ export async function appendChunk(id: string, userId: string, offset: number, ch
   }
   const total = received + chunk.length;
   if (total < session.size) return { ok: true, received: total };
+
+  if (session.privateName) {
+    // Чатын файл — хувийн хавтсанд, нийтийн хаяггүй (зурвас илгээхэд бэлэн болно)
+    const final = privateFilePath(session.privateName);
+    if (!final) return notFound;
+    await mkdir(path.dirname(final), { recursive: true });
+    await rename(files.part, final);
+    await rm(files.meta, { force: true });
+    return { ok: true, received: total };
+  }
 
   const final = localFilePath(session.target)!;
   await mkdir(path.dirname(final), { recursive: true });

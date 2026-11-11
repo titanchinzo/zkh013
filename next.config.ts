@@ -13,6 +13,8 @@ const SECURITY_HEADERS = [
 const nextConfig: NextConfig = {
   // Ямар технологи ашигласныг (X-Powered-By: Next.js) зарлахгүй
   poweredByHeader: false,
+  // Хөгжүүлэлтийн горимын «N» тэмдэг утасны аппын доод цэсийг (Нүүр товч) дарахгүй — зөвхөн next dev-д
+  devIndicators: { position: "top-right" },
   images: {
     // Админ хэсгээс upload хийсэн мэдээний зургууд (Vercel Blob) болон YouTube видеоны зураг
     remotePatterns: [

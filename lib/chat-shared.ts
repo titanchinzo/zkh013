@@ -9,6 +9,37 @@ export const CHAT_TTL_DAYS = 30;
 export const ONLINE_MS = 45_000;
 export const POLL_MS = { home: 15_000, list: 10_000, conversation: 2_500 } as const;
 
+// Чатаар илгээх файл: 2 ГБ хүртэл, хүлээн авагч татаж авмагц серверээс устна. Татаагүй файл CHAT_FILE_DAYS хоногийн
+// дараа устна. Нэг хүний хүлээгдэж буй (татагдаагүй) файлын тоо, нийт хэмжээ хязгаартай — серверийн диск дүүрэхгүй.
+export const CHAT_FILE = { maxBytes: 2 * 1024 ** 3, days: 7, maxPending: 10, maxPendingBytes: 10 * 1024 ** 3 } as const;
+// «Уншаад 2 минутад устах» горим: хүлээн авагч уншсанаас хойш энэ хугацаанд хоёр утаснаас устна
+export const EPHEMERAL_MS = 2 * 60_000;
+
+export type ChatFileMeta = { id: string; name: string; size: number; type: string };
+
+/** 1536 → "1.5 КБ", 2147483648 → "2 ГБ" */
+export function formatBytes(bytes: number): string {
+  const units = ["Б", "КБ", "МБ", "ГБ"];
+  let value = bytes;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit++;
+  }
+  return `${unit === 0 ? value : value.toFixed(value < 10 ? 1 : 0).replace(/\.0$/, "")} ${units[unit]}`;
+}
+
+/** Чатын жагсаалт, мэдэгдэлд харагдах товч: нууц зурвасын текстийг харуулахгүй, файлыг нэрээр нь */
+export function previewText(m: { text?: string; ephemeral?: boolean; file?: { name: string } | null }): string {
+  if (m.ephemeral) return "⏱ Уншсаны дараа устах зурвас";
+  if (m.file) return `📎 ${m.file.name}${m.text ? ` — ${m.text}` : ""}`;
+  return m.text ?? "";
+}
+
+/** «Уншаад 2 минутад устах» зурвас устах цаг (уншаагүй бол null) */
+export const expiresAt = (m: { ephemeral?: boolean; readAt?: number }) =>
+  m.ephemeral && m.readAt ? m.readAt + EPHEMERAL_MS : null;
+
 const pad = (n: number) => String(n).padStart(2, "0");
 
 /** "14:05" */

@@ -15,7 +15,7 @@ export const NEWS_VIDEO_MAX_MB = 2048;
 export const NEWS_MAX_VIDEOS = 5;
 export const NEWS_VIDEO_ACCEPT = [...Object.keys(NEWS_VIDEO_TYPES), ".mp4", ".webm", ".mov"].join(",");
 
-export type UploadKind = "news-image" | "news-video" | "training";
+export type UploadKind = "news-image" | "news-video" | "training" | "chat-file";
 
 type UploadRule = {
   folder: string; // хадгалах хавтас (Vercel Blob-ийн замын эхний хэсэг ч мөн)
@@ -36,6 +36,8 @@ export const UPLOAD_KINDS: Record<UploadKind, UploadRule> = {
     maxMb: TRAINING_MAX_MB,
     roles: ["admin"],
   },
+  // Чатын файл — ямар ч төрөл, нийтэд нээгдэхгүй хувийн хавтсанд. Оруулалтыг зөвхөн чатын API эхлүүлнэ (roles хоосон).
+  "chat-file": { folder: "chat-files", types: {}, maxMb: 2048, roles: [] },
 };
 
 /** Vercel Blob-ийн замын эхний хэсгээр (news/, videos/, training/) файлын төрлийг олно */
