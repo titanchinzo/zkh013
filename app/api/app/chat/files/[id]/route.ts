@@ -52,6 +52,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       "Content-Disposition": `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(file.name)}`,
       "Cache-Control": "no-store",
       "X-Content-Type-Options": "nosniff",
+      // nginx хариуг өөртөө буферлэхгүй — утас бодитоор татаж дуусахад л «татаж авсан» гэж тооцож устгана
+      "X-Accel-Buffering": "no",
     },
   });
 }
