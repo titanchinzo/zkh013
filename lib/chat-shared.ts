@@ -17,6 +17,24 @@ export const EPHEMERAL_MS = 2 * 60_000;
 
 export type ChatFileMeta = { id: string; name: string; size: number; type: string };
 
+const MB = 1024 * 1024;
+// Чат дотор харагдах зураг, бичлэг (утсан дээр хадгалагдана); жижиг зураг чатыг нээхэд өөрөө ачаалагдана, бусдыг
+// «Үзэх» дарж ачаална. Түүнээс том файл энгийн «Татах» хэвээр.
+export const CHAT_INLINE = { image: 25 * MB, video: 150 * MB, autoImage: 10 * MB } as const;
+
+/** Зураг эсвэл бичлэг эсэх (хөтөч харуулж чадах төрөл) */
+export function mediaKind(type: string | undefined): "image" | "video" | null {
+  if (/^image\/(jpeg|png|gif|webp|avif|heic|heif)$/.test(type ?? "")) return "image";
+  if (/^video\/(mp4|webm|quicktime|3gpp|x-m4v)$/.test(type ?? "")) return "video";
+  return null;
+}
+
+/** Чат дотор харуулах зураг, бичлэг (хэмжээ нь хязгаарт багтсан) */
+export function inlineMedia(file: { type: string; size: number }): "image" | "video" | null {
+  const kind = mediaKind(file.type);
+  return kind && file.size <= CHAT_INLINE[kind] ? kind : null;
+}
+
 /** 1536 → "1.5 КБ", 2147483648 → "2 ГБ" */
 export function formatBytes(bytes: number): string {
   const units = ["Б", "КБ", "МБ", "ГБ"];
@@ -30,9 +48,13 @@ export function formatBytes(bytes: number): string {
 }
 
 /** Чатын жагсаалт, мэдэгдэлд харагдах товч: нууц зурвасын текстийг харуулахгүй, файлыг нэрээр нь */
-export function previewText(m: { text?: string; ephemeral?: boolean; file?: { name: string } | null }): string {
+export function previewText(m: { text?: string; ephemeral?: boolean; file?: { name: string; type?: string } | null }): string {
   if (m.ephemeral) return "⏱ Уншсаны дараа устах зурвас";
-  if (m.file) return `📎 ${m.file.name}${m.text ? ` — ${m.text}` : ""}`;
+  if (m.file) {
+    const kind = mediaKind(m.file.type);
+    const label = kind === "image" ? "🖼 Зураг" : kind === "video" ? "🎬 Бичлэг" : `📎 ${m.file.name}`;
+    return `${label}${m.text ? ` — ${m.text}` : ""}`;
+  }
   return m.text ?? "";
 }
 

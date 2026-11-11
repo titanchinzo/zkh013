@@ -20,6 +20,9 @@ export type StoredThread = { key: string; me: string; person: StoredPerson; mess
 
 const DB_NAME = "zkh013-chat";
 const STORE = "threads";
+// Чатаар ирсэн/илгээсэн зураг, бичлэг (сервер татагдмагц устгадаг тул чатын түүхэнд харуулахын тулд утсан дээр)
+const FILES = "files";
+type StoredFile = { id: string; me: string; blob: Blob };
 const OWNER_KEY = "zkh013-chat-owner";
 // Нэг хүнтэй хийсэн чатаас утсанд хадгалах зурвасын тоо
 export const HISTORY_LIMIT = 500;
@@ -30,8 +33,12 @@ function openDb(): Promise<IDBDatabase | null> {
   if (typeof indexedDB === "undefined") return Promise.resolve(null);
   opening ??= new Promise((resolve) => {
     try {
-      const request = indexedDB.open(DB_NAME, 1);
-      request.onupgradeneeded = () => request.result.createObjectStore(STORE, { keyPath: "key" });
+      const request = indexedDB.open(DB_NAME, 2);
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE, { keyPath: "key" });
+        if (!db.objectStoreNames.contains(FILES)) db.createObjectStore(FILES, { keyPath: "id" });
+      };
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => resolve(null);
       request.onblocked = () => resolve(null);
@@ -43,13 +50,17 @@ function openDb(): Promise<IDBDatabase | null> {
 }
 
 /** Нэг гүйлгээ (transaction) — IndexedDB ажиллахгүй бол (хувийн горим г.м) undefined, апп түүхгүйгээр ажилласаар байна */
-async function run<T>(mode: IDBTransactionMode, work: (store: IDBObjectStore) => IDBRequest<T> | void): Promise<T | undefined> {
+async function run<T>(
+  mode: IDBTransactionMode,
+  work: (store: IDBObjectStore) => IDBRequest<T> | void,
+  storeName: string = STORE
+): Promise<T | undefined> {
   const db = await openDb();
   if (!db) return undefined;
   return new Promise((resolve) => {
     try {
-      const tx = db.transaction(STORE, mode);
-      const request = work(tx.objectStore(STORE));
+      const tx = db.transaction(storeName, mode);
+      const request = work(tx.objectStore(storeName));
       tx.oncomplete = () => resolve(request ? request.result : undefined);
       tx.onerror = () => resolve(undefined);
       tx.onabort = () => resolve(undefined);
@@ -73,6 +84,7 @@ function owner() {
 async function claim(me: string) {
   if (owner() === me) return;
   await run("readwrite", (store) => store.clear());
+  await run("readwrite", (store) => store.clear(), FILES);
   try {
     localStorage.setItem(OWNER_KEY, me);
   } catch {}
@@ -104,4 +116,31 @@ export async function clearChatHistory() {
     localStorage.removeItem(OWNER_KEY);
   } catch {}
   await run("readwrite", (store) => store.clear());
+  await run("readwrite", (store) => store.clear(), FILES);
+}
+
+/** Зураг, бичлэгийг утсанд хадгална (энэ утасны эзнийх л) */
+export async function saveFileBlob(me: string, id: string, blob: Blob) {
+  if (owner() !== me) return;
+  await run("readwrite", (store) => store.put({ id, me, blob } satisfies StoredFile), FILES);
+}
+
+export async function loadFileBlob(id: string): Promise<Blob | null> {
+  const me = owner();
+  if (!me) return null;
+  const file = await run<StoredFile>("readonly", (store) => store.get(id) as IDBRequest<StoredFile>, FILES);
+  return file && file.me === me ? file.blob : null;
+}
+
+export async function deleteFileBlobs(ids: string[]) {
+  if (!ids.length) return;
+  await run("readwrite", (store) => {
+    for (const id of ids) store.delete(id);
+  }, FILES);
+}
+
+/** Чатын түүхэд үлдээгүй (нууц зурвас устсан, 500-аас хэтэрсэн) зураг, бичлэгийг утаснаас устгана */
+export async function pruneFileBlobs(keep: Set<string>) {
+  const ids = (await run<IDBValidKey[]>("readonly", (store) => store.getAllKeys(), FILES)) ?? [];
+  await deleteFileBlobs(ids.map(String).filter((id) => !keep.has(id)));
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ArrowDown, ArrowLeft, Download, File as FileIcon, Lock, Paperclip, Search, SendHorizontal, Timer } from "lucide-react";
+import { ArrowDown, ArrowLeft, Download, File as FileIcon, Lock, Paperclip, Play, Search, SendHorizontal, Timer, X } from "lucide-react";
 import { Avatar } from "@/components/app/avatar";
 import {
   CHAT_FILE,
@@ -15,13 +15,19 @@ import {
   presenceText,
   previewText,
   sameDay,
+  CHAT_INLINE,
+  inlineMedia,
 } from "@/lib/chat-shared";
 import { usePolling } from "@/lib/use-polling";
 import {
   clearChatHistory,
+  deleteFileBlobs,
   historyOwner,
+  loadFileBlob,
   loadThread,
   loadThreads,
+  pruneFileBlobs,
+  saveFileBlob,
   saveThread,
   type StoredMessage,
   type StoredPerson,
@@ -132,7 +138,11 @@ export function ChatList({
       return;
     }
     const data: { me: string; unreadTotal: number; people: ServerPerson[] } = await res.json();
-    const next = toRows(data.people, await loadThreads(data.me));
+    const threads = await loadThreads(data.me);
+    const next = toRows(data.people, threads);
+    pruneFileBlobs(
+      new Set(threads.flatMap((t) => t.messages.filter((m) => m.file && alive(m)).map((m) => m.file!.id)))
+    );
     listCache = next;
     setError("");
     setRows(next);
@@ -284,6 +294,148 @@ const countdown = (ms: number) => {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 };
 
+/**
+ * Чат дотор харагдах зураг, бичлэг. Утсан дээр хадгалсан бол шууд; хүлээн авагчид — жижиг зургийг өөрөө, бусдыг
+ * «Үзэх» дарж серверээс нэг удаа татаад (сервер татагдмагц устгана) утсандаа хадгална. Харуулж чадахгүй бол fallback.
+ */
+function MediaBubble({
+  message: m,
+  me,
+  onView,
+  fallback,
+}: {
+  message: Message;
+  me: string | null;
+  onView: (image: { url: string; name: string }) => void;
+  fallback: React.ReactNode;
+}) {
+  const file = m.file!;
+  const kind = inlineMedia(file)!;
+  const [url, setUrl] = useState<string | null>(null);
+  const [state, setState] = useState<"checking" | "missing" | "loading" | "ready" | "failed" | "broken">("checking");
+  const [progress, setProgress] = useState(0);
+  const urlRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    loadFileBlob(file.id).then((blob) => {
+      if (!live) return;
+      if (blob) {
+        urlRef.current = URL.createObjectURL(blob);
+        setUrl(urlRef.current);
+        setState("ready");
+      } else setState("missing");
+    });
+    return () => {
+      live = false;
+      if (urlRef.current) URL.revokeObjectURL(urlRef.current);
+    };
+  }, [file.id]);
+
+  const fetchable = !m.mine && m.fileStatus !== "downloaded" && m.fileStatus !== "gone";
+
+  const fetchNow = useCallback(async () => {
+    setState("loading");
+    const res = await fetch(`/api/app/chat/files/${file.id}`).catch(() => null);
+    if (!res?.ok || !res.body) {
+      setState("failed");
+      return;
+    }
+    const reader = res.body.getReader();
+    const chunks: BlobPart[] = [];
+    let received = 0;
+    for (;;) {
+      const { done, value } = await reader.read().catch(() => ({ done: true, value: undefined }));
+      if (done || !value) break;
+      chunks.push(value);
+      received += value.length;
+      setProgress(received / file.size);
+    }
+    if (received !== file.size) {
+      setState("failed");
+      return;
+    }
+    const blob = new Blob(chunks, { type: file.type });
+    if (me) await saveFileBlob(me, file.id, blob);
+    urlRef.current = URL.createObjectURL(blob);
+    setUrl(urlRef.current);
+    setState("ready");
+  }, [file.id, file.size, file.type, me]);
+
+  // Жижиг зургийг чатыг нээхэд өөрөө ачаална
+  useEffect(() => {
+    if (state === "missing" && fetchable && kind === "image" && file.size <= CHAT_INLINE.autoImage) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- start loading a small image once it is known to be missing
+      fetchNow();
+    }
+  }, [state, fetchable, kind, file.size, fetchNow]);
+
+  if (state === "ready" && url) {
+    return (
+      <span className="-mx-1.5 mb-1 block">
+        {kind === "image" ? (
+          <button type="button" onClick={() => onView({ url, name: file.name })} className="block" aria-label={`${file.name} томоор харах`}>
+            {/* eslint-disable-next-line @next/next/no-img-element -- local blob URL from the phone's own storage */}
+            <img
+              src={url}
+              alt={file.name}
+              onError={() => setState("broken")}
+              className="max-h-80 w-auto max-w-full rounded-xl object-contain"
+            />
+          </button>
+        ) : (
+          <video src={url} controls playsInline preload="metadata" className="max-h-80 w-full rounded-xl bg-black" />
+        )}
+        <a href={url} download={file.name} className="mt-1 inline-block text-[11px] underline opacity-80">
+          Хадгалах
+        </a>
+      </span>
+    );
+  }
+  if (state === "broken" && url) {
+    return (
+      <span className="mb-1 block text-sm">
+        {file.name} — энэ утас харуулж чадсангүй.{" "}
+        <a href={url} download={file.name} className="underline">
+          Хадгалах
+        </a>
+      </span>
+    );
+  }
+  if (state === "loading" || (state === "missing" && fetchable)) {
+    return (
+      <span className="mb-1 flex min-w-[200px] items-center gap-2.5">
+        <span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-black/15">
+          <Play className="size-5" aria-hidden />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-semibold">{kind === "image" ? "Зураг" : "Бичлэг"}</span>
+          <span className="block text-xs opacity-80">
+            {formatBytes(file.size)}
+            {state === "loading" ? ` · Ачаалж байна… ${Math.round(progress * 100)}%` : " · Нэг удаа татна — дараа нь серверээс устна"}
+          </span>
+        </span>
+        {state === "missing" && (
+          <button
+            type="button"
+            onClick={fetchNow}
+            className="shrink-0 rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground"
+          >
+            Үзэх
+          </button>
+        )}
+      </span>
+    );
+  }
+  if (state === "checking") return <span className="mb-1 block h-24 w-48 animate-pulse rounded-xl bg-black/10" />;
+  return (
+    <>
+      {state === "failed" && <span className="mb-1 block text-xs text-red-400">Ачаалж чадсангүй — дахин оролдоно уу</span>}
+      {fallback}
+    </>
+  );
+}
+
 /** Чатын файл: илгээж буй явц, хүлээн авагчид «Татах» (татаж авмагц серверээс устна), төлөв */
 function FileCard({ message: m, downloading, onDownload }: { message: Message; downloading: boolean; onDownload: () => void }) {
   const file = m.file!;
@@ -368,6 +520,17 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
   const [now, setNow] = useState(0);
   // Татаж эхэлсэн файлууд — дуусахад сервер «татаж авсан» гэж тэмдэглэнэ
   const [downloading, setDownloading] = useState<Set<string>>(() => new Set());
+  const [viewer, setViewer] = useState<{ url: string; name: string } | null>(null);
+  // Энэ утасны эзэн (серверээс баталсан) — зураг, бичлэгийг утсанд хадгалахад
+  const [me, setMe] = useState<string | null>(null);
+  // Чатаас алга болсон (нууц зурвасын хугацаа дууссан) зурвасын зураг, бичлэгийг утаснаас устгана
+  const shownFiles = useRef(new Set<string>());
+  useEffect(() => {
+    const now = new Set(messages.flatMap((m) => (m.file?.id ? [m.file.id] : [])));
+    const gone = [...shownFiles.current].filter((id) => !now.has(id));
+    if (gone.length) deleteFileBlobs(gone);
+    shownFiles.current = now;
+  }, [messages]);
 
   useEffect(() => {
     try {
@@ -458,6 +621,7 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
       local.current = { me: data.me, person: data.person, messages: merge(stored?.messages ?? [], kept), ack: stored?.ack ?? null };
     }
     verified.current = true;
+    setMe(data.me);
     local.current.person = data.person;
     setInfo({ person: data.person, online: data.online, lastSeenAt: data.lastSeenAt, canMessage: data.canMessage });
 
@@ -535,6 +699,7 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
       if (cancelled) return;
       const kept = (stored?.messages ?? []).filter((m) => alive(m));
       local.current = { me: owner, person: stored?.person ?? null, messages: kept, ack: stored?.ack ?? null };
+      setMe(owner);
       if (stored) {
         setInfo((current) => current ?? { person: stored.person, online: false, lastSeenAt: null, canMessage: true });
         setMessages(kept);
@@ -695,6 +860,9 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
       picked.current.delete(id);
       const { message }: { message: Message } = await res.json();
       confirmedAt.current.set(message.id, tick.current);
+      if (local.current.me && message.file && inlineMedia(message.file)) {
+        await saveFileBlob(local.current.me, message.file.id, file);
+      }
       show(merge(local.current.messages.filter((m) => m.id !== id), [{ ...message, fileStatus: "ready" }]));
       await persist();
     } catch (err) {
@@ -808,7 +976,20 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
                       m.mine ? "rounded-br-md bg-primary text-primary-foreground" : "rounded-bl-md bg-muted text-foreground"
                     } ${m.pending ? "opacity-60" : ""}`}
                   >
-                    {m.file && (
+                    {m.file && m.file.id && !m.pending && inlineMedia(m.file) ? (
+                      <MediaBubble
+                        message={m}
+                        me={me}
+                        onView={setViewer}
+                        fallback={
+                          <FileCard
+                            message={m}
+                            downloading={downloading.has(m.file.id)}
+                            onDownload={() => setDownloading((current) => new Set(current).add(m.file!.id))}
+                          />
+                        }
+                      />
+                    ) : m.file && (
                       <FileCard
                         message={m}
                         downloading={downloading.has(m.file.id)}
@@ -844,6 +1025,25 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
           {error && person && <p className="pt-2 text-center text-[11px] text-red-400">{error}</p>}
         </div>
       </div>
+
+      {viewer && (
+        <div className="fixed inset-0 z-[60] flex flex-col bg-black" role="dialog" aria-label={viewer.name}>
+          <div className="flex items-center justify-between gap-2 px-2 py-2" style={{ paddingTop: "env(safe-area-inset-top)" }}>
+            <button
+              onClick={() => setViewer(null)}
+              aria-label="Хаах"
+              className="flex size-10 items-center justify-center rounded-full text-white active:bg-white/10"
+            >
+              <X className="size-6" aria-hidden />
+            </button>
+            <a href={viewer.url} download={viewer.name} className="rounded-full px-3 py-1.5 text-sm font-semibold text-white active:bg-white/10">
+              Хадгалах
+            </a>
+          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element -- local blob URL from the phone's own storage */}
+          <img src={viewer.url} alt={viewer.name} className="min-h-0 flex-1 object-contain" />
+        </div>
+      )}
 
       {newBelow && (
         <button
