@@ -124,7 +124,8 @@ export default function PersonnelPage() {
         <form onSubmit={invite} className="rounded-xl border border-border bg-card p-4 space-y-3">
           <h2 className="font-bold text-foreground">И-мэйлээр урих</h2>
           <p className="text-xs text-muted-foreground">
-            Урилгаар орж ирсэн хүн аппаа татаж, бүртгэлээ (утас, зураг) өөрөө шууд үүсгэнэ.
+            Урилгаар орж ирсэн хүн аппаа татаж, бүртгэлээ (утас, зураг) өөрөө шууд үүсгэнэ. Доороос сонгосон, эсвэл
+            утасны дугаар нь таарсан бүртгэлтэй алба хаагчтай холбогдоно.
           </p>
           <Input name="email" type="email" required placeholder="name@example.com" />
           <select
@@ -147,7 +148,10 @@ export default function PersonnelPage() {
 
         <form onSubmit={add} className="rounded-xl border border-border bg-card p-4 space-y-3">
           <h2 className="font-bold text-foreground">Гараар нэмэх</h2>
-          <p className="text-xs text-muted-foreground">Утас (апп) ашиглахгүй хүнийг ирц, хуваарьт оруулахад.</p>
+          <p className="text-xs text-muted-foreground">
+            Ирц, хуваарьт урьдчилж оруулна. Тэр хүн дараа нь аппаа суулгаж ижил утасны дугаараар бүртгүүлэхэд энэ
+            бүртгэлтэй нь холбогдоно — давхардахгүй.
+          </p>
           <div className="grid gap-3 sm:grid-cols-2">
             <RankSelect />
             <Input name="name" placeholder="Овог, нэр" required maxLength={120} />

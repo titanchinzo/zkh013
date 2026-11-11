@@ -19,7 +19,7 @@ type DeviceRow = {
   lastSeenAt?: string;
   pushEnabled?: boolean;
 };
-type Person = { _id: string; rank: string; name: string; position: string; userId?: string };
+type Person = { _id: string; rank: string; name: string; position: string; phone?: string; userId?: string };
 type Data = { pending: DeviceRow[]; approved: DeviceRow[]; history: DeviceRow[]; personnel: Person[] };
 
 const smallButton = "px-3 py-1.5 text-xs font-semibold rounded-md border border-border text-foreground";
@@ -146,6 +146,22 @@ export default function DevicesPage() {
   );
 }
 
+/**
+ * Хүсэлтийг хүний нөөцийн аль бүртгэлтэй холбохыг урьдчилан сонгоно: энэ хэрэглэгчийн бүртгэл (утсаа сольж байгаа),
+ * дараа нь ижил утасны дугаартай, эсвэл ижил нэртэй ганц бүртгэл. Хэд хэд таарвал хүний нөөц өөрөө сонгоно.
+ */
+function suggestPerson(device: DeviceRow, personnel: Person[]) {
+  const linked = personnel.find((p) => p.userId === device.userId);
+  if (linked) return { person: linked, why: "Бүртгэлтэй алба хаагч — шинэ утаснаас хүсэлт илгээсэн" };
+  const free = personnel.filter((p) => !p.userId);
+  const samePhone = device.phone ? free.filter((p) => p.phone === device.phone) : [];
+  if (samePhone.length === 1) return { person: samePhone[0], why: "Утасны дугаар нь хүний нөөцийн бүртгэлтэй таарлаа" };
+  const norm = (s: string) => s.trim().toLowerCase();
+  const sameName = free.filter((p) => norm(p.name) === norm(device.name));
+  if (sameName.length === 1) return { person: sameName[0], why: "Нэр нь хүний нөөцийн бүртгэлтэй таарлаа — шалгаад зөвшөөрнө үү" };
+  return null;
+}
+
 function PendingRequest({
   device,
   personnel,
@@ -155,10 +171,8 @@ function PendingRequest({
   personnel: Person[];
   onDecide: (body: Record<string, unknown>) => void;
 }) {
-  // Энэ хэрэглэгчтэй холбогдсон эсвэл ижил нэртэй алба хаагчийг урьдчилан сонгоно
-  const linked = personnel.find((p) => p.userId === device.userId);
-  const sameName = personnel.find((p) => !p.userId && p.name.trim().toLowerCase() === device.name.trim().toLowerCase());
-  const [personnelId, setPersonnelId] = useState(linked?._id ?? sameName?._id ?? "new");
+  const match = suggestPerson(device, personnel);
+  const [personnelId, setPersonnelId] = useState(match?.person._id ?? "new");
   const choices = personnel.filter((p) => !p.userId || p.userId === device.userId);
 
   return (
@@ -170,6 +184,9 @@ function PendingRequest({
         </p>
         <p className="text-xs text-muted-foreground">
           {device.label} · {fmt(device.createdAt)}
+        </p>
+        <p className={`text-xs ${match ? "text-primary" : "text-muted-foreground"}`}>
+          {match ? `✓ ${match.why}` : "Хүний нөөцийн бүртгэлээс олдсонгүй — шинээр бүртгэх эсвэл жагсаалтаас сонгоно уу"}
         </p>
       </div>
       <div className="flex flex-wrap items-center gap-2">
@@ -184,6 +201,7 @@ function PendingRequest({
             <option key={p._id} value={p._id}>
               {personnelLabel(p)}
               {p.position ? ` — ${p.position}` : ""}
+              {p.phone ? ` · ${formatPhone(p.phone)}` : ""}
             </option>
           ))}
         </select>

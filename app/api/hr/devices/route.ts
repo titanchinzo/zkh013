@@ -14,14 +14,24 @@ export async function GET() {
     Device.find({ status: "pending" }).sort({ createdAt: 1 }).select("-tokenHash -push").lean(),
     Device.find({ status: "approved" }).sort({ decidedAt: -1 }).select("-tokenHash").lean(),
     Device.find({ status: { $in: ["rejected", "revoked"] } }).sort({ decidedAt: -1 }).limit(30).select("-tokenHash -push").lean(),
-    Personnel.find({ active: true }).sort({ name: 1 }).select("rank name position userId").lean(),
+    Personnel.find({ active: true }).sort({ name: 1 }).select("rank name position phone userId").lean(),
   ]);
+
+  // Алба хаагчтай холбогдсон утсанд хүсэлтэд бичсэн нэрийг биш, хүний нөөцийн бүртгэлийн (засагдсан) нэрийг харуулна
+  const linked = await Personnel.find({ userId: { $in: [...approved, ...history].map((d) => d.userId) } })
+    .select("rank name position userId")
+    .lean<{ rank: string; name: string; position: string; userId: string }[]>();
+  const personOf = new Map(linked.map((p) => [p.userId, p]));
+  const asPerson = <T extends { userId: string }>(d: T) => {
+    const p = personOf.get(d.userId);
+    return p ? { ...d, rank: p.rank, name: p.name, position: p.position } : d;
+  };
 
   return NextResponse.json({
     pending,
     // Мэдэгдэл асаасан эсэхийг л харуулна, захиалгын нууц түлхүүрийг биш
-    approved: approved.map(({ push, ...d }) => ({ ...d, pushEnabled: Boolean(push?.endpoint) })),
-    history,
+    approved: approved.map(({ push, ...d }) => ({ ...asPerson(d), pushEnabled: Boolean(push?.endpoint) })),
+    history: history.map(asPerson),
     personnel,
   });
 }

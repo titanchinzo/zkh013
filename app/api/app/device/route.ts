@@ -22,13 +22,21 @@ async function directTrust(user: ClerkUser) {
   return (await Device.exists({ userId: user.id })) ? null : trust;
 }
 
-/** Урилгаар орж ирсэн хүний алба хаагчийн бүртгэлийг үүсгэнэ эсвэл (хүний нөөцийн урьсан) бүртгэлтэй холбоно */
+/**
+ * Урилгаар орж ирсэн хүний алба хаагчийн бүртгэлийг холбоно эсвэл шинээр үүсгэнэ. Хүний нөөц тэр хүнийг
+ * урьдчилж бүртгэсэн бол (урилгад сонгосон, эсвэл ижил утасны дугаартай) тэр бүртгэлтэй нь холбогдож давхардахгүй.
+ */
 async function linkPersonnel(userId: string, fields: Fields, trust: { invitedBy: string; personnelId?: string }) {
   const invitedBy = trust.invitedBy === "role" ? undefined : trust.invitedBy;
   let person = await Personnel.findOne({ userId });
   if (!person && trust.personnelId && isValidObjectId(trust.personnelId)) {
     const target = await Personnel.findById(trust.personnelId);
     if (target && !target.userId) person = target;
+  }
+  if (!person && fields.phone) {
+    // Ижил дугаартай холбогдоогүй бүртгэл нэгээс олон бол (дундын утас г.м) аль нь болохыг мэдэхгүй тул шинээр үүсгэнэ
+    const samePhone = await Personnel.find({ phone: fields.phone, active: true, userId: null }).limit(2);
+    if (samePhone.length === 1) person = samePhone[0];
   }
   if (!person) {
     await Personnel.create({ ...fields, userId, invitedBy });
