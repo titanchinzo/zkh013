@@ -22,6 +22,7 @@ type Person = {
   active: boolean;
   userId?: string;
   canRegister?: boolean;
+  seesAllPhones?: boolean;
   invitedByName?: string;
 };
 type Group = { name: string; count: number; seesAll?: boolean };
@@ -195,6 +196,8 @@ export default function PersonnelPage() {
 
   const rowProps = {
     groups: groupNames,
+    // «Бүх утас харна» тохиргоотой бүлгүүд — тэдгээрийн хүмүүст тус бүрд нь олгох шаардлагагүй
+    allGroups: new Set(groups.filter((g) => g.seesAll).map((g) => g.name)),
     editing,
     onEdit: setEditing,
     onSave: save,
@@ -210,7 +213,8 @@ export default function PersonnelPage() {
           Ирц, харуул хоногийн манаанд сонгогдох алба хаагчид — бүлгээр нь (алба, тасаг, рот…). Мэдээллийн үг үсгийн
           алдааг «Засах»-аар засна. Халагдсан хүнийг «Идэвхгүй болгох»-д ирц, хуваарийн түүх нь үлдэнэ; «Устгах» нь бүр
           мөсөн устгана. «Бүртгэх эрх» олгосон хүн (албадын дарга) утсан дээрх аппаасаа доод хүмүүсээ и-мэйлээр урьж
-          бүртгэнэ.
+          бүртгэнэ. «Бүх утас» олгосон хүн аппын «Утас» хэсгээс бүх алба хаагчийн дугаарыг бүлэг бүрээр харна (бүлгийн
+          толгой дахь «Бүх утас харна» нь тэр бүлгийн бүх хүнд олгоно).
         </p>
         <p className="text-sm text-muted-foreground mt-1">
           Урилга заавал биш: аппаа татсан хүн өөрөө хүсэлт илгээж, түүнийг{" "}
@@ -331,6 +335,12 @@ export default function PersonnelPage() {
                     <th className="text-left px-4 py-3 text-muted-foreground font-semibold" title="Доод хүмүүсээ урьж бүртгэх">
                       Бүртгэх эрх
                     </th>
+                    <th
+                      className="text-left px-4 py-3 text-muted-foreground font-semibold"
+                      title="Утсан дээрх аппад бүх хүний утасны жагсаалтыг (бүлэг бүрээр) харна"
+                    >
+                      Бүх утас
+                    </th>
                     <th />
                   </tr>
                 </thead>
@@ -339,7 +349,7 @@ export default function PersonnelPage() {
                   return (
                     <tbody key={section.name || NO_GROUP} data-group={section.name}>
                       <tr className="border-t border-border bg-muted/20">
-                        <th colSpan={6} className="px-4 py-2 text-left">
+                        <th colSpan={7} className="px-4 py-2 text-left">
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <span className="font-bold text-foreground">
                               {section.name || "Бүлэггүй"}{" "}
@@ -418,6 +428,7 @@ export default function PersonnelPage() {
 function PersonRow({
   person: p,
   groups,
+  allGroups,
   editing,
   onEdit,
   onSave,
@@ -426,16 +437,19 @@ function PersonRow({
 }: {
   person: Person;
   groups: string[];
+  allGroups: Set<string>;
   editing: string | null;
   onEdit: (id: string | null) => void;
   onSave: (id: string, e: React.FormEvent<HTMLFormElement>) => void;
   onUpdate: (p: Person, body: Record<string, unknown>, question?: string) => void;
   onRemove: (p: Person) => void;
 }) {
+  // Бүлгээрээ бүх утсыг харна — тусад нь олгох шаардлагагүй
+  const byGroup = Boolean(p.group && allGroups.has(p.group));
   if (editing === p._id) {
     return (
       <tr className="border-t border-border">
-        <td colSpan={6} className="px-4 py-3">
+        <td colSpan={7} className="px-4 py-3">
           <form onSubmit={(e) => onSave(p._id, e)} className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
             <RankSelect defaultValue={p.rank} />
             <Input name="name" defaultValue={p.name} required maxLength={120} aria-label="Нэр" />
@@ -529,6 +543,21 @@ function PersonRow({
           title={p.userId ? "Доод хүмүүсээ урьж бүртгэх эрх" : "Аппаа бүртгүүлсэн хүнд л олгоно"}
           onChange={(e) => onUpdate(p, { canRegister: e.target.checked })}
           aria-label={`${p.name} бүртгэх эрх`}
+          className="w-4 h-4 accent-[var(--primary)] disabled:opacity-30"
+        />
+      </td>
+      <td className="px-4 py-3">
+        <input
+          type="checkbox"
+          checked={Boolean(p.seesAllPhones) || byGroup}
+          disabled={byGroup || !p.active}
+          title={
+            byGroup
+              ? `«${p.group}» бүлгийнхэн бүгд бүх утсыг харна`
+              : "Утсан дээрх аппад бүх хүний утасны жагсаалтыг (бүлэг бүрээр) харна"
+          }
+          onChange={(e) => onUpdate(p, { seesAllPhones: e.target.checked })}
+          aria-label={`${p.name} бүх утас харах`}
           className="w-4 h-4 accent-[var(--primary)] disabled:opacity-30"
         />
       </td>

@@ -160,13 +160,12 @@ function SignInPrompt() {
   );
 }
 
-/** Цол, нэр, албан тушаал, утасны дугаар (заавал) — бүртгэл үүсгэх, засах маягтад */
+/** Цол, нэр, утасны дугаар (заавал) — бүртгэл үүсгэх, засах маягтад. Албан тушаалыг асуухгүй (бүлгээр нь ялгана). */
 function ProfileFields({ person }: { person?: Partial<Person> }) {
   return (
     <>
       <RankSelect defaultValue={person?.rank ?? ""} />
       <Input name="name" placeholder="Овог, нэр" required maxLength={120} defaultValue={person?.name} />
-      <Input name="position" placeholder="Албан тушаал" maxLength={120} defaultValue={person?.position} />
       <Input
         name="phone"
         type="tel"
@@ -251,7 +250,7 @@ async function shrinkImage(file: File, max = 400): Promise<Blob> {
   );
 }
 
-/** Миний бүртгэл: зураг, цол, нэр, албан тушаал, утас — засаж болно (хүний нөөц ч засна) */
+/** Миний бүртгэл: зураг, цол, нэр, утас — засаж болно (хүний нөөц ч засна) */
 function ProfileCard({ person, onChange }: { person: Person; onChange: () => void }) {
   const [editing, setEditing] = useState(!person.phone);
   const [error, setError] = useState("");

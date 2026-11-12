@@ -21,6 +21,8 @@ const PersonnelSchema = new Schema(
     userId: { type: String },
     // Хүний нөөцөөс олгосон «Бүртгэх эрх» — доод хүмүүсээ и-мэйлээр урьж бүртгэнэ
     canRegister: { type: Boolean, default: false },
+    // «Бүх утас харна» — бүлгээс үл хамааран энэ хүн аппын утасны лавлахаас бүх алба хаагчийн дугаарыг харна
+    seesAllPhones: { type: Boolean, default: false },
     // Урьсан хүний Clerk userId (хүний нөөц, админ эсвэл бүртгэх эрхтэй дарга)
     invitedBy: { type: String },
     active: { type: Boolean, default: true },

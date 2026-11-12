@@ -213,7 +213,7 @@ function PendingRequest({
       <div className="space-y-1">
         <p className="font-bold text-foreground">{personnelLabel(device)}</p>
         <p className="text-sm text-muted-foreground">
-          {[device.position || "Албан тушаал бичээгүй", formatPhone(device.phone), device.email].filter(Boolean).join(" · ")}
+          {[device.position, formatPhone(device.phone), device.email].filter(Boolean).join(" · ")}
         </p>
         <p className="text-xs text-muted-foreground">
           {device.label} · {fmt(device.createdAt)}

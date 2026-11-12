@@ -4,9 +4,13 @@ import { useEffect, useState, useCallback } from "react";
 import { Input } from "@/components/ui/input";
 import { ROLE_LABELS, type Role } from "@/lib/roles";
 
+// name — алба хаагчийн бүртгэл дэх цол, нэр (бүртгэлгүй бол хоосон байж болно); unit — бүлэг эсвэл албан тушаал
 type UserRow = {
   id: string;
   name: string;
+  unit: string;
+  registered: boolean;
+  inactive: boolean;
   email: string;
   role: Role;
   banned: boolean;
@@ -123,7 +127,7 @@ export default function AdminUsersPage() {
   }
 
   const q = query.trim().toLowerCase();
-  const shown = q ? users.filter((u) => `${u.name} ${u.email}`.toLowerCase().includes(q)) : users;
+  const shown = q ? users.filter((u) => `${u.name} ${u.unit} ${u.email}`.toLowerCase().includes(q)) : users;
 
   return (
     <div className="space-y-8">
@@ -212,7 +216,7 @@ export default function AdminUsersPage() {
               <Input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Нэр, и-мэйлээр хайх"
+                placeholder="Нэр, бүлэг, и-мэйлээр хайх"
                 className="max-w-72"
               />
             </div>
@@ -231,9 +235,14 @@ export default function AdminUsersPage() {
                   {shown.map((u) => (
                     <tr key={u.id} className={`border-t border-border ${u.banned ? "opacity-60" : ""}`}>
                       <td className="px-4 py-3 text-foreground">
-                        {u.name}
+                        {u.name || <span className="text-muted-foreground">Нэргүй</span>}
                         {u.isMe && <span className="text-muted-foreground"> (та)</span>}
                         {u.banned && <span className="ml-2 text-xs font-semibold text-red-400">Хаагдсан</span>}
+                        <span className="block text-xs text-muted-foreground">
+                          {u.registered
+                            ? [u.unit, u.inactive && "идэвхгүй алба хаагч"].filter(Boolean).join(" · ")
+                            : "Алба хаагчийн бүртгэлгүй"}
+                        </span>
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">{u.email}</td>
                       <td className="px-4 py-3">

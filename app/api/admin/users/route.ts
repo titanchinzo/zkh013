@@ -1,11 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { getCurrentRole } from "@/lib/auth-role";
+import { personnelLabel } from "@/lib/hr";
 import { clerkErrorMessage, parseEmail } from "@/lib/invite";
+import { connectToDatabase } from "@/lib/mongodb";
+import Personnel from "@/lib/models/Personnel";
 import { isRole, resolveRole } from "@/lib/roles";
 
 const FORBIDDEN = { error: "Зөвшөөрөлгүй" };
 
+type PersonDoc = { userId: string; rank: string; name: string; position?: string; group?: string; active: boolean };
+
+/**
+ * Хэрэглэгчид, хүлээгдэж буй урилгууд. Нэр нь алба хаагчийн бүртгэлээс (цол, нэр — хүний нөөцийн бичсэнээр); бүртгэлгүй
+ * (утсаа бүртгүүлээгүй) хүнийх Clerk-ийн нэрээр. unit — бүлэг эсвэл албан тушаал.
+ */
 export async function GET() {
   const role = await getCurrentRole();
   if (role !== "admin") {
@@ -19,15 +28,27 @@ export async function GET() {
     auth(),
   ]);
 
-  const users = data.map((u) => ({
-    id: u.id,
-    name: u.fullName ?? u.username ?? "Тодорхойгүй",
-    email: u.primaryEmailAddress?.emailAddress ?? "",
-    role: resolveRole(u.publicMetadata as { role?: string }, u.primaryEmailAddress?.emailAddress),
-    banned: u.banned,
-    lastSignInAt: u.lastSignInAt,
-    isMe: u.id === userId,
-  }));
+  await connectToDatabase();
+  const people = await Personnel.find({ userId: { $in: data.map((u) => u.id) } })
+    .select("userId rank name position group active")
+    .lean<PersonDoc[]>();
+  const personOf = new Map(people.map((p) => [p.userId, p]));
+
+  const users = data.map((u) => {
+    const person = personOf.get(u.id);
+    return {
+      id: u.id,
+      name: person ? personnelLabel(person) : (u.fullName ?? u.username ?? ""),
+      unit: person ? person.group || person.position || "" : "",
+      registered: Boolean(person),
+      inactive: Boolean(person && !person.active),
+      email: u.primaryEmailAddress?.emailAddress ?? "",
+      role: resolveRole(u.publicMetadata as { role?: string }, u.primaryEmailAddress?.emailAddress),
+      banned: u.banned,
+      lastSignInAt: u.lastSignInAt,
+      isMe: u.id === userId,
+    };
+  });
 
   // Урилга илгээсэн боловч хараахан бүртгүүлээгүй хүмүүс
   const invitations = pending.map((inv) => {

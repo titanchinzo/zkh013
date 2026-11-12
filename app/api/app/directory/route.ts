@@ -19,17 +19,19 @@ type PersonDoc = {
 
 /**
  * Утсан дээрх аппын утасны жагсаалт. Хүн бүр өөрийн бүлгийнхний утсыг харна. «Бүх утас харна» тохиргоотой бүлгийнхэн
- * (захирагч, орлогч нар), хүний нөөц, админ бүх идэвхтэй алба хаагчийн утсыг (шаардлагатай үеийн дугаартай нь)
- * бүлэг бүрээр харна.
+ * (захирагч, орлогч нар), хүний нөөцөөс тус бүрд нь «Бүх утас харна» олгосон хүн, хүний нөөц, админ бүх идэвхтэй алба
+ * хаагчийн утсыг (шаардлагатай үеийн дугаартай нь) бүлэг бүрээр харна.
  */
 export async function GET() {
   const device = await getApprovedDevice();
   if (!device) return NextResponse.json({ error: "Энэ утсыг хүний нөөц зөвшөөрөөгүй байна" }, { status: 403 });
-  const me = await Personnel.findOne({ userId: device.userId, active: true }).select("group").lean<{ group?: string }>();
+  const me = await Personnel.findOne({ userId: device.userId, active: true })
+    .select("group seesAllPhones")
+    .lean<{ group?: string; seesAllPhones?: boolean }>();
   if (!me) return NextResponse.json({ error: "Таны бүртгэл идэвхгүй байна" }, { status: 403 });
 
   const { role } = await userRole(device.userId);
-  const all = role === "admin" || role === "hr" || (await groupSeesAll(me.group));
+  const all = role === "admin" || role === "hr" || Boolean(me.seesAllPhones) || (await groupSeesAll(me.group));
   if (!all && !me.group) {
     return NextResponse.json({ scope: "group", group: "", groups: [] });
   }
