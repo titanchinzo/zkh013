@@ -1,7 +1,21 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ArrowDown, ArrowLeft, Download, File as FileIcon, Lock, Paperclip, Play, Search, SendHorizontal, Timer, X } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowLeft,
+  Copy,
+  Download,
+  File as FileIcon,
+  Lock,
+  Paperclip,
+  Play,
+  Search,
+  SendHorizontal,
+  Timer,
+  Trash2,
+  X,
+} from "lucide-react";
 import { Avatar } from "@/components/app/avatar";
 import {
   CHAT_FILE,
@@ -55,7 +69,10 @@ type ThreadResponse = ThreadInfo & {
   unreadFrom: string | null;
   readUpTo: { id: string; at: string } | null;
   files: { id: string; status: "ready" | "downloaded" }[];
+  removed: string[];
 };
+// Илгээгч нь «хоёулангаас устгасан» зурвас
+type Removed = { sender: string; id: string };
 
 const fullName = (p: { rank: string; name: string }) => (p.rank ? `${p.rank} ${p.name}` : p.name);
 const OFFLINE = "Сервертэй холбогдож чадсангүй";
@@ -77,6 +94,34 @@ const lastOf = (thread?: StoredThread) => {
   const kept = (thread?.messages ?? []).filter((m) => alive(m));
   return kept.length ? kept[kept.length - 1] : null;
 };
+
+/** Утсан дээрх түүхээс арилгасан (илгээгч нь устгасан) зурвасуудыг серверт мэдэгдэнэ — тэмдэглэл нь устна */
+function confirmRemoved(ids: string[]) {
+  if (!ids.length) return;
+  fetch("/api/app/chat/removed", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ids }),
+  }).catch(() => {});
+}
+
+/** Илгээгч нь «хоёулангаас устгасан» зурвасуудыг утсан дээрх чатын түүхээс арилгана (зөвхөн тэр хүнээс ирснийг) */
+async function dropRemoved(me: string, threads: StoredThread[], removed: Removed[]): Promise<StoredThread[]> {
+  if (!removed.length) return threads;
+  const bySender = new Map<string, Set<string>>();
+  for (const r of removed) bySender.set(r.sender, (bySender.get(r.sender) ?? new Set()).add(r.id));
+  const next = await Promise.all(
+    threads.map(async (t) => {
+      const ids = bySender.get(t.person.userId);
+      const kept = ids ? t.messages.filter((m) => m.mine || !ids.has(m.id)) : t.messages;
+      if (kept.length === t.messages.length) return t;
+      await saveThread(me, t.person, kept, t.ack);
+      return { ...t, messages: kept };
+    })
+  );
+  confirmRemoved(removed.map((r) => r.id));
+  return next;
+}
 
 /** Серверийн жагсаалт (хүмүүс, уншаагүй зурвас) + утсан дээрх чатын түүх → мөрүүд, сүүлд чатласан нь эхэндээ */
 function toRows(people: ServerPerson[], threads: StoredThread[]): ChatRowData[] {
@@ -137,8 +182,8 @@ export function ChatList({
       setError(await errorOf(res, OFFLINE));
       return;
     }
-    const data: { me: string; unreadTotal: number; people: ServerPerson[] } = await res.json();
-    const threads = await loadThreads(data.me);
+    const data: { me: string; unreadTotal: number; people: ServerPerson[]; removed?: Removed[] } = await res.json();
+    const threads = await dropRemoved(data.me, await loadThreads(data.me), data.removed ?? []);
     const next = toRows(data.people, threads);
     pruneFileBlobs(
       new Set(threads.flatMap((t) => t.messages.filter((m) => m.file && alive(m)).map((m) => m.file!.id)))
@@ -523,6 +568,13 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
   const [viewer, setViewer] = useState<{ url: string; name: string } | null>(null);
   // Энэ утасны эзэн (серверээс баталсан) — зураг, бичлэгийг утсанд хадгалахад
   const [me, setMe] = useState<string | null>(null);
+  // Зурвас дээр удаан дарахад (компьютер дээр баруун товч) гарах цэс: хуулах, устгах
+  const [menu, setMenu] = useState<Message | null>(null);
+  const press = useRef<{ timer: number; x: number; y: number; fired: boolean } | null>(null);
+  const backdropDown = useRef(false);
+  // Богино мэдэгдэл («Хуулсан» г.м)
+  const [notice, setNotice] = useState("");
+  const noticeTimer = useRef(0);
   // Чатаас алга болсон (нууц зурвасын хугацаа дууссан) зурвасын зураг, бичлэгийг утаснаас устгана
   const shownFiles = useRef(new Set<string>());
   useEffect(() => {
@@ -630,6 +682,9 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
     let changed = first || data.messages.length > 0;
     const now = Date.now();
     const statusOf = new Map(data.files.map((x) => [x.id, x.status]));
+    // Нөгөө хүн «хоёулангаас устгасан» зурвасууд (зөвхөн түүнээс ирснийг арилгана)
+    const removedIds = data.removed ?? [];
+    const removed = new Set(removedIds);
     const merged = merge(before, data.messages);
     const next = merged
       .map((m) => {
@@ -657,9 +712,12 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
         if (n !== m) changed = true;
         return n;
       })
-      .filter((m) => alive(m, now));
+      .filter((m) => alive(m, now) && (m.mine || !removed.has(m.id)));
     if (next.length !== merged.length) changed = true;
-    if (!changed) return false;
+    if (!changed) {
+      confirmRemoved(removedIds);
+      return false;
+    }
     if (fresh.length) {
       if (atBottom.current) stick.current = true;
       else setNewBelow(true);
@@ -667,6 +725,7 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
     local.current.messages = next;
     if (data.messages.length) local.current.ack = data.messages[data.messages.length - 1].id;
     await persist();
+    confirmRemoved(removedIds);
     setMessages(next);
     // Шинээр хадгалсан зурвас байвал шууд дахин асууж (ack) серверээс устгуулна
     return data.messages.length > 0 && local.current.ack !== ack;
@@ -892,6 +951,102 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
     } catch {}
   }
 
+  function flash(value: string) {
+    setNotice(value);
+    window.clearTimeout(noticeTimer.current);
+    noticeTimer.current = window.setTimeout(() => setNotice(""), 3000);
+  }
+
+  function openMenu(m: Message) {
+    if (m.pending && !m.failed) return; // илгээгдэж байна
+    backdropDown.current = false;
+    setMenu(m);
+  }
+
+  // Утсан дээр: 0.5 секунд дарж байвал цэс гарна (гүйлгэж эхэлбэл болино). Компьютер дээр баруун товч.
+  function pressStart(e: React.PointerEvent, m: Message) {
+    if (e.pointerType === "mouse") {
+      press.current = null;
+      return;
+    }
+    const current = { timer: 0, x: e.clientX, y: e.clientY, fired: false };
+    current.timer = window.setTimeout(() => {
+      current.fired = true;
+      navigator.vibrate?.(15);
+      openMenu(m);
+    }, 500);
+    press.current = current;
+  }
+
+  function pressMove(e: React.PointerEvent) {
+    const p = press.current;
+    if (p && !p.fired && Math.hypot(e.clientX - p.x, e.clientY - p.y) > 10) window.clearTimeout(p.timer);
+  }
+
+  function pressEnd() {
+    if (press.current) window.clearTimeout(press.current.timer);
+  }
+
+  function onContextMenu(e: React.MouseEvent, m: Message) {
+    // Компьютер дээр текстийн хэсгийг сонгосон бол хөтчийн өөрийн цэс (хуулах) гарна
+    if (window.getSelection()?.toString()) return;
+    e.preventDefault();
+    if (press.current) {
+      window.clearTimeout(press.current.timer);
+      press.current.fired = true;
+    }
+    openMenu(m);
+  }
+
+  // Удаан дарсны дараах товшилт зургийг томруулах, файл татах үйлдлийг ажиллуулахгүй
+  function afterPress(e: React.MouseEvent) {
+    if (!press.current?.fired) return;
+    e.preventDefault();
+    e.stopPropagation();
+    press.current = null;
+  }
+
+  /** Зурвасыг энэ утаснаас арилгана (зураг, бичлэг нь утаснаас мөн устна) */
+  async function removeLocal(id: string) {
+    uploads.current.delete(id);
+    picked.current.delete(id);
+    show(local.current.messages.filter((m) => m.id !== id));
+    await persist();
+  }
+
+  /** «Хоёулангаас устгах»: миний илгээсэн зурвасыг серверээс, нөгөө хүний утаснаас устгана */
+  async function unsend(m: Message) {
+    setMenu(null);
+    const res = await fetch(`/api/app/chat/${userId}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: m.id, fileId: m.file?.id || undefined }),
+    }).catch(() => null);
+    if (res?.status === 403) return lose(res);
+    if (!res?.ok) return flash(await errorOf(res, "Устгаж чадсангүй — сүлжээгээ шалгаад дахин оролдоно уу"));
+    await removeLocal(m.id);
+    flash("Хоёулангаас устгалаа");
+  }
+
+  /** «Надаас устгах»: зөвхөн энэ утаснаас. Ирсэн файлыг татаагүй бол серверээс ч устгана (дахин татах боломжгүй). */
+  async function removeForMe(m: Message) {
+    setMenu(null);
+    if (!m.mine && !m.pending && m.file?.id && m.fileStatus !== "downloaded" && m.fileStatus !== "gone") {
+      fetch(`/api/app/chat/files/${m.file.id}`, { method: "DELETE" }).catch(() => {});
+    }
+    await removeLocal(m.id);
+  }
+
+  async function copyText(m: Message) {
+    setMenu(null);
+    try {
+      await navigator.clipboard.writeText(m.text);
+      flash("Хуулсан");
+    } catch {
+      flash("Хуулж чадсангүй");
+    }
+  }
+
   function submit(e?: { preventDefault(): void }) {
     e?.preventDefault();
     if (!text.trim()) return;
@@ -949,7 +1104,7 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
           <p className="mx-auto mb-3 flex max-w-xs items-start justify-center gap-1.5 text-center text-[11px] leading-snug text-muted-foreground">
             <Lock className="mt-px size-3 shrink-0" aria-hidden />
             Зурвас хүлээн авагч уншмагц, файл татаж авмагц серверээс устна. Чатын түүх зөвхөн та хоёрын утсанд
-            хадгалагдана.
+            хадгалагдана. Зурвас дээр удаан дарж устгана.
           </p>
           {person && messages.length === 0 && (
             <div className="space-y-2 py-12 text-center">
@@ -972,7 +1127,17 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
                 {newDay && <p className="py-2 text-center text-[11px] font-semibold text-muted-foreground">{chatDay(m.at)}</p>}
                 <div className={`flex ${m.mine ? "justify-end" : "justify-start"} ${grouped ? "" : "pt-1.5"}`}>
                   <div
-                    className={`max-w-[80%] whitespace-pre-wrap rounded-2xl px-3 py-1.5 text-[15px] leading-snug [overflow-wrap:anywhere] ${
+                    data-message={m.id}
+                    onContextMenu={(e) => onContextMenu(e, m)}
+                    onPointerDown={(e) => pressStart(e, m)}
+                    onPointerMove={pressMove}
+                    onPointerUp={pressEnd}
+                    onPointerCancel={pressEnd}
+                    onPointerLeave={pressEnd}
+                    onClickCapture={afterPress}
+                    className={`max-w-[80%] whitespace-pre-wrap rounded-2xl px-3 py-1.5 text-[15px] leading-snug [overflow-wrap:anywhere] [-webkit-touch-callout:none] pointer-coarse:select-none ${
+                      menu?.id === m.id ? "ring-2 ring-primary/60 " : ""
+                    }${
                       m.mine ? "rounded-br-md bg-primary text-primary-foreground" : "rounded-bl-md bg-muted text-foreground"
                     } ${m.pending ? "opacity-60" : ""}`}
                   >
@@ -1043,6 +1208,68 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
           {/* eslint-disable-next-line @next/next/no-img-element -- local blob URL from the phone's own storage */}
           <img src={viewer.url} alt={viewer.name} className="min-h-0 flex-1 object-contain" />
         </div>
+      )}
+
+      {menu && (
+        <div
+          className="fixed inset-0 z-[60] flex items-end justify-center bg-black/50"
+          role="dialog"
+          aria-label="Зурвасын цэс"
+          // Удаан дарж цэс нээсэн хурууг өргөхөд цэс хаагдахгүй — зөвхөн дэвсгэр дээр шинээр дарвал
+          onPointerDown={(e) => {
+            if (e.target === e.currentTarget) backdropDown.current = true;
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget && backdropDown.current) setMenu(null);
+          }}
+        >
+          <div className="w-full max-w-md space-y-2 px-3 pt-3" style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
+            <div className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-background">
+              <p className="truncate px-4 py-2.5 text-center text-xs text-muted-foreground">
+                {menu.ephemeral ? "Нууц зурвас" : previewText(menu) || "Зурвас"}
+              </p>
+              {menu.text && !menu.ephemeral && !menu.pending && (
+                <button onClick={() => copyText(menu)} className="flex w-full items-center gap-3 px-4 py-3 text-left text-foreground active:bg-muted">
+                  <Copy className="size-5 shrink-0" aria-hidden />
+                  Хуулах
+                </button>
+              )}
+              {menu.mine && !menu.pending && (
+                <button onClick={() => unsend(menu)} className="flex w-full items-center gap-3 px-4 py-3 text-left text-red-500 active:bg-muted">
+                  <Trash2 className="size-5 shrink-0" aria-hidden />
+                  <span>
+                    <span className="block font-semibold">Хоёулангаас устгах</span>
+                    <span className="block text-xs text-muted-foreground">Таны болон хүлээн авагчийн утаснаас устна</span>
+                  </span>
+                </button>
+              )}
+              <button onClick={() => removeForMe(menu)} className="flex w-full items-center gap-3 px-4 py-3 text-left text-red-500 active:bg-muted">
+                <Trash2 className="size-5 shrink-0" aria-hidden />
+                <span>
+                  <span className="block font-semibold">{menu.pending ? "Устгах" : "Надаас устгах"}</span>
+                  <span className="block text-xs text-muted-foreground">
+                    {menu.pending ? "Илгээгдээгүй зурвасыг устгана" : "Зөвхөн энэ утаснаас устна"}
+                  </span>
+                </span>
+              </button>
+            </div>
+            <button
+              onClick={() => setMenu(null)}
+              className="w-full rounded-2xl border border-border bg-background py-3 font-semibold text-foreground active:bg-muted"
+            >
+              Болих
+            </button>
+          </div>
+        </div>
+      )}
+
+      {notice && (
+        <p
+          role="status"
+          className="pointer-events-none absolute left-1/2 top-20 -translate-x-1/2 rounded-full bg-foreground px-3 py-1.5 text-xs font-semibold text-background shadow-lg"
+        >
+          {notice}
+        </p>
       )}
 
       {newBelow && (

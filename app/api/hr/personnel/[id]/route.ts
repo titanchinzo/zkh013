@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { isValidObjectId } from "mongoose";
 import { connectToDatabase } from "@/lib/mongodb";
+import ChatDeletion from "@/lib/models/ChatDeletion";
 import ChatMessage from "@/lib/models/ChatMessage";
 import DayRecord from "@/lib/models/DayRecord";
 import Device from "@/lib/models/Device";
@@ -74,6 +75,7 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
       { $set: { status: "revoked", decidedBy, decidedAt: new Date() }, $unset: { push: 1 } }
     );
     await ChatMessage.deleteMany({ recipient: userId });
+    await ChatDeletion.deleteMany({ recipient: userId });
     // Түүний илгээсэн, түүнд ирсэн чатын файлууд (серверийн хувийн хавтсаас)
     await deleteChatFilesOf(userId);
   }

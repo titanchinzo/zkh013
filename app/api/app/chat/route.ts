@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import ChatDeletion from "@/lib/models/ChatDeletion";
 import ChatMessage from "@/lib/models/ChatMessage";
 import Personnel from "@/lib/models/Personnel";
 import { approvedLastSeen, getChatUser, isOnline } from "@/lib/chat";
@@ -10,7 +11,8 @@ type PendingDoc = { _id: string; count: number; text: string; file?: { name: str
 /**
  * Утсан дээрх чатын жагсаалт: апп ашиглаж буй алба хаагчид (идэвхтэй эсэх, сүүлд хэзээ идэвхтэй байсан), тэднээс
  * ирсэн уншаагүй зурвас (тоо, сүүлийнх нь). Өмнөх чатын түүх серверт байхгүй — утас өөрөө хадгалдаг.
- * ?summary=1 — зөвхөн уншаагүй нийт тоо (нүүр хуудсанд).
+ * ?summary=1 — зөвхөн уншаагүй нийт тоо (нүүр хуудсанд). removed — илгээгч нь «хоёулангаас устгасан» зурвасууд
+ * (утас түүхээсээ арилгаад /api/app/chat/removed-д мэдэгдэнэ).
  */
 export async function GET(req: NextRequest) {
   const auth = await getChatUser();
@@ -69,5 +71,10 @@ export async function GET(req: NextRequest) {
     ];
   });
 
-  return NextResponse.json({ me, unreadTotal, people: rows });
+  const removed = await ChatDeletion.find({ recipient: me })
+    .select("sender messageId")
+    .limit(1000)
+    .lean<{ sender: string; messageId: string }[]>();
+
+  return NextResponse.json({ me, unreadTotal, people: rows, removed: removed.map((r) => ({ sender: r.sender, id: r.messageId })) });
 }

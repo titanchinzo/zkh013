@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { isValidObjectId } from "mongoose";
+import ChatDeletion from "@/lib/models/ChatDeletion";
 import ChatFile from "@/lib/models/ChatFile";
 import ChatMessage from "@/lib/models/ChatMessage";
 import ChatReceipt from "@/lib/models/ChatReceipt";
@@ -9,6 +10,7 @@ import { personnelLabel } from "@/lib/hr";
 import { CHAT_LIMITS, previewText, type ChatFileMeta } from "@/lib/chat-shared";
 import { allowSend, approvedLastSeen, getChatUser, isOnline, isUserId, isViewing, markViewing } from "@/lib/chat";
 import { fileExpiry, isUploaded } from "@/lib/chat-files";
+import { deletePrivateFile } from "@/lib/storage";
 
 type Params = { params: Promise<{ userId: string }> };
 type MessageDoc = { _id: unknown; sender: string; text: string; file?: ChatFileMeta; ephemeral?: boolean; createdAt: Date };
@@ -30,6 +32,7 @@ const toClient = (me: string) => (m: MessageDoc) => ({
  * unreadFrom — миний илгээснээс нөгөө хүн хараахан уншаагүй хамгийн эртний зурвас (түүнээс өмнөх нь уншигдсан).
  * readUpTo — нөгөө хүн миний зурвасыг хэзээ хүртэл уншсан («Уншаад 2 минутад устах» зурвасыг хоёр утас устгахад).
  * files — бидний хооронд илгээсэн файлуудын төлөв (татаж авсан эсэх).
+ * removed — тэр хүний «хоёулангаас устгасан» зурвасууд: утас түүхээсээ арилгаад /api/app/chat/removed-д мэдэгдэнэ.
  */
 export async function GET(req: NextRequest, { params }: Params) {
   const auth = await getChatUser();
@@ -46,7 +49,7 @@ export async function GET(req: NextRequest, { params }: Params) {
     }
   }
 
-  const [person, seen, incoming, myUnread, receipt, files] = await Promise.all([
+  const [person, seen, incoming, myUnread, receipt, files, removed] = await Promise.all([
     Personnel.findOne({ userId: other })
       .select("rank name position group photo active")
       .lean<{ rank: string; name: string; position: string; group?: string; photo?: string; active: boolean }>(),
@@ -64,6 +67,7 @@ export async function GET(req: NextRequest, { params }: Params) {
     })
       .select("status")
       .lean<{ _id: unknown; status: string }[]>(),
+    ChatDeletion.find({ recipient: me, sender: other }).select("messageId").limit(500).lean<{ messageId: string }[]>(),
   ]);
   if (!person && !incoming.length) return NextResponse.json(NOT_FOUND, { status: 404 });
   markViewing(me, other);
@@ -86,7 +90,66 @@ export async function GET(req: NextRequest, { params }: Params) {
     unreadFrom: myUnread ? String(myUnread._id) : null,
     readUpTo: receipt ? { id: receipt.upTo, at: receipt.at } : null,
     files: files.map((f) => ({ id: String(f._id), status: f.status })),
+    removed: removed.map((r) => r.messageId),
   });
+}
+
+/**
+ * Миний илгээсэн зурвасыг хоёулангаас устгана. body: { id, fileId? }. Нөгөө хүн хараахан аваагүй бол серверээс
+ * шууд устна; утсандаа аль хэдийн авсан бол (эсвэл авч байх агшинд) дараагийн асуулгаар (removed) түүний утаснаас
+ * устна. Хавсаргасан файл серверт байвал мөн устна. Уншаагүй зурвасын мэдэгдлийг дуугүй шинэчилнэ.
+ */
+export async function DELETE(req: NextRequest, { params }: Params) {
+  const auth = await getChatUser();
+  if ("error" in auth) return auth.error;
+  const { me, person: sender } = auth;
+  const { userId: other } = await params;
+  if (!isUserId(other) || other === me) return NextResponse.json(NOT_FOUND, { status: 404 });
+
+  const body = await req.json().catch(() => null);
+  const id = typeof body?.id === "string" && isValidObjectId(body.id) ? body.id : null;
+  if (!id) return NextResponse.json({ error: "Зурвас олдсонгүй" }, { status: 400 });
+  if (!allowSend(me)) {
+    return NextResponse.json({ error: "Хэт олон удаа устгалаа — түр хүлээгээд дахин оролдоно уу" }, { status: 429 });
+  }
+
+  // Хараахан хүргэгдээгүй бол серверээс; хүргэгдсэн бол файлын id-г утас өөрөө мэдэгдэнэ
+  const waiting = await ChatMessage.findOneAndDelete({ _id: id, sender: me, recipient: other }).lean<MessageDoc>();
+  const fileId = waiting?.file?.id ?? (typeof body?.fileId === "string" && isValidObjectId(body.fileId) ? body.fileId : null);
+  if (fileId) {
+    const file = await ChatFile.findOneAndDelete({ _id: fileId, sender: me, recipient: other }).select("_id").lean();
+    if (file) await deletePrivateFile(String(fileId));
+  }
+  // Хүлээн авагчийн утас энэ зурвасыг аль хэдийн авсан байж болно — тэр утас дараа нь өөрөө арилгана
+  await ChatDeletion.updateOne(
+    { recipient: other, sender: me, messageId: id },
+    { $setOnInsert: { recipient: other, sender: me, messageId: id } },
+    { upsert: true }
+  );
+
+  // Уншаагүй зурвасын мэдэгдэлд энэ зурвасын текст харагдаж байж болно — дараагийн уншаагүй зурвасаар солино
+  if (waiting && !isViewing(other, me)) {
+    after(async () => {
+      const latest = await ChatMessage.findOne({ recipient: other, sender: me }).sort({ _id: -1 }).lean<MessageDoc>();
+      if (latest && String(latest._id) > id) return; // мэдэгдэлд илүү шинэ зурвас харагдаж байна
+      const preview = latest ? previewText(latest) : "Зурвасаа устгасан";
+      await pushToDevices(
+        {
+          kind: "chat",
+          title: personnelLabel(sender),
+          body: preview.length > 140 ? `${preview.slice(0, 140)}…` : preview,
+          url: `/app?chat=${me}`,
+          tag: `chat-${me}`,
+          icon: sender.photo || undefined,
+          badge: await ChatMessage.countDocuments({ recipient: other }),
+          silent: true,
+        },
+        [other]
+      );
+    });
+  }
+
+  return NextResponse.json({ ok: true });
 }
 
 /**

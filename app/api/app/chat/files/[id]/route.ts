@@ -57,3 +57,14 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     },
   });
 }
+
+/** Хүлээн авагч татаагүй файлтай зурвасаа өөрөөсөө устгахад файлыг серверээс устгана (дахин татах боломжгүй болсон) */
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const auth = await getChatUser();
+  if ("error" in auth) return auth.error;
+  const { id } = await params;
+  if (!isValidObjectId(id)) return NextResponse.json({ error: "Файл олдсонгүй" }, { status: 404 });
+  const file = await ChatFile.findOneAndDelete({ _id: id, recipient: auth.me }).select("_id").lean();
+  if (file) await deletePrivateFile(id);
+  return NextResponse.json({ ok: true });
+}

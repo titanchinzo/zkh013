@@ -9,16 +9,19 @@ self.addEventListener("push", (event) => {
   const chat = data.kind === "chat";
   // Чатын зурвас, мэдээний хяналт — бусад аппынх шиг энгийн мэдэгдэл
   const quiet = chat || data.kind === "news";
+  // silent — өмнөх мэдэгдлийг дуугүй шинэчилнэ (илгээгч зурвасаа устгасан г.м); чичиргээ зааж болохгүй
+  const silent = data.silent === true;
   const tasks = [
     self.registration.showNotification(data.title || "013 анги", {
       body: data.body || "",
       icon: (chat && data.icon) || "/app-icon-192.png",
       badge: "/app-icon-192.png",
       tag: data.tag,
-      renotify: Boolean(data.tag),
+      renotify: Boolean(data.tag) && !silent,
+      silent,
       // Зарлан мэдээлэл дарах хүртэл дэлгэц дээр үлдэнэ; чатын зурвас, мэдээ бусад аппынх шиг өөрөө алга болно
       requireInteraction: !quiet,
-      vibrate: quiet ? [200, 100, 200] : [300, 100, 300, 100, 300],
+      ...(silent ? {} : { vibrate: quiet ? [200, 100, 200] : [300, 100, 300, 100, 300] }),
       timestamp: Date.now(),
       data: { url: data.url || "/app" },
     }),
