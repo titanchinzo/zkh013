@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/mongodb";
+import ChatDeletion from "@/lib/models/ChatDeletion";
+import ChatFile from "@/lib/models/ChatFile";
+import ChatMessage from "@/lib/models/ChatMessage";
 import Personnel from "@/lib/models/Personnel";
 import PersonnelGroup from "@/lib/models/PersonnelGroup";
 import { getCurrentRole } from "@/lib/auth-role";
@@ -48,7 +51,21 @@ export async function PATCH(req: NextRequest) {
 
   await connectToDatabase();
   const { modifiedCount } = await Personnel.updateMany({ group: from }, { $set: { group: to } });
-  if (await PersonnelGroup.exists({ name: to })) await PersonnelGroup.deleteOne({ name: from });
-  else await PersonnelGroup.updateOne({ name: from }, { $set: { name: to } }, { upsert: true });
+  const [source, target] = await Promise.all([
+    PersonnelGroup.findOne({ name: from }).select("_id").lean<{ _id: unknown }>(),
+    PersonnelGroup.findOne({ name: to }).select("_id").lean<{ _id: unknown }>(),
+  ]);
+  if (target) {
+    // Нийлүүлэх: бүлгийн чатын зурвас, файл, устгалын тэмдэглэлийг нийлүүлсэн бүлгийн чат руу шилжүүлнэ
+    if (source) {
+      const move = { $set: { group: String(target._id) } };
+      const old = { group: String(source._id) };
+      await Promise.all([ChatMessage.updateMany(old, move), ChatFile.updateMany(old, move), ChatDeletion.updateMany(old, move)]);
+      await PersonnelGroup.deleteOne({ _id: source._id });
+    }
+  } else {
+    // Нэр солиход бүлгийн id хэвээр тул бүлгийн чат, түүний түүх хадгалагдана
+    await PersonnelGroup.updateOne({ name: from }, { $set: { name: to } }, { upsert: true });
+  }
   return NextResponse.json({ ok: true, moved: modifiedCount });
 }

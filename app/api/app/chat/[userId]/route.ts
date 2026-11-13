@@ -10,6 +10,7 @@ import { personnelLabel } from "@/lib/hr";
 import { CHAT_LIMITS, previewText, type ChatFileMeta } from "@/lib/chat-shared";
 import { allowSend, approvedLastSeen, getChatUser, isOnline, isUserId, isViewing, markViewing } from "@/lib/chat";
 import { fileExpiry, isUploaded } from "@/lib/chat-files";
+import { unreadTotal } from "@/lib/chat-group";
 import { deletePrivateFile } from "@/lib/storage";
 
 type Params = { params: Promise<{ userId: string }> };
@@ -67,7 +68,8 @@ export async function GET(req: NextRequest, { params }: Params) {
     })
       .select("status")
       .lean<{ _id: unknown; status: string }[]>(),
-    ChatDeletion.find({ recipient: me, sender: other }).select("messageId").limit(500).lean<{ messageId: string }[]>(),
+    // group: null — бүлгийн чатын устгалыг энд биш (бүлгийн чат өөрөө авна)
+    ChatDeletion.find({ recipient: me, sender: other, group: null }).select("messageId").limit(500).lean<{ messageId: string }[]>(),
   ]);
   if (!person && !incoming.length) return NextResponse.json(NOT_FOUND, { status: 404 });
   markViewing(me, other);
@@ -141,7 +143,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
           url: `/app?chat=${me}`,
           tag: `chat-${me}`,
           icon: sender.photo || undefined,
-          badge: await ChatMessage.countDocuments({ recipient: other }),
+          badge: await unreadTotal(other),
           silent: true,
         },
         [other]
@@ -200,7 +202,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         url: `/app?chat=${me}`,
         tag: `chat-${me}`,
         icon: sender.photo || undefined,
-        badge: await ChatMessage.countDocuments({ recipient: other }),
+        badge: await unreadTotal(other),
       },
       [other]
     );

@@ -17,6 +17,15 @@ export const EPHEMERAL_MS = 2 * 60_000;
 
 export type ChatFileMeta = { id: string; name: string; size: number; type: string };
 
+// Бүлгийн чат: чатын id нь "g:<PersonnelGroup _id>" (хүний чат — Clerk userId). URL (?chat=g:…), утсан дээрх түүхийн
+// түлхүүр, мэдэгдлийн tag бүгд энэ хэлбэрийг ашиглана.
+export const GROUP_PREFIX = "g:";
+export const groupChatId = (groupId: string) => `${GROUP_PREFIX}${groupId}`;
+export const isGroupChat = (chatId: string) => chatId.startsWith(GROUP_PREFIX);
+/** "g:<id>" → { group: true, id } ; "user_…" → { group: false, id } */
+export const parseChatId = (chatId: string) =>
+  isGroupChat(chatId) ? { group: true, id: chatId.slice(GROUP_PREFIX.length) } : { group: false, id: chatId };
+
 const MB = 1024 * 1024;
 // Чат дотор харагдах зураг, бичлэг (утсан дээр хадгалагдана); жижиг зураг чатыг нээхэд өөрөө ачаалагдана, бусдыг
 // «Үзэх» дарж ачаална. Түүнээс том файл энгийн «Татах» хэвээр.

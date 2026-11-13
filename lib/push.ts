@@ -46,21 +46,23 @@ function configure() {
 
 /**
  * Зөвшөөрөгдсөн, мэдэгдэл асаасан утсууд руу илгээнэ (userIds өгвөл зөвхөн тэдгээр хүмүүсийн утас руу).
+ * badges — хүн бүрийн аппын дүрс дээрх тоо (бүлгийн чат: хүн бүрд өөр); өгвөл payload.badge-ийг орлоно.
  * Хүчингүй болсон захиалгыг (утаснаас аппыг устгасан г.м) арилгана. Алдаа гарсан ч үндсэн үйлдлийг зогсоохгүй.
  */
-export async function pushToDevices(payload: PushPayload, userIds?: string[]) {
+export async function pushToDevices(payload: PushPayload, userIds?: string[], badges?: Map<string, number>) {
   if (!configure()) return { sent: 0, failed: 0 };
   const devices = await Device.find({
     status: "approved",
     "push.endpoint": { $exists: true },
     ...(userIds ? { userId: { $in: userIds } } : {}),
   })
-    .select("push")
-    .lean<{ _id: unknown; push: webpush.PushSubscription }[]>();
+    .select("userId push")
+    .lean<{ _id: unknown; userId: string; push: webpush.PushSubscription }[]>();
 
-  const body = JSON.stringify({ url: "/app", ...payload });
+  const bodyFor = (userId: string) =>
+    JSON.stringify({ url: "/app", ...payload, ...(badges?.has(userId) ? { badge: badges.get(userId) } : {}) });
   const results = await Promise.allSettled(
-    devices.map((d) => webpush.sendNotification(d.push, body, { TTL: 24 * 60 * 60, urgency: "high" }))
+    devices.map((d) => webpush.sendNotification(d.push, bodyFor(d.userId), { TTL: 24 * 60 * 60, urgency: "high" }))
   );
 
   const gone = devices.filter((d, i) => {

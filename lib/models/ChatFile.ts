@@ -4,10 +4,14 @@ import { Schema, model, models, type InferSchemaType } from "mongoose";
 // uploading → ready (зурвас илгээгдсэн) → downloaded (хүлээн авагч татаж авмагц файл устна, илгээгч «Татаж авсан»
 // гэж харах тул бичлэг нь хэсэг хугацаанд үлдэнэ). expiresAt өнгөрмөгц бичлэг өөрөө устна (TTL), диск дээрх файлыг
 // lib/chat-files.ts цэвэрлэнэ.
+// Бүлгийн чатын файл: recipient-гүй, group (PersonnelGroup _id) + downloadedBy — татаж авсан гишүүд; бүх гишүүн татмагц
+// (эсвэл «Надаас устгах»-аар татгалзмагц) downloaded болж файл устна.
 const ChatFileSchema = new Schema(
   {
     sender: { type: String, required: true },
-    recipient: { type: String, required: true },
+    recipient: { type: String },
+    group: { type: String },
+    downloadedBy: { type: [String], default: undefined },
     name: { type: String, required: true, maxlength: 200 },
     size: { type: Number, required: true },
     type: { type: String, default: "", maxlength: 120 },
@@ -19,6 +23,7 @@ const ChatFileSchema = new Schema(
 );
 
 ChatFileSchema.index({ sender: 1, recipient: 1 });
+ChatFileSchema.index({ group: 1 });
 ChatFileSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 export type ChatFile = InferSchemaType<typeof ChatFileSchema>;

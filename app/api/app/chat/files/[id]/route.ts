@@ -6,9 +6,21 @@ import { isValidObjectId } from "mongoose";
 import ChatFile from "@/lib/models/ChatFile";
 import { getChatUser } from "@/lib/chat";
 import { fileExpiry } from "@/lib/chat-files";
+import { loadGroup, markGroupDownload } from "@/lib/chat-group";
 import { deletePrivateFile, privateFilePath } from "@/lib/storage";
 
-type FileDoc = { _id: unknown; recipient: string; name: string; size: number; type: string; status: string; expiresAt: Date };
+type FileDoc = {
+  _id: unknown;
+  sender: string;
+  recipient?: string;
+  group?: string;
+  downloadedBy?: string[];
+  name: string;
+  size: number;
+  type: string;
+  status: string;
+  expiresAt: Date;
+};
 
 // Зураг, бичлэг, дуу, PDF-ийг утас өөрийн программаар нээх боломжтой төрлөөр нь; бусдыг (HTML г.м) зөвхөн файл болгон
 const SAFE_TYPE = /^(image\/(jpeg|png|gif|webp|heic|heif)|video\/[\w.+-]+|audio\/[\w.+-]+|application\/pdf)$/;
@@ -25,8 +37,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   if (!isValidObjectId(id)) return notFound;
 
   const file = await ChatFile.findById(id).lean<FileDoc>();
-  if (!file || file.recipient !== auth.me) return notFound;
-  if (file.status === "downloaded") {
+  if (!file) return notFound;
+  // Бүлгийн файлыг гишүүн бүр (илгээгчээс бусад) нэг удаа татна; хүний чатын файлыг зөвхөн хүлээн авагч
+  const allowed = file.group ? file.sender !== auth.me && Boolean(await loadGroup(file.group, auth.me)) : file.recipient === auth.me;
+  if (!allowed) return notFound;
+  if (file.status === "downloaded" || file.downloadedBy?.includes(auth.me)) {
     return NextResponse.json({ error: "Энэ файлыг аль хэдийн татаж авсан тул серверээс устсан" }, { status: 410 });
   }
   const full = privateFilePath(id);
@@ -36,12 +51,14 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const stream = createReadStream(full);
   // Сүүлийн байт хүртэл илгээгдмэгц устгана; дундуур тасарвал (end ирэхгүй) дахин татаж болно
   stream.on("end", () => {
-    ChatFile.updateOne(
-      { _id: id, status: "ready" },
-      { $set: { status: "downloaded", downloadedAt: new Date(), expiresAt: fileExpiry.downloaded() } }
-    )
-      .then(() => deletePrivateFile(id))
-      .catch((err) => console.error("[chat] татсан файлыг устгаж чадсангүй:", err));
+    // Бүлгийн файл бүх гишүүн татмагц устна
+    const done = file.group
+      ? markGroupDownload(id, auth.me)
+      : ChatFile.updateOne(
+          { _id: id, status: "ready" },
+          { $set: { status: "downloaded", downloadedAt: new Date(), expiresAt: fileExpiry.downloaded() } }
+        ).then(() => deletePrivateFile(id));
+    done.catch((err) => console.error("[chat] татсан файлыг устгаж чадсангүй:", err));
   });
 
   const ascii = file.name.replace(/[^\x20-\x7e]/g, "_").replace(/["\\]/g, "_");
@@ -64,7 +81,15 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   if ("error" in auth) return auth.error;
   const { id } = await params;
   if (!isValidObjectId(id)) return NextResponse.json({ error: "Файл олдсонгүй" }, { status: 404 });
-  const file = await ChatFile.findOneAndDelete({ _id: id, recipient: auth.me }).select("_id").lean();
-  if (file) await deletePrivateFile(id);
+  const shared = await ChatFile.findOne({ _id: id, group: { $type: "string" } })
+    .select("group sender")
+    .lean<{ group: string; sender: string }>();
+  if (shared) {
+    // Бүлгийн файлыг бусад гишүүд татаж болно — зөвхөн намайг «татсан» гэж тэмдэглэнэ (бүгд татмагц устна)
+    if (shared.sender !== auth.me && (await loadGroup(shared.group, auth.me))) await markGroupDownload(id, auth.me);
+  } else {
+    const file = await ChatFile.findOneAndDelete({ _id: id, recipient: auth.me }).select("_id").lean();
+    if (file) await deletePrivateFile(id);
+  }
   return NextResponse.json({ ok: true });
 }

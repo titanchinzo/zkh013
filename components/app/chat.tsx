@@ -14,6 +14,7 @@ import {
   SendHorizontal,
   Timer,
   Trash2,
+  Users,
   X,
 } from "lucide-react";
 import { Avatar } from "@/components/app/avatar";
@@ -26,6 +27,9 @@ import {
   chatTime,
   expiresAt,
   formatBytes,
+  groupChatId,
+  isGroupChat,
+  parseChatId,
   presenceText,
   previewText,
   sameDay,
@@ -36,6 +40,7 @@ import { usePolling } from "@/lib/use-polling";
 import {
   clearChatHistory,
   deleteFileBlobs,
+  deleteThread,
   historyOwner,
   loadFileBlob,
   loadThread,
@@ -48,9 +53,9 @@ import {
   type StoredThread,
 } from "@/lib/chat-store";
 
-// Утсан дээрх аппын чат: апп ашиглаж буй алба хаагчдын жагсаалт (хэн идэвхтэй), хоёр хүний чат.
+// Утсан дээрх аппын чат: апп ашиглаж буй алба хаагчдын жагсаалт (хэн идэвхтэй), хоёр хүний чат, өөрийн бүлгийн чат.
 // Сервер зөвхөн хараахан уншаагүй зурвасыг түр хадгална: утас зурвасыг хүлээн авч өөртөө хадгалаад серверээс
-// устгуулна. Тиймээс чатын түүх зөвхөн хоёр хүний утсанд (lib/chat-store.ts) үлдэнэ.
+// устгуулна. Тиймээс чатын түүх зөвхөн хүмүүсийн утсанд (lib/chat-store.ts) үлдэнэ. Бүлгийн чатын id — "g:<бүлгийн id>".
 
 type LastMessage = { text: string; mine: boolean; at: string };
 type ServerPerson = StoredPerson & {
@@ -60,19 +65,39 @@ type ServerPerson = StoredPerson & {
   pending: { count: number; text: string; at: string } | null;
 };
 type ChatRowData = ServerPerson & { lastMessage: LastMessage | null; unread: number };
+// Чатын жагсаалт дахь миний бүлгийн чат
+type ServerGroup = { id: string; name: string; members: number; pending: { count: number; text: string; at: string } | null };
+type GroupRowData = ServerGroup & { lastMessage: LastMessage | null; unread: number };
+type ListData = { rows: ChatRowData[]; group: GroupRowData | null };
 // progress — илгээж буй файлын хувь (0–1)
 type Message = StoredMessage & { pending?: boolean; failed?: string; progress?: number };
-type ThreadInfo = { person: StoredPerson; online: boolean; lastSeenAt: string | null; canMessage: boolean };
-type ThreadResponse = ThreadInfo & {
+type GroupMember = { userId: string; rank: string; name: string; photo: string; online: boolean };
+type ThreadInfo = {
+  person: StoredPerson;
+  online: boolean;
+  lastSeenAt: string | null;
+  canMessage: boolean;
+  // Бүлгийн чат: гишүүд (хэн идэвхтэй)
+  group?: { members: GroupMember[] };
+};
+type ThreadResponse = {
   me: string;
+  // Хүний чат
+  person?: StoredPerson;
+  online?: boolean;
+  lastSeenAt?: string | null;
+  readUpTo?: { id: string; at: string } | null;
+  // Бүлгийн чат: reads — миний хүлээгдэж буй зурвас бүрийг хэдэн гишүүн уншсан
+  group?: { id: string; name: string; members: GroupMember[] };
+  reads?: Record<string, number>;
+  canMessage: boolean;
   messages: Message[];
   unreadFrom: string | null;
-  readUpTo: { id: string; at: string } | null;
   files: { id: string; status: "ready" | "downloaded" }[];
   removed: string[];
 };
-// Илгээгч нь «хоёулангаас устгасан» зурвас
-type Removed = { sender: string; id: string };
+// Илгээгч нь «хоёулангаас устгасан» зурвас (group — бүлгийн чатын зурвас байсан)
+type Removed = { sender: string; id: string; group?: string };
 
 const fullName = (p: { rank: string; name: string }) => (p.rank ? `${p.rank} ${p.name}` : p.name);
 const OFFLINE = "Сервертэй холбогдож чадсангүй";
@@ -82,7 +107,7 @@ async function errorOf(res: Response | null, fallback: string) {
 }
 
 // Чатаас буцаж ороход жагсаалт шууд харагдана (дараа нь шинэчилнэ)
-let listCache: ChatRowData[] | null = null;
+let listCache: ListData | null = null;
 // Илгээж буй зурвасын түр id
 let tempSeq = 0;
 
@@ -94,6 +119,29 @@ const lastOf = (thread?: StoredThread) => {
   const kept = (thread?.messages ?? []).filter((m) => alive(m));
   return kept.length ? kept[kept.length - 1] : null;
 };
+
+/** Бүлгийн чатын сүүлийн зурвас жагсаалтад: "Та: …" эсвэл "а/а Б.Болд: …" */
+const authored = (m: StoredMessage) => `${m.mine ? "Та" : (m.from?.name ?? "")}: ${previewText(m)}`;
+
+/** "5 гишүүн · 2 идэвхтэй" (өөрийгөө тооцохгүй) */
+function groupSubtitle(group: { members: GroupMember[] } | undefined, me: string | null) {
+  if (!group) return "Бүлгийн чат";
+  const online = group.members.filter((m) => m.online && m.userId !== me).length;
+  return `${group.members.length} гишүүн${online ? ` · ${online} идэвхтэй` : ""}`;
+}
+
+/** Бүлгийн чатын дүрс (хүний зургийн оронд) */
+function GroupAvatar({ size }: { size: number }) {
+  return (
+    <span
+      className="flex shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary"
+      style={{ width: size, height: size }}
+      aria-hidden
+    >
+      <Users style={{ width: size * 0.5, height: size * 0.5 }} />
+    </span>
+  );
+}
 
 /** Утсан дээрх түүхээс арилгасан (илгээгч нь устгасан) зурвасуудыг серверт мэдэгдэнэ — тэмдэглэл нь устна */
 function confirmRemoved(ids: string[]) {
@@ -108,11 +156,15 @@ function confirmRemoved(ids: string[]) {
 /** Илгээгч нь «хоёулангаас устгасан» зурвасуудыг утсан дээрх чатын түүхээс арилгана (зөвхөн тэр хүнээс ирснийг) */
 async function dropRemoved(me: string, threads: StoredThread[], removed: Removed[]): Promise<StoredThread[]> {
   if (!removed.length) return threads;
-  const bySender = new Map<string, Set<string>>();
-  for (const r of removed) bySender.set(r.sender, (bySender.get(r.sender) ?? new Set()).add(r.id));
+  // Хүний чатын зурвас — илгээгчтэй хийсэн чатаас; бүлгийн чатынх — тэр бүлгийн чатаас
+  const byThread = new Map<string, Set<string>>();
+  for (const r of removed) {
+    const key = r.group ? groupChatId(r.group) : r.sender;
+    byThread.set(key, (byThread.get(key) ?? new Set()).add(r.id));
+  }
   const next = await Promise.all(
     threads.map(async (t) => {
-      const ids = bySender.get(t.person.userId);
+      const ids = byThread.get(t.person.userId);
       const kept = ids ? t.messages.filter((m) => m.mine || !ids.has(m.id)) : t.messages;
       if (kept.length === t.messages.length) return t;
       await saveThread(me, t.person, kept, t.ack);
@@ -154,17 +206,37 @@ function toRows(people: ServerPerson[], threads: StoredThread[]): ChatRowData[] 
   );
 }
 
-/** Чатын жагсаалт: хайлт, «Одоо идэвхтэй» хүмүүс, сүүлд чатласан нь эхэндээ */
+/** Миний бүлгийн чатын мөр: серверийн уншаагүй зурвас + утсан дээрх түүх */
+function toGroupRow(g: ServerGroup, thread?: StoredThread): GroupRowData {
+  const local = lastOf(thread);
+  const waiting = g.pending ? { text: g.pending.text, mine: false, at: g.pending.at } : null;
+  const lastMessage =
+    local && (!waiting || new Date(local.at) >= new Date(waiting.at)) ? { text: authored(local), mine: local.mine, at: local.at } : waiting;
+  return { ...g, lastMessage, unread: g.pending?.count ?? 0 };
+}
+
+/** Утсан дээрх түүхээс жагсаалт (сервер хариулахаас өмнө): хүний чатууд + бүлгийн чат (нэр нь түүхэнд хадгалагдсан) */
+function offlineList(threads: StoredThread[]): ListData {
+  const groupThread = threads.find((t) => isGroupChat(t.person.userId));
+  return {
+    rows: toRows([], threads.filter((t) => !isGroupChat(t.person.userId))),
+    group: groupThread
+      ? toGroupRow({ id: parseChatId(groupThread.person.userId).id, name: groupThread.person.name, members: 0, pending: null }, groupThread)
+      : null,
+  };
+}
+
+/** Чатын жагсаалт: хайлт, «Одоо идэвхтэй» хүмүүс, бүлгийн чат, сүүлд чатласан нь эхэндээ */
 export function ChatList({
   onOpen,
   onUnread,
   pushEnabled,
 }: {
-  onOpen: (userId: string) => void;
+  onOpen: (chatId: string) => void;
   onUnread: (count: number) => void;
   pushEnabled: boolean;
 }) {
-  const [rows, setRows] = useState<ChatRowData[] | null>(listCache);
+  const [data, setData] = useState<ListData | null>(listCache);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
 
@@ -174,7 +246,7 @@ export function ChatList({
       // Утсыг хүчингүй болгосон эсвэл бүртгэл идэвхгүй болсон — утсан дээрх түүхийг арилгана
       await clearChatHistory();
       listCache = null;
-      setRows([]);
+      setData({ rows: [], group: null });
       setError(await errorOf(res, "Энэ утсаар чат ашиглах эрхгүй байна"));
       return;
     }
@@ -182,31 +254,42 @@ export function ChatList({
       setError(await errorOf(res, OFFLINE));
       return;
     }
-    const data: { me: string; unreadTotal: number; people: ServerPerson[]; removed?: Removed[] } = await res.json();
-    const threads = await dropRemoved(data.me, await loadThreads(data.me), data.removed ?? []);
-    const next = toRows(data.people, threads);
+    const body: { me: string; unreadTotal: number; people: ServerPerson[]; group: ServerGroup | null; removed?: Removed[] } =
+      await res.json();
+    const all = await dropRemoved(body.me, await loadThreads(body.me), body.removed ?? []);
+    // Бүлгээс гарсан (өөр бүлэгт шилжсэн) бол өмнөх бүлгийн чатын түүх энэ утаснаас устна
+    const groupKey = body.group ? groupChatId(body.group.id) : null;
+    const stale = all.filter((t) => isGroupChat(t.person.userId) && t.person.userId !== groupKey);
+    for (const t of stale) await deleteThread(body.me, t.person.userId);
+    const threads = all.filter((t) => !stale.includes(t));
+    const next: ListData = {
+      rows: toRows(body.people, threads.filter((t) => !isGroupChat(t.person.userId))),
+      group: body.group ? toGroupRow(body.group, threads.find((t) => t.person.userId === groupKey)) : null,
+    };
     pruneFileBlobs(
       new Set(threads.flatMap((t) => t.messages.filter((m) => m.file && alive(m)).map((m) => m.file!.id)))
     );
     listCache = next;
     setError("");
-    setRows(next);
-    onUnread(data.unreadTotal);
+    setData(next);
+    onUnread(body.unreadTotal);
   }, [onUnread]);
 
   useEffect(() => {
     // Сервер хариулахаас өмнө (сүлжээгүй үед ч) утсан дээрх чатуудыг харуулна
     const owner = historyOwner();
-    if (!listCache && owner) loadThreads(owner).then((threads) => setRows((current) => current ?? toRows([], threads)));
+    if (!listCache && owner) loadThreads(owner).then((threads) => setData((current) => current ?? offlineList(threads)));
     // eslint-disable-next-line react-hooks/set-state-in-effect -- initial data fetch on mount
     load();
   }, [load]);
   usePolling(load, POLL_MS.list);
 
-  if (!rows) return <p className="text-sm text-muted-foreground">{error || "Ачааллаж байна..."}</p>;
+  if (!data) return <p className="text-sm text-muted-foreground">{error || "Ачааллаж байна..."}</p>;
 
+  const { rows, group } = data;
   const q = query.trim().toLowerCase();
   const shown = q ? rows.filter((p) => `${p.rank} ${p.name} ${p.position}`.toLowerCase().includes(q)) : rows;
+  const showGroup = group && (!q || group.name.toLowerCase().includes(q));
   const active = rows.filter((p) => p.online && p.canMessage);
 
   return (
@@ -243,10 +326,14 @@ export function ChatList({
         </div>
       )}
 
+      {showGroup && <GroupRow group={group} onOpen={onOpen} />}
+
       {error && <p className="text-xs text-red-400">{error}</p>}
 
       {shown.length === 0 ? (
-        !error && <p className="text-sm text-muted-foreground">{q ? "Олдсонгүй." : "Апп ашиглаж буй өөр хүн одоогоор алга."}</p>
+        !error && !showGroup && (
+          <p className="text-sm text-muted-foreground">{q ? "Олдсонгүй." : "Апп ашиглаж буй өөр хүн одоогоор алга."}</p>
+        )
       ) : (
         <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border">
           {shown.map((p) => (
@@ -256,10 +343,44 @@ export function ChatList({
       )}
 
       <p className="text-xs text-muted-foreground">
-        Зурвас хүлээн авагч уншмагц серверээс устна; чатын түүх зөвхөн та хоёрын утсанд хадгалагдана. Албаны нууцад
-        хамаарах мэдээллийг чатаар бичихгүй.
+        Зурвас хүлээн авагч уншмагц серверээс устна; чатын түүх зөвхөн хүлээн авагчдын утсанд хадгалагдана. Албаны
+        нууцад хамаарах мэдээллийг чатаар бичихгүй.
       </p>
     </section>
+  );
+}
+
+/** Миний бүлгийн чат — жагсаалтын дээд талд */
+function GroupRow({ group: g, onOpen }: { group: GroupRowData; onOpen: (chatId: string) => void }) {
+  const unread = g.unread > 0;
+  return (
+    <button
+      onClick={() => onOpen(groupChatId(g.id))}
+      aria-label={`Бүлгийн чат: ${g.name}`}
+      className="flex w-full items-center gap-3 rounded-xl border border-border px-3 py-2.5 text-left active:bg-muted/60"
+    >
+      <GroupAvatar size={46} />
+      <span className="min-w-0 flex-1">
+        <span className="flex items-baseline justify-between gap-2">
+          <span className={`truncate text-foreground ${unread ? "font-bold" : "font-semibold"}`}>{g.name}</span>
+          {g.lastMessage && (
+            <span className={`shrink-0 text-[11px] ${unread ? "font-semibold text-foreground" : "text-muted-foreground"}`}>
+              {chatListTime(g.lastMessage.at)}
+            </span>
+          )}
+        </span>
+        <span className="flex items-center justify-between gap-2">
+          <span className={`truncate text-sm ${unread ? "font-semibold text-foreground" : "text-muted-foreground"}`}>
+            {g.lastMessage?.text || `Бүлгийн чат${g.members ? ` · ${g.members} гишүүн` : ""}`}
+          </span>
+          {unread && (
+            <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-bold text-white">
+              {g.unread > 99 ? "99+" : g.unread}
+            </span>
+          )}
+        </span>
+      </span>
+    </button>
   );
 }
 
@@ -481,8 +602,18 @@ function MediaBubble({
   );
 }
 
-/** Чатын файл: илгээж буй явц, хүлээн авагчид «Татах» (татаж авмагц серверээс устна), төлөв */
-function FileCard({ message: m, downloading, onDownload }: { message: Message; downloading: boolean; onDownload: () => void }) {
+/** Чатын файл: илгээж буй явц, хүлээн авагчид «Татах» (татаж авмагц серверээс устна), төлөв. group — бүлгийн чат */
+function FileCard({
+  message: m,
+  group,
+  downloading,
+  onDownload,
+}: {
+  message: Message;
+  group?: boolean;
+  downloading: boolean;
+  onDownload: () => void;
+}) {
   const file = m.file!;
   const status = m.fileStatus ?? "ready";
   const note = m.pending
@@ -491,15 +622,23 @@ function FileCard({ message: m, downloading, onDownload }: { message: Message; d
       : `Илгээж байна… ${Math.round((m.progress ?? 0) * 100)}%`
     : status === "downloaded"
       ? m.mine
-        ? "✓ Татаж авсан"
-        : "Татаж авсан — серверээс устсан"
+        ? group
+          ? "✓ Бүх гишүүн татаж авсан"
+          : "✓ Татаж авсан"
+        : group
+          ? "Татаж авсан"
+          : "Татаж авсан — серверээс устсан"
       : status === "gone"
         ? "Серверээс устсан"
         : m.mine
-          ? "Хүлээн авагч татаагүй"
+          ? group
+            ? "Гишүүд татаж дуусаагүй"
+            : "Хүлээн авагч татаагүй"
           : downloading
-            ? "Татаж байна… дуусмагц серверээс устна"
-            : "Нэг удаа татна — дараа нь серверээс устна";
+            ? "Татаж байна…"
+            : group
+              ? "Нэг удаа татна — бүгд татмагц серверээс устна"
+              : "Нэг удаа татна — дараа нь серверээс устна";
   return (
     <span className="mb-1 flex min-w-[200px] items-center gap-2.5">
       <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-black/15">
@@ -531,9 +670,14 @@ function FileCard({ message: m, downloading, onDownload }: { message: Message; d
   );
 }
 
-/** Хоёр хүний чат — бүтэн дэлгэцээр */
+/** Хоёр хүний чат эсвэл бүлгийн чат ("g:<бүлгийн id>") — бүтэн дэлгэцээр */
 export function Conversation({ userId, onBack }: { userId: string; onBack: () => void }) {
+  const chat = parseChatId(userId);
+  const api = chat.group ? `/api/app/chat/group/${chat.id}` : `/api/app/chat/${userId}`;
   const [info, setInfo] = useState<ThreadInfo | null>(null);
+  // Бүлгийн чат: миний зурвас бүрийг хэдэн гишүүн уншсан; гишүүдийн жагсаалт нээлттэй эсэх
+  const [reads, setReads] = useState<Record<string, number>>({});
+  const [members, setMembers] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [error, setError] = useState("");
   const [missing, setMissing] = useState(false);
@@ -585,6 +729,8 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
   }, [messages]);
 
   useEffect(() => {
+    // Бүлгийн чатад нууц горим байхгүй (гишүүн бүр өөр цагт уншдаг)
+    if (isGroupChat(userId)) return;
     try {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- per-chat setting stored on this phone
       setEphemeral(localStorage.getItem(`${EPHEMERAL_KEY}${userId}`) === "1");
@@ -601,7 +747,7 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
     if (!me || !person) return;
     const saved = all
       .filter((m) => !m.pending)
-      .map(({ id, text, mine, at, read, file, fileStatus, ephemeral, readAt }) => ({
+      .map(({ id, text, mine, at, read, file, fileStatus, ephemeral, readAt, from }) => ({
         id,
         text,
         mine,
@@ -611,6 +757,7 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
         fileStatus,
         ephemeral,
         readAt,
+        from,
       }));
     await saveThread(me, person, saved, ack);
   }, []);
@@ -645,7 +792,7 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
   const pollOnce = useCallback(async (): Promise<boolean> => {
     const startedAt = ++tick.current;
     const ack = verified.current ? local.current.ack : null;
-    const res = await fetch(`/api/app/chat/${userId}${ack ? `?ack=${ack}` : ""}`, { cache: "no-store" }).catch(() => null);
+    const res = await fetch(`${api}${ack ? `?ack=${ack}` : ""}`, { cache: "no-store" }).catch(() => null);
     if (!res) {
       setError(OFFLINE);
       return false;
@@ -666,16 +813,30 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
     const data: ThreadResponse = await res.json();
     setError("");
     const first = !verified.current;
+    // Бүлгийн чатыг түүхэнд «хүн» шиг хадгална: userId нь "g:<id>", нэр нь бүлгийн нэр
+    const person: StoredPerson = data.group
+      ? { userId, rank: "", name: data.group.name, position: "Бүлгийн чат", photo: "" }
+      : data.person!;
     if (local.current.me !== data.me) {
       // Энэ утсаар өөр хүн нэвтэрсэн бол өмнөх хүний түүхийг харуулахгүй (loadThread түүнийг арилгана)
       const kept = local.current.me === null ? local.current.messages : [];
       const stored = await loadThread(data.me, userId);
-      local.current = { me: data.me, person: data.person, messages: merge(stored?.messages ?? [], kept), ack: stored?.ack ?? null };
+      local.current = { me: data.me, person, messages: merge(stored?.messages ?? [], kept), ack: stored?.ack ?? null };
     }
     verified.current = true;
     setMe(data.me);
-    local.current.person = data.person;
-    setInfo({ person: data.person, online: data.online, lastSeenAt: data.lastSeenAt, canMessage: data.canMessage });
+    local.current.person = person;
+    setInfo({
+      person,
+      online: Boolean(data.online),
+      lastSeenAt: data.lastSeenAt ?? null,
+      canMessage: data.canMessage,
+      ...(data.group ? { group: { members: data.group.members } } : {}),
+    });
+    if (data.reads) {
+      const next = data.reads;
+      setReads((current) => (JSON.stringify(current) === JSON.stringify(next) ? current : next));
+    }
 
     const before = local.current.messages;
     const fresh = data.messages.filter((m) => !before.some((k) => k.id === m.id));
@@ -729,7 +890,7 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
     setMessages(next);
     // Шинээр хадгалсан зурвас байвал шууд дахин асууж (ack) серверээс устгуулна
     return data.messages.length > 0 && local.current.ack !== ack;
-  }, [userId, lose, persist]);
+  }, [userId, api, lose, persist]);
 
   const poll = useCallback(async () => {
     if (!ready.current) return;
@@ -829,7 +990,7 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
     };
     stick.current = true;
     show([...local.current.messages.filter((m) => m.id !== temp.id), temp]);
-    const res = await fetch(`/api/app/chat/${userId}`, {
+    const res = await fetch(api, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text: body, ephemeral: temp.ephemeral === true }),
@@ -897,7 +1058,7 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
     try {
       let job = uploads.current.get(id);
       if (!job) {
-        const start = await fetch(`/api/app/chat/${userId}/files`, {
+        const start = await fetch(`${api}/files`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ name: file.name, size: file.size, type: file.type }),
@@ -908,7 +1069,7 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
         uploads.current.set(id, job);
       }
       await uploadChunks(job, id);
-      const res = await fetch(`/api/app/chat/${userId}`, {
+      const res = await fetch(api, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fileId: job.fileId, ephemeral: temp.ephemeral === true }),
@@ -1014,10 +1175,10 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
     await persist();
   }
 
-  /** «Хоёулангаас устгах»: миний илгээсэн зурвасыг серверээс, нөгөө хүний утаснаас устгана */
+  /** «Хоёулангаас устгах» (бүлэгт «Бүгдээс устгах»): миний илгээсэн зурвасыг серверээс, бусдын утаснаас устгана */
   async function unsend(m: Message) {
     setMenu(null);
-    const res = await fetch(`/api/app/chat/${userId}`, {
+    const res = await fetch(api, {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: m.id, fileId: m.file?.id || undefined }),
@@ -1025,7 +1186,7 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
     if (res?.status === 403) return lose(res);
     if (!res?.ok) return flash(await errorOf(res, "Устгаж чадсангүй — сүлжээгээ шалгаад дахин оролдоно уу"));
     await removeLocal(m.id);
-    flash("Хоёулангаас устгалаа");
+    flash(chat.group ? "Бүгдээс устгалаа" : "Хоёулангаас устгалаа");
   }
 
   /** «Надаас устгах»: зөвхөн энэ утаснаас. Ирсэн файлыг татаагүй бол серверээс ч устгана (дахин татах боломжгүй). */
@@ -1065,7 +1226,17 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
   const person = info?.person ?? null;
   const canMessage = Boolean(info?.canMessage) && !missing;
   const last = messages[messages.length - 1];
-  const status = last?.mine && !last.pending ? (last.read ? "Уншсан" : "Илгээсэн") : "";
+  // Миний сүүлийн зурвасын төлөв; бүлэгт — хэдэн гишүүн уншсан
+  const status =
+    !last?.mine || last.pending
+      ? ""
+      : last.read
+        ? chat.group
+          ? "Бүгд уншсан"
+          : "Уншсан"
+        : chat.group && reads[last.id]
+          ? `${reads[last.id]} хүн уншсан`
+          : "Илгээсэн";
 
   return (
     <div
@@ -1083,7 +1254,22 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
           >
             <ArrowLeft className="size-5" aria-hidden />
           </button>
-          {person ? (
+          {person && chat.group ? (
+            <button
+              type="button"
+              onClick={() => setMembers(true)}
+              aria-label="Гишүүд"
+              className="flex min-w-0 flex-1 items-center gap-2 text-left"
+            >
+              <GroupAvatar size={40} />
+              <span className="min-w-0">
+                <span className="block truncate font-semibold text-foreground">{person.name}</span>
+                <span className="block truncate text-xs text-muted-foreground">
+                  {missing ? "Та энэ бүлгийн гишүүн биш байна" : groupSubtitle(info?.group, me)}
+                </span>
+              </span>
+            </button>
+          ) : person ? (
             <>
               <Avatar person={person} size={40} online={missing ? undefined : info?.online} />
               <div className="min-w-0">
@@ -1094,7 +1280,10 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
               </div>
             </>
           ) : (
-            <p className="text-sm text-muted-foreground">{error || (missing ? "Хэрэглэгч олдсонгүй" : "Ачааллаж байна...")}</p>
+            <p className="text-sm text-muted-foreground">
+              {error ||
+                (missing ? (chat.group ? "Та энэ бүлгийн гишүүн биш байна" : "Хэрэглэгч олдсонгүй") : "Ачааллаж байна...")}
+            </p>
           )}
         </div>
       </header>
@@ -1103,25 +1292,36 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
         <div className="mx-auto max-w-md space-y-0.5 px-3 py-3">
           <p className="mx-auto mb-3 flex max-w-xs items-start justify-center gap-1.5 text-center text-[11px] leading-snug text-muted-foreground">
             <Lock className="mt-px size-3 shrink-0" aria-hidden />
-            Зурвас хүлээн авагч уншмагц, файл татаж авмагц серверээс устна. Чатын түүх зөвхөн та хоёрын утсанд
-            хадгалагдана. Зурвас дээр удаан дарж устгана.
+            {chat.group
+              ? "Зурвас бүх гишүүн уншмагц, файл бүгд татмагц серверээс устна. Чатын түүх зөвхөн гишүүдийн утсанд хадгалагдана. Зурвас дээр удаан дарж устгана."
+              : "Зурвас хүлээн авагч уншмагц, файл татаж авмагц серверээс устна. Чатын түүх зөвхөн та хоёрын утсанд хадгалагдана. Зурвас дээр удаан дарж устгана."}
           </p>
           {person && messages.length === 0 && (
             <div className="space-y-2 py-12 text-center">
-              <div className="flex justify-center">
-                <Avatar person={person} size={72} />
-              </div>
+              <div className="flex justify-center">{chat.group ? <GroupAvatar size={72} /> : <Avatar person={person} size={72} />}</div>
               <p className="font-semibold text-foreground">{fullName(person)}</p>
-              {person.position && <p className="text-sm text-muted-foreground">{person.position}</p>}
+              {(chat.group || person.position) && (
+                <p className="text-sm text-muted-foreground">{chat.group ? groupSubtitle(info?.group, me) : person.position}</p>
+              )}
               <p className="pt-2 text-sm text-muted-foreground">
-                {canMessage ? "Зурвас бичиж чатаа эхлүүлнэ үү." : "Энэ хүн чат ашиглах боломжгүй болсон."}
+                {canMessage
+                  ? chat.group
+                    ? "Бүлгийнхэндээ зурвас бичиж чатаа эхлүүлнэ үү."
+                    : "Зурвас бичиж чатаа эхлүүлнэ үү."
+                  : chat.group
+                    ? "Энэ бүлэгт зурвас илгээх боломжгүй."
+                    : "Энэ хүн чат ашиглах боломжгүй болсон."}
               </p>
             </div>
           )}
           {messages.map((m, i) => {
             const prev = messages[i - 1];
             const newDay = !prev || !sameDay(prev.at, m.at);
-            const grouped = Boolean(prev) && !newDay && prev.mine === m.mine;
+            // Бүлгийн чатад өөр хүний зурвас тусдаа багц
+            const sameAuthor = Boolean(prev) && prev.mine === m.mine && (m.mine || !chat.group || prev.from?.userId === m.from?.userId);
+            const grouped = Boolean(prev) && !newDay && sameAuthor;
+            // Бүлгийн чатад бусдын зурвас дээр илгээгчийн нэр (дараалсан зурваст нэг л удаа)
+            const author = chat.group && !m.mine && !grouped ? m.from?.name : undefined;
             return (
               <Fragment key={m.id}>
                 {newDay && <p className="py-2 text-center text-[11px] font-semibold text-muted-foreground">{chatDay(m.at)}</p>}
@@ -1141,6 +1341,7 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
                       m.mine ? "rounded-br-md bg-primary text-primary-foreground" : "rounded-bl-md bg-muted text-foreground"
                     } ${m.pending ? "opacity-60" : ""}`}
                   >
+                    {author && <span className="mb-0.5 block text-[11px] font-semibold text-primary">{author}</span>}
                     {m.file && m.file.id && !m.pending && inlineMedia(m.file) ? (
                       <MediaBubble
                         message={m}
@@ -1149,6 +1350,7 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
                         fallback={
                           <FileCard
                             message={m}
+                            group={chat.group}
                             downloading={downloading.has(m.file.id)}
                             onDownload={() => setDownloading((current) => new Set(current).add(m.file!.id))}
                           />
@@ -1157,6 +1359,7 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
                     ) : m.file && (
                       <FileCard
                         message={m}
+                        group={chat.group}
                         downloading={downloading.has(m.file.id)}
                         onDownload={() => setDownloading((current) => new Set(current).add(m.file!.id))}
                       />
@@ -1210,6 +1413,43 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
         </div>
       )}
 
+      {members && info?.group && (
+        <div
+          className="fixed inset-0 z-[60] flex items-end justify-center bg-black/50"
+          role="dialog"
+          aria-label="Гишүүд"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setMembers(false);
+          }}
+        >
+          <div className="w-full max-w-md space-y-2 px-3 pt-3" style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
+            <div className="max-h-[60vh] overflow-y-auto rounded-2xl border border-border bg-background">
+              <p className="px-4 py-2.5 text-center text-xs text-muted-foreground">
+                {person?.name} · {info.group.members.length} гишүүн
+              </p>
+              <ul className="divide-y divide-border">
+                {info.group.members.map((m) => (
+                  <li key={m.userId} className="flex items-center gap-3 px-4 py-2">
+                    <Avatar person={m} size={36} online={m.online} />
+                    <span className="min-w-0 flex-1 truncate text-sm text-foreground">
+                      {fullName(m)}
+                      {m.userId === me && <span className="text-muted-foreground"> (та)</span>}
+                    </span>
+                    {m.online && m.userId !== me && <span className="text-[11px] text-green-500">Идэвхтэй</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <button
+              onClick={() => setMembers(false)}
+              className="w-full rounded-2xl border border-border bg-background py-3 font-semibold text-foreground active:bg-muted"
+            >
+              Хаах
+            </button>
+          </div>
+        </div>
+      )}
+
       {menu && (
         <div
           className="fixed inset-0 z-[60] flex items-end justify-center bg-black/50"
@@ -1226,7 +1466,9 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
           <div className="w-full max-w-md space-y-2 px-3 pt-3" style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
             <div className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-background">
               <p className="truncate px-4 py-2.5 text-center text-xs text-muted-foreground">
-                {menu.ephemeral ? "Нууц зурвас" : previewText(menu) || "Зурвас"}
+                {menu.ephemeral
+                  ? "Нууц зурвас"
+                  : `${menu.from && !menu.mine ? `${menu.from.name}: ` : ""}${previewText(menu)}` || "Зурвас"}
               </p>
               {menu.text && !menu.ephemeral && !menu.pending && (
                 <button onClick={() => copyText(menu)} className="flex w-full items-center gap-3 px-4 py-3 text-left text-foreground active:bg-muted">
@@ -1238,8 +1480,10 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
                 <button onClick={() => unsend(menu)} className="flex w-full items-center gap-3 px-4 py-3 text-left text-red-500 active:bg-muted">
                   <Trash2 className="size-5 shrink-0" aria-hidden />
                   <span>
-                    <span className="block font-semibold">Хоёулангаас устгах</span>
-                    <span className="block text-xs text-muted-foreground">Таны болон хүлээн авагчийн утаснаас устна</span>
+                    <span className="block font-semibold">{chat.group ? "Бүгдээс устгах" : "Хоёулангаас устгах"}</span>
+                    <span className="block text-xs text-muted-foreground">
+                      {chat.group ? "Бүх гишүүний утаснаас устна" : "Таны болон хүлээн авагчийн утаснаас устна"}
+                    </span>
                   </span>
                 </button>
               )}
@@ -1286,7 +1530,7 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
           className="shrink-0 border-t border-border px-3 pt-3 text-center text-sm text-muted-foreground"
           style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
         >
-          Энэ хүнд зурвас илгээх боломжгүй.
+          {chat.group ? "Энэ бүлэгт зурвас илгээх боломжгүй." : "Энэ хүнд зурвас илгээх боломжгүй."}
         </p>
       ) : (
         <form
@@ -1309,18 +1553,20 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
               <span className="sr-only">Файл илгээх</span>
               <input type="file" multiple onChange={pickFiles} disabled={!person} className="sr-only" />
             </label>
-            <button
-              type="button"
-              onClick={toggleEphemeral}
-              onMouseDown={(e) => e.preventDefault()}
-              aria-pressed={ephemeral}
-              aria-label="Уншаад 2 минутад устах горим"
-              className={`flex size-10 shrink-0 items-center justify-center rounded-full active:bg-muted ${
-                ephemeral ? "bg-yellow-400/15 text-yellow-400" : "text-muted-foreground"
-              }`}
-            >
-              <Timer className="size-5" aria-hidden />
-            </button>
+            {!chat.group && (
+              <button
+                type="button"
+                onClick={toggleEphemeral}
+                onMouseDown={(e) => e.preventDefault()}
+                aria-pressed={ephemeral}
+                aria-label="Уншаад 2 минутад устах горим"
+                className={`flex size-10 shrink-0 items-center justify-center rounded-full active:bg-muted ${
+                  ephemeral ? "bg-yellow-400/15 text-yellow-400" : "text-muted-foreground"
+                }`}
+              >
+                <Timer className="size-5" aria-hidden />
+              </button>
+            )}
             <textarea
               ref={inputRef}
               value={text}

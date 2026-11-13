@@ -2,7 +2,8 @@
 // Утсыг хүний нөөц хүчингүй болгох, өөр хүн энэ утсаар нэвтрэх үед түүхийг арилгана. Зөвхөн хөтөч дээр дуудна.
 
 // file — хавсаргасан файл (fileStatus: ready — серверт байгаа, downloaded — хүлээн авагч татаж авсан тул серверээс
-// устсан, gone — хугацаа дууссан); ephemeral — уншсанаас (readAt) хойш 2 минутад хоёр утаснаас устах зурвас
+// устсан, gone — хугацаа дууссан); ephemeral — уншсанаас (readAt) хойш 2 минутад хоёр утаснаас устах зурвас;
+// from — бүлгийн чатад хэн илгээсэн (цол, нэр)
 export type StoredMessage = {
   id: string;
   text: string;
@@ -13,7 +14,9 @@ export type StoredMessage = {
   fileStatus?: "ready" | "downloaded" | "gone";
   ephemeral?: boolean;
   readAt?: number;
+  from?: { userId: string; name: string };
 };
+// Бүлгийн чатын хувьд userId нь "g:<бүлгийн id>", name нь бүлгийн нэр
 export type StoredPerson = { userId: string; rank: string; name: string; position: string; photo: string };
 // ack — серверээс хүлээн авч хадгалсан хамгийн сүүлийн зурвас (түүнийг хүртэлх зурвасыг сервер устгана)
 export type StoredThread = { key: string; me: string; person: StoredPerson; messages: StoredMessage[]; ack: string | null };
@@ -108,6 +111,12 @@ export async function saveThread(me: string, person: StoredPerson, messages: Sto
   if (owner() !== me) return;
   const thread: StoredThread = { key: keyOf(me, person.userId), me, person, messages: messages.slice(-HISTORY_LIMIT), ack };
   await run("readwrite", (store) => store.put(thread));
+}
+
+/** Нэг чатын түүхийг утаснаас арилгана (бүлгээс гарахад тэр бүлгийн чат г.м) */
+export async function deleteThread(me: string, other: string) {
+  if (owner() !== me) return;
+  await run("readwrite", (store) => store.delete(keyOf(me, other)));
 }
 
 /** Утсан дээрх бүх чатын түүхийг арилгана (утсыг хүчингүй болгосон, бүртгэл идэвхгүй болсон үед) */
