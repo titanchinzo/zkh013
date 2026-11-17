@@ -7,14 +7,15 @@ import { SITE_URL } from "@/lib/site";
 // VAPID түлхүүрийг .env.local-д: VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY (npx web-push generate-vapid-keys).
 
 // kind: "chat" — чатын зурвас (дэлгэц дээр удаан үлдэхгүй, зурвас илгээсэн хүний зурагтай); "news" — мэдээний
-// хяналт, шийдвэр (мөн удаан үлдэхгүй); badge — аппын дүрс дээрх уншаагүй зурвасын тоо; silent — дуугүй, чичиргээгүй
+// хяналт, шийдвэр (мөн удаан үлдэхгүй); "request" — утас бүртгүүлэх хүсэлт (хүний нөөц, админд; мөн удаан үлдэхгүй);
+// badge — аппын дүрс дээрх уншаагүй зурвасын тоо; silent — дуугүй, чичиргээгүй
 // (ижил tag-тай мэдэгдлийг шинэчлэхэд, жишээ нь илгээгч зурвасаа устгасан үед)
 export type PushPayload = {
   title: string;
   body: string;
   url?: string;
   tag?: string;
-  kind?: "chat" | "news";
+  kind?: "chat" | "news" | "request";
   icon?: string;
   badge?: number;
   silent?: boolean;

@@ -5,7 +5,7 @@ import Device from "@/lib/models/Device";
 import Personnel from "@/lib/models/Personnel";
 import { getApprovedDevice } from "@/lib/device";
 import { personnelLabel } from "@/lib/hr";
-import { canReview, isRole, resolveRole, type Role } from "@/lib/roles";
+import { canReview, isHrRole, isRole, resolveRole, type Role } from "@/lib/roles";
 
 // Хүсэлт илгээсэн хүн — сайтад нэвтэрсэн (Clerk) эсвэл хүний нөөцийн зөвшөөрсөн утсан дээрх апп.
 // Эрх нь аль алинд Clerk-ийн publicMetadata.role. Апп Clerk-ийн 7 хоногийн нэвтрэлтээс хамаардаггүй тул утасны
@@ -81,6 +81,13 @@ async function staffRoles(): Promise<Map<string, Role>> {
   }
   store.__zkhStaff = { ids, at: Date.now() };
   return ids;
+}
+
+/** Хүний нөөцийн эрхтэй (хүний нөөц, админ), утсаа бүртгүүлсэн хүмүүс — except-ийг хасна */
+export async function hrStaffIds(except?: string): Promise<string[]> {
+  await connectToDatabase();
+  const [staff, withApp] = await Promise.all([staffRoles(), Device.distinct("userId", { status: "approved" })]);
+  return (withApp as string[]).filter((id) => id !== except && isHrRole(staff.get(id) ?? null));
 }
 
 /** Мэдээ хянах эрхтэй (хянагч, админ), утсаа бүртгүүлсэн хүмүүс — except-ийг хасна */

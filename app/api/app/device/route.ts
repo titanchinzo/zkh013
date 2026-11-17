@@ -1,10 +1,11 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { isValidObjectId } from "mongoose";
 import { connectToDatabase } from "@/lib/mongodb";
 import Device from "@/lib/models/Device";
 import Personnel from "@/lib/models/Personnel";
 import { deviceLabel, getCurrentDevice, newDeviceToken, setDeviceCookie } from "@/lib/device";
+import { notifyDeviceRequest } from "@/lib/device-notify";
 import { parsePersonnel } from "@/lib/hr";
 import { trustOf } from "@/lib/invite";
 
@@ -117,5 +118,7 @@ export async function POST(req: NextRequest) {
   await Device.deleteMany({ userId: user.id, status: "pending" });
   await Device.create(device);
   await setDeviceCookie(token);
+  // Хүний нөөц, админуудын утсанд мэдэгдэнэ — зөвшөөрөл хүлээж буй хүн удаан хүлээхгүй
+  after(() => notifyDeviceRequest({ userId: user.id, ...parsed.value }));
   return NextResponse.json({ status: "pending" }, { status: 201 });
 }

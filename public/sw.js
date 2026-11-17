@@ -1,5 +1,5 @@
-// Утсан дээрх аппын service worker: серверээс ирсэн мэдэгдлийг (зарлан мэдээлэл, харуулын сануулга, чатын зурвас)
-// утсан дээр харуулж, дарахад аппын тухайн хэсгийг нээнэ.
+// Утсан дээрх аппын service worker: серверээс ирсэн мэдэгдлийг (зарлан мэдээлэл, харуулын сануулга, чатын зурвас,
+// мэдээний хяналт, утас бүртгүүлэх хүсэлт) утсан дээр харуулж, дарахад аппын тухайн хэсгийг (эсвэл сайтын хуудсыг) нээнэ.
 
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
@@ -7,8 +7,8 @@ self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim(
 self.addEventListener("push", (event) => {
   const data = event.data ? event.data.json() : {};
   const chat = data.kind === "chat";
-  // Чатын зурвас, мэдээний хяналт — бусад аппынх шиг энгийн мэдэгдэл
-  const quiet = chat || data.kind === "news";
+  // Чатын зурвас, мэдээний хяналт, утас бүртгүүлэх хүсэлт — бусад аппынх шиг энгийн мэдэгдэл
+  const quiet = chat || data.kind === "news" || data.kind === "request";
   // silent — өмнөх мэдэгдлийг дуугүй шинэчилнэ (илгээгч зурвасаа устгасан г.м); чичиргээ зааж болохгүй
   const silent = data.silent === true;
   const tasks = [
@@ -38,6 +38,11 @@ self.addEventListener("notificationclick", (event) => {
   const url = new URL(event.notification.data?.url || "/app", self.location.origin);
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((windows) => {
+      // Сайтын хуудас (хүний нөөцийн «Утасны бүртгэл» г.м) — нээлттэй бол түүн рүү шилжинэ, үгүй бол нээнэ
+      if (url.pathname !== "/app") {
+        const page = windows.find((w) => new URL(w.url).pathname === url.pathname);
+        return page ? page.focus() : self.clients.openWindow(url.href);
+      }
       // Апп нээлттэй бол түүн рүү шилжиж, тухайн хэсгийг (жишээ нь чатыг) нээлгэнэ
       const app = windows.find((w) => new URL(w.url).pathname === "/app");
       if (!app) return self.clients.openWindow(url.href);
