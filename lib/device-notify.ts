@@ -4,7 +4,7 @@ import { formatPhone, personnelLabel } from "@/lib/hr";
 import { pushToDevices } from "@/lib/push";
 
 // Утас бүртгүүлэх хүсэлтийн мэдэгдэл: зөвшөөрөл хүлээж буй шинэ хүсэлт ирэхэд хүний нөөц, админуудын утсанд очно.
-// Дарахад сайтын «Утасны бүртгэл» (/admin/devices) хуудас нээгдэнэ — тэндээс зөвшөөрнө, татгалзана.
+// Дарахад апп-ын нүүр нээгдэж, дээд талд нь «Утасны хүсэлт» карт гарна — утсаасаа шууд зөвшөөрнө, татгалзана.
 
 type DeviceRequest = { userId: string; rank?: string; name?: string; phone?: string };
 
@@ -18,7 +18,7 @@ export async function notifyDeviceRequest(request: DeviceRequest) {
       {
         title: "Утас бүртгүүлэх хүсэлт",
         body: [who, formatPhone(request.phone)].filter(Boolean).join(" · "),
-        url: "/admin/devices",
+        url: "/app",
         tag: `device-request-${request.userId}`,
         kind: "request",
       },

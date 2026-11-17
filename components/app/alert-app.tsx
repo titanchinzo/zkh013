@@ -23,6 +23,7 @@ import { Avatar } from "@/components/app/avatar";
 import { ChatList, Conversation } from "@/components/app/chat";
 import { NewsDetail, NewsList, NewsWrite } from "@/components/app/news";
 import { Directory } from "@/components/app/directory";
+import { DeviceRequests } from "@/components/app/device-requests";
 import { usePolling } from "@/lib/use-polling";
 import { clearChatHistory } from "@/lib/chat-store";
 
@@ -46,6 +47,8 @@ type Feed = {
   weeks: { start: string; days: { date: string; people: { name: string; me: boolean }[] }[] }[];
   // «Мэдээ»-ний тэмдэг: хянагчид хяналт хүлээж буй мэдээ, бусдад хамгийн сүүлийн мэдээний огноо
   news?: { pending: number; latestAt: string | null };
+  // Шийдвэр хүлээж буй утасны хүсэлтийн тоо — зөвхөн хүний нөөц, админд (бусдад байхгүй)
+  requests?: number;
 };
 
 const button = "w-full h-11 rounded-md bg-primary text-primary-foreground font-semibold disabled:opacity-50";
@@ -457,6 +460,8 @@ function ApprovedView({
 }) {
   const [feed, setFeed] = useState<Feed | null>(null);
   const [unread, setUnread] = useState(0);
+  // Утасны хүсэлтийн тоо (хүний нөөц, админ) — нүүр хуудасны карт шинэчлэх бүрд
+  const [requests, setRequests] = useState<number | null>(null);
   // Мэдээ бичсэн, хянасны дараа жагсаалтыг шинэчилнэ
   const [newsVersion, setNewsVersion] = useState(0);
   const [newsNotice, setNewsNotice] = useState("");
@@ -590,7 +595,7 @@ function ApprovedView({
   return (
     <>
       <div className={tab === "home" ? "space-y-6" : "hidden"}>
-        {feed ? <HomeView feed={feed} onChange={load} onAck={ack} /> : <p className="text-sm text-muted-foreground">Ачааллаж байна...</p>}
+        {feed ? <HomeView feed={feed} onChange={load} onAck={ack} onRequests={setRequests} /> : <p className="text-sm text-muted-foreground">Ачааллаж байна...</p>}
       </div>
       {tab === "news" && (
         <NewsList version={newsVersion} notice={newsNotice} onOpen={openNews} onWrite={() => openWrite(null)} />
@@ -600,7 +605,7 @@ function ApprovedView({
       {tab === "chat" && !chatWith && <ChatList onOpen={openChat} onUnread={setUnread} pushEnabled={feed?.pushEnabled ?? true} />}
       {tab === "phones" && <Directory />}
       {chatWith && <Conversation key={chatWith} userId={chatWith} onBack={closeChat} />}
-      {!chatWith && !newsId && !write && <BottomNav tab={tab} unread={unread} news={newsBadge} onTab={switchTab} />}
+      {!chatWith && !newsId && !write && <BottomNav tab={tab} unread={unread} news={newsBadge} requests={requests ?? feed?.requests ?? 0} onTab={switchTab} />}
     </>
   );
 }
@@ -608,16 +613,18 @@ function ApprovedView({
 const badgeClass =
   "absolute -right-3 -top-1.5 h-4 min-w-4 rounded-full bg-red-500 px-1 text-center text-[10px] font-bold leading-4 text-white";
 
-/** Доод цэс: Нүүр / Мэдээ (хянах мэдээний тоо, шинэ мэдээ) / Чат (уншаагүй зурвасын тоо) / Утас (утасны жагсаалт) */
+/** Доод цэс: Нүүр (утасны хүсэлтийн тоо) / Мэдээ (хянах мэдээний тоо, шинэ мэдээ) / Чат (уншаагүй зурвасын тоо) / Утас */
 function BottomNav({
   tab,
   unread,
   news,
+  requests,
   onTab,
 }: {
   tab: Tab;
   unread: number;
   news: { count: number; dot: boolean };
+  requests: number;
   onTab: (tab: Tab) => void;
 }) {
   const item = (t: Tab) =>
@@ -630,7 +637,14 @@ function BottomNav({
     >
       <div className="mx-auto flex max-w-md">
         <button onClick={() => onTab("home")} className={item("home")} aria-current={tab === "home" ? "page" : undefined}>
-          <House className="size-5" aria-hidden />
+          <span className="relative">
+            <House className="size-5" aria-hidden />
+            {requests > 0 && (
+              <span className={badgeClass} aria-label={`${requests} утасны хүсэлт`}>
+                {requests > 99 ? "99+" : requests}
+              </span>
+            )}
+          </span>
           Нүүр
         </button>
         <button onClick={() => onTab("news")} className={item("news")} aria-current={tab === "news" ? "page" : undefined}>
@@ -666,10 +680,23 @@ function BottomNav({
   );
 }
 
-/** «Нүүр»: миний бүртгэл, дараагийн манаа, мэдэгдэл, зарлан мэдээлэл, харуулын хуваарь, хүн бүртгэх */
-function HomeView({ feed, onChange, onAck }: { feed: Feed; onChange: () => void; onAck: (id: string) => void }) {
+/** «Нүүр»: утасны хүсэлт (хүний нөөц, админ), миний бүртгэл, дараагийн манаа, мэдэгдэл, зарлан мэдээлэл, харуулын хуваарь, хүн бүртгэх */
+function HomeView({
+  feed,
+  onChange,
+  onAck,
+  onRequests,
+}: {
+  feed: Feed;
+  onChange: () => void;
+  onAck: (id: string) => void;
+  onRequests: (count: number) => void;
+}) {
   return (
     <>
+      {/* Хүний нөөц, админд: шийдвэр хүлээж буй утасны хүсэлт — хамгийн дээр */}
+      {feed.requests !== undefined && <DeviceRequests onCount={onRequests} onChange={onChange} />}
+
       {feed.person && <ProfileCard person={feed.person} onChange={onChange} />}
 
       {feed.nextDuty && <NextDuty date={feed.nextDuty} />}

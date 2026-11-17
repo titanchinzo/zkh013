@@ -337,6 +337,34 @@ export function sameName(a: string, b: string): boolean {
   return Boolean(x.given) && x.given === y.given && (!x.initial || !y.initial || x.initial === y.initial);
 }
 
+/**
+ * Утасны хүсэлтийг хүний нөөцийн аль бүртгэлтэй холбохыг урьдчилан сонгоно: энэ хэрэглэгчийн бүртгэл (утсаа сольж
+ * байгаа), дараа нь ижил утасны дугаартай, эсвэл ижил нэртэй ганц бүртгэл. Хэд хэд таарвал null — хүний нөөц өөрөө
+ * сонгоно. Сайтын «Утасны бүртгэл» хуудас, утсан дээрх апп хоёулаа ашиглана.
+ */
+export function suggestPerson<P extends { _id: string; name: string; phone?: string; extraPhones?: string[]; userId?: string }>(
+  device: { userId: string; name: string; phone?: string },
+  personnel: P[]
+): { person: P; why: string } | null {
+  const linked = personnel.find((p) => p.userId === device.userId);
+  if (linked) return { person: linked, why: "Бүртгэлтэй алба хаагч — шинэ утаснаас хүсэлт илгээсэн" };
+  const free = personnel.filter((p) => !p.userId);
+  // Үндсэн эсвэл бусад дугаарын аль нэг нь таарвал
+  const samePhone = device.phone ? free.filter((p) => p.phone === device.phone || p.extraPhones?.includes(device.phone!)) : [];
+  if (samePhone.length === 1) return { person: samePhone[0], why: "Утасны дугаар нь хүний нөөцийн бүртгэлтэй таарлаа" };
+  // "Б.Болд" ≈ "Батын Болд"; дундын утастай хүмүүсээс нэрээр нь ялгана
+  const named = (samePhone.length ? samePhone : free).filter((p) => sameName(p.name, device.name));
+  if (named.length === 1) {
+    return {
+      person: named[0],
+      why: samePhone.length
+        ? "Утасны дугаар, нэр нь хүний нөөцийн бүртгэлтэй таарлаа"
+        : "Нэр нь хүний нөөцийн бүртгэлтэй таарлаа — шалгаад зөвшөөрнө үү",
+    };
+  }
+  return null;
+}
+
 /** Бүлгийн дараалал → цол (ахлахаас) → нэрээр эрэмбэлэх; бүлэггүй хүмүүс төгсгөлд */
 export function comparePersonnel(groups: readonly string[]) {
   const index = new Map(groups.map((g, i) => [g, i]));

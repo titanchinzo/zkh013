@@ -4,7 +4,8 @@ import Alert from "@/lib/models/Alert";
 import { visibleNow } from "@/lib/alerts";
 import { userRole } from "@/lib/actor";
 import News from "@/lib/models/News";
-import { canReview } from "@/lib/roles";
+import { canReview, isHrRole } from "@/lib/roles";
+import Device from "@/lib/models/Device";
 
 async function newsBadge(userId: string) {
   const { role } = await userRole(userId);
@@ -26,6 +27,7 @@ export async function GET() {
   const device = await getApprovedDevice();
   if (!device) return NextResponse.json({ error: "Энэ утсыг хүний нөөц зөвшөөрөөгүй байна" }, { status: 403 });
 
+  const news = await newsBadge(device.userId);
   const today = todayUb();
   const start = weekStart(today);
   const days = Array.from({ length: WEEK_DAYS * 2 }, (_, i) => addDays(start, i));
@@ -78,7 +80,9 @@ export async function GET() {
       : null,
     pushEnabled: Boolean(device.push?.endpoint),
     // «Мэдээ» хэсгийн тэмдэг: хянагчид хяналт хүлээж буй мэдээний тоо, бусдад шинэ мэдээ нэмэгдсэн эсэх
-    news: await newsBadge(device.userId),
+    news,
+    // Шийдвэр хүлээж буй утасны хүсэлтийн тоо — зөвхөн хүний нөөц, админд (бусдад байхгүй)
+    ...(isHrRole(news.role) ? { requests: await Device.countDocuments({ status: "pending" }) } : {}),
     nextDuty: next?.date ?? null,
     alerts: alerts.map((a) => ({
       id: String(a._id),
