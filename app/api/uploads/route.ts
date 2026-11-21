@@ -13,7 +13,8 @@ export async function POST(req: NextRequest) {
 
   // Сайтаас (Clerk) эсвэл утсан дээрх аппаас (зөвшөөрөгдсөн утас) — эрх нь Clerk-ийн role
   const actor = await getActor();
-  if (!actor?.role || !rule.roles.includes(actor.role)) {
+  const allowed = Boolean(actor && ((actor.role && rule.roles.includes(actor.role)) || (rule.ahmad && actor.ahmad)));
+  if (!actor || !allowed) {
     return NextResponse.json({ error: "Файл оруулах эрхгүй байна" }, { status: 403 });
   }
 

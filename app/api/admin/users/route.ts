@@ -6,6 +6,7 @@ import { clerkErrorMessage, parseEmail } from "@/lib/invite";
 import { connectToDatabase } from "@/lib/mongodb";
 import Personnel from "@/lib/models/Personnel";
 import { isRole, resolveRole } from "@/lib/roles";
+import { hasAhmadFlag } from "@/lib/ahmad";
 
 const FORBIDDEN = { error: "Зөвшөөрөлгүй" };
 
@@ -44,6 +45,7 @@ export async function GET() {
       inactive: Boolean(person && !person.active),
       email: u.primaryEmailAddress?.emailAddress ?? "",
       role: resolveRole(u.publicMetadata as { role?: string }, u.primaryEmailAddress?.emailAddress),
+      ahmad: hasAhmadFlag(u.publicMetadata),
       banned: u.banned,
       lastSignInAt: u.lastSignInAt,
       isMe: u.id === userId,

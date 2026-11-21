@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { UserButton } from "@clerk/nextjs";
 import { getCurrentRole } from "@/lib/auth-role";
-import { ROLE_LABELS, isHrRole, isNewsRole } from "@/lib/roles";
+import { ROLE_LABELS, canReview, isHrRole, isNewsRole } from "@/lib/roles";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const role = await getCurrentRole();
@@ -21,6 +21,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           },
         ]
       : []),
+    // «Ахмад» хэсгийн пост хянах — хянагч, админ
+    ...(canReview(role) ? [{ href: "/admin/ahmad", label: "Ахмадын пост" }] : []),
     // Хүний нөөц — нийтэд биш, зөвхөн админ болон хүний нөөц
     ...(isHrRole(role)
       ? [

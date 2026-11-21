@@ -16,6 +16,8 @@ export const NAV_LINKS = [
   { href: "/", label: "Нүүр" },
   { href: "/#about", label: "Тухай" },
   { href: "/news", label: "Мэдээ" },
+  // Ахмад дайчид, ахмад алба хаагчдын түүхэн зураг, дурсамж
+  { href: "/ahmad", label: "Ахмад" },
   { href: "/#training", label: "Сургалт" },
   { href: "/#contact", label: "Холбоо барих" },
   // Алба хаагчдын «Зарлан мэдээлэх» апп (/download → утсандаа суулгана)

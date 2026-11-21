@@ -13,6 +13,8 @@ type UserRow = {
   inactive: boolean;
   email: string;
   role: Role;
+  // «Ахмад» эрх — сайтын «Ахмад» хэсэгт түүхэн зураг, дурсамж нийтэлнэ (хянагч зөвшөөрнө)
+  ahmad: boolean;
   banned: boolean;
   lastSignInAt: number | null;
   isMe: boolean;
@@ -84,6 +86,11 @@ export default function AdminUsersPage() {
 
   async function setRole(id: string, role: string) {
     await send(`/api/admin/users/${id}/role`, json("PATCH", { role }));
+    load();
+  }
+
+  async function setAhmad(id: string, ahmad: boolean) {
+    await send(`/api/admin/users/${id}/ahmad`, json("PATCH", { ahmad }));
     load();
   }
 
@@ -227,6 +234,9 @@ export default function AdminUsersPage() {
                     <th className="text-left px-4 py-3 text-muted-foreground font-semibold">Нэр</th>
                     <th className="text-left px-4 py-3 text-muted-foreground font-semibold">И-мэйл</th>
                     <th className="text-left px-4 py-3 text-muted-foreground font-semibold">Эрх</th>
+                    <th className="text-left px-4 py-3 text-muted-foreground font-semibold" title="Сайтын «Ахмад» хэсэгт пост бичих эрх">
+                      Ахмад
+                    </th>
                     <th className="text-left px-4 py-3 text-muted-foreground font-semibold">Сүүлд нэвтэрсэн</th>
                     <th />
                   </tr>
@@ -256,6 +266,15 @@ export default function AdminUsersPage() {
                         >
                           {ROLE_OPTIONS}
                         </select>
+                      </td>
+                      <td className="px-4 py-3">
+                        <input
+                          type="checkbox"
+                          checked={u.ahmad}
+                          onChange={(e) => setAhmad(u.id, e.target.checked)}
+                          className="size-4 accent-primary"
+                          aria-label={`${u.email} — «Ахмад» эрх`}
+                        />
                       </td>
                       <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
                         {u.lastSignInAt ? new Date(u.lastSignInAt).toLocaleDateString("mn-MN") : "—"}
