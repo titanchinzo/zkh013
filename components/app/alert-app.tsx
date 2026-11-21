@@ -25,12 +25,23 @@ import { NewsDetail, NewsList, NewsWrite } from "@/components/app/news";
 import { Directory } from "@/components/app/directory";
 import { DeviceRequests } from "@/components/app/device-requests";
 import { AlertManager, DutyManager, HrTools, type ManageView } from "@/components/app/manage";
+import { LOCK_EVENT, LockScreen, inLockCeremony } from "@/components/app/app-lock";
 import { usePolling } from "@/lib/use-polling";
 import { clearChatHistory } from "@/lib/chat-store";
 
 type DeviceStatus = "pending" | "approved" | "rejected" | "revoked";
 // direct — урилгаар орж ирсэн тул бүртгэл хүний нөөцийн зөвшөөрөлгүй шууд идэвхжинэ
-type DeviceInfo = { signedIn: boolean; direct: boolean; device: { status: DeviceStatus; name: string } | null };
+// lock — зөвшөөрөгдсөн утасны апп түгжээ: setup (тохируулаагүй), locked, open (сервер дээр тайлсан), off (туршилтад)
+type LockState = "off" | "setup" | "locked" | "open";
+type DeviceInfo = {
+  signedIn: boolean;
+  direct: boolean;
+  device: { status: DeviceStatus; rank: string; name: string } | null;
+  lock: LockState | null;
+};
+
+// Файл, зураг сонгох (камер) цонх нээхэд апп далд ордог — ийм богино хугацаанд түгжихгүй
+const PICKER_GRACE_MS = 3000;
 type Person = {
   rank: string;
   name: string;
@@ -83,6 +94,10 @@ export function AlertApp() {
           ? "phones"
           : "home";
   const approved = info?.device?.status === "approved";
+  // Апп нээх бүрд (энэ хуудас ачаалагдах, апп далд орж буцах бүрд) утасны түгжээгээр баталгаажуулна
+  const [unlocked, setUnlocked] = useState(false);
+  const lockState = info?.lock ?? null;
+  const locked = approved && lockState !== "off" && (lockState !== "open" || !unlocked);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/app/device", { cache: "no-store" }).catch(() => null);
@@ -104,8 +119,42 @@ export function AlertApp() {
   // Хүсэлт хүлээгдэж байх хооронд байнга шалгана — хүний нөөц зөвшөөрмөгц апп өөрөө нээгдэнэ
   usePolling(load, 10_000, info?.device?.status === "pending");
 
+  // Апп далд орох бүрд (өөр апп, дэлгэц унтрах) шууд түгжинэ — сервер дээр ч. Файл сонгох, баталгаажуулах цонх
+  // нээгдэхэд түгжихгүй. Чат зэрэг нь 403 авбал (түгжигдсэн) LOCK_EVENT-ээр мэдэгдэнэ.
+  const lockable = approved && lockState !== "off";
+  useEffect(() => {
+    if (!lockable) return;
+    let pickerAt = 0;
+    const onClick = (e: Event) => {
+      if (e.target instanceof HTMLInputElement && e.target.type === "file") pickerAt = Date.now();
+    };
+    const onHidden = () => {
+      if (document.visibilityState !== "hidden" || inLockCeremony() || Date.now() - pickerAt < PICKER_GRACE_MS) return;
+      setUnlocked(false);
+      navigator.sendBeacon?.("/api/app/lock/close");
+    };
+    const onLocked = () => {
+      setUnlocked(false);
+      load();
+    };
+    document.addEventListener("click", onClick, true);
+    document.addEventListener("visibilitychange", onHidden);
+    window.addEventListener(LOCK_EVENT, onLocked);
+    return () => {
+      document.removeEventListener("click", onClick, true);
+      document.removeEventListener("visibilitychange", onHidden);
+      window.removeEventListener(LOCK_EVENT, onLocked);
+    };
+  }, [lockable, load]);
+
+  // Эхлээд тайлсан гэж тэмдэглэнэ — дараа нь серверийн төлөв ("open") ирэхэд түгжээний цонх дахин асуухгүй
+  const onUnlocked = useCallback(async () => {
+    setUnlocked(true);
+    await load();
+  }, [load]);
+
   return (
-    <div className={`mx-auto max-w-md px-4 py-6 space-y-6 ${approved ? "pb-28" : ""}`}>
+    <div className={`mx-auto max-w-md px-4 py-6 space-y-6 ${approved && !locked ? "pb-28" : ""}`}>
       <header className="flex items-center gap-3">
         <Image src="/logo.png" alt="" width={36} height={47} />
         <div>
@@ -118,6 +167,13 @@ export function AlertApp() {
 
       {!info ? (
         <p className="text-sm text-muted-foreground">Ачааллаж байна...</p>
+      ) : locked ? (
+        <LockScreen
+          key={lockState === "setup" ? "setup" : "locked"}
+          mode={lockState === "setup" ? "setup" : "locked"}
+          name={[info.device?.rank, info.device?.name].filter(Boolean).join(" ")}
+          onUnlocked={onUnlocked}
+        />
       ) : approved ? (
         <ApprovedView tab={tab} chatWith={chatWith} newsId={newsId} write={write} manage={manage} />
       ) : info.device?.status === "pending" ? (

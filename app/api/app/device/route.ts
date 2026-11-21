@@ -4,7 +4,7 @@ import { isValidObjectId } from "mongoose";
 import { connectToDatabase } from "@/lib/mongodb";
 import Device from "@/lib/models/Device";
 import Personnel from "@/lib/models/Personnel";
-import { deviceLabel, getCurrentDevice, newDeviceToken, setDeviceCookie } from "@/lib/device";
+import { deviceLabel, getCurrentDevice, lockStateOf, newDeviceToken, setDeviceCookie } from "@/lib/device";
 import { notifyDeviceRequest } from "@/lib/device-notify";
 import { parsePersonnel } from "@/lib/hr";
 import { trustOf } from "@/lib/invite";
@@ -66,7 +66,8 @@ async function linkPersonnel(userId: string, fields: Fields, trust: { invitedBy:
 }
 
 /**
- * Энэ утасны төлөв: { signedIn, direct, device } — direct: урилгаар орж ирсэн тул бүртгэл шууд идэвхжинэ.
+ * Энэ утасны төлөв: { signedIn, direct, device, lock } — direct: урилгаар орж ирсэн тул бүртгэл шууд идэвхжинэ.
+ * lock — зөвшөөрөгдсөн утасны апп түгжээ: "setup" (тохируулаагүй), "locked", "open" (тайлсан).
  * Апп нээх бүрд, хүсэлт хүлээж буй утас 10 секунд тутам асуудаг тул Clerk-ээс хэрэглэгчийн мэдээллийг зөвхөн
  * бүртгэлгүй утсанд (урилгатай эсэхийг мэдэхэд) л татна.
  */
@@ -78,6 +79,7 @@ export async function GET() {
     signedIn: Boolean(userId),
     direct: user ? Boolean(await directTrust(user)) : false,
     device: d ? { status: d.status, rank: d.rank, name: d.name, position: d.position, label: d.label } : null,
+    lock: d?.status === "approved" ? await lockStateOf(d) : null,
   });
 }
 

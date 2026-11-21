@@ -20,6 +20,8 @@ type DeviceRow = {
   decidedAt?: string;
   lastSeenAt?: string;
   pushEnabled?: boolean;
+  // Апп түгжээ (утасны хээ, царай, PIN) тохируулсан эсэх
+  appLock?: boolean;
 };
 type Person = {
   _id: string;
@@ -123,6 +125,7 @@ export default function DevicesPage() {
                   <th className="text-left px-4 py-2.5 text-muted-foreground font-semibold">Алба хаагч</th>
                   <th className="text-left px-4 py-2.5 text-muted-foreground font-semibold">Утас</th>
                   <th className="text-left px-4 py-2.5 text-muted-foreground font-semibold">Мэдэгдэл</th>
+                  <th className="text-left px-4 py-2.5 text-muted-foreground font-semibold">Түгжээ</th>
                   <th className="text-left px-4 py-2.5 text-muted-foreground font-semibold">Сүүлд нээсэн</th>
                   <th />
                 </tr>
@@ -137,6 +140,15 @@ export default function DevicesPage() {
                     <td className="px-4 py-2.5 text-muted-foreground">{d.label}</td>
                     <td className="px-4 py-2.5">
                       {d.pushEnabled ? <span className="text-primary">Асаалттай</span> : <span className="text-yellow-400">Асаагаагүй</span>}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      {d.appLock ? (
+                        <span className="text-primary">Тохируулсан</span>
+                      ) : (
+                        <span className="text-yellow-400" title="Апп нээхэд утасныхаа түгжээг тохируулна — тэр хүртэл апп ажиллахгүй">
+                          Тохируулаагүй
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-2.5 text-muted-foreground">{fmt(d.lastSeenAt)}</td>
                     <td className="px-4 py-2.5 text-right">

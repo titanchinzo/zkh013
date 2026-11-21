@@ -52,6 +52,7 @@ import {
   type StoredPerson,
   type StoredThread,
 } from "@/lib/chat-store";
+import { LOCK_EVENT } from "@/components/app/app-lock";
 
 // Утсан дээрх аппын чат: апп ашиглаж буй алба хаагчдын жагсаалт (хэн идэвхтэй), хоёр хүний чат, өөрийн бүлгийн чат.
 // Сервер зөвхөн хараахан уншаагүй зурвасыг түр хадгална: утас зурвасыг хүлээн авч өөртөө хадгалаад серверээс
@@ -228,6 +229,24 @@ function offlineList(threads: StoredThread[]): ListData {
   };
 }
 
+/**
+ * Чатын API 403 буцаавал: апп түгжигдсэн (утасны түгжээгээр баталгаажуулаагүй) бол түүхийг хэвээр үлдээж аппыг
+ * түгжинэ. Утсыг хүчингүй болгосон, бүртгэл идэвхгүй болсон бол л түүхийг арилгана. Шалгаж чадахгүй бол (сүлжээ)
+ * юуг ч устгахгүй. true — түүхийг устгахгүй.
+ */
+async function keepHistoryOn403(): Promise<boolean> {
+  const res = await fetch("/api/app/device", { cache: "no-store" }).catch(() => null);
+  const data: { device?: { status?: string } | null; lock?: string | null } | null = res?.ok
+    ? await res.json().catch(() => null)
+    : null;
+  if (!data) return true;
+  if (data.device?.status === "approved" && (data.lock === "locked" || data.lock === "setup")) {
+    window.dispatchEvent(new Event(LOCK_EVENT));
+    return true;
+  }
+  return false;
+}
+
 /** Чатын жагсаалт: хайлт, удирдлага (хамгийн дээр), «Одоо идэвхтэй» хүмүүс, бүлгийн чат, сүүлд чатласан нь эхэндээ */
 export function ChatList({
   onOpen,
@@ -245,6 +264,7 @@ export function ChatList({
   const load = useCallback(async () => {
     const res = await fetch("/api/app/chat", { cache: "no-store" }).catch(() => null);
     if (res?.status === 403) {
+      if (await keepHistoryOn403()) return;
       // Утсыг хүчингүй болгосон эсвэл бүртгэл идэвхгүй болсон — утсан дээрх түүхийг арилгана
       await clearChatHistory();
       listCache = null;
@@ -795,6 +815,7 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
 
   const lose = useCallback(
     async (res: Response) => {
+      if (await keepHistoryOn403()) return;
       // Утсыг хүчингүй болгосон эсвэл бүртгэл идэвхгүй болсон — утсан дээрх түүхийг арилгана
       await clearChatHistory();
       local.current = { me: null, person: null, messages: [], ack: null };

@@ -25,6 +25,27 @@ const DeviceSchema = new Schema(
     decidedBy: { type: String },
     decidedAt: { type: Date },
     lastSeenAt: { type: Date },
+    // Апп түгжээ (WebAuthn): утасны өөрийн түгжээгээр (хурууны хээ, царай, PIN) аппаа нээнэ. Зөвхөн нийтийн
+    // түлхүүрийг хадгална — нууц түлхүүр утаснаас гардаггүй. Тохируулаагүй утас аппаа ашиглахгүй (lib/device.ts).
+    lock: {
+      type: new Schema(
+        {
+          credentialId: { type: String, required: true },
+          publicKey: { type: Buffer, required: true },
+          counter: { type: Number, default: 0 },
+          transports: { type: [String], default: [] },
+          createdAt: { type: Date, default: Date.now },
+        },
+        { _id: false }
+      ),
+      default: undefined,
+    },
+    // Нэг удаагийн WebAuthn challenge (тохируулах эсвэл тайлах үед)
+    lockChallenge: { type: String },
+    lockChallengeAt: { type: Date },
+    // Түгжээ тайлсан хугацаа: httpOnly cookie-ийн hash, ашиглахгүй бол дуусах цаг
+    unlockHash: { type: String },
+    unlockedUntil: { type: Date },
   },
   { timestamps: true }
 );
