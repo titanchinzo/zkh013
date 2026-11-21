@@ -16,7 +16,7 @@ import { saveFile } from "@/lib/storage";
 type Result<T> = { ok: true; value: T } | { ok: false; error: string };
 
 const IMAGE_URL_ERROR = "Зургийн холбоос буруу байна";
-const FACEBOOK_IMAGE_ERROR = "Facebook-ээс зургийг татаж чадсангүй. Зургаа компьютерээсээ оруулна уу.";
+const FACEBOOK_IMAGE_ERROR = "Facebook/Instagram-аас зургийг татаж чадсангүй. Зургаа компьютерээсээ оруулна уу.";
 const DOWNLOAD_TIMEOUT_MS = 15000;
 
 /** Нүүр зураг болон цомгийг нэг хүсэлт дотор бэлтгэнэ (нэг зургийг хоёр удаа хуулахгүй) */

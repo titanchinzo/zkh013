@@ -28,11 +28,14 @@ export function isUsableImageUrl(url: string | null | undefined): url is string 
   return isHttpUrl(url) && !WEB_PAGE_HOST.test(new URL(url).hostname);
 }
 
-/** Facebook-ийн зургийн CDN (хаяг нь хэд хоногийн дараа хүчингүй болдог тул хадгалахдаа хуулна) */
+/**
+ * Facebook / Instagram-ийн зургийн CDN (хаяг нь хэд хоногийн дараа хүчингүй болдог тул хадгалахдаа хуулна).
+ * Instagram-ийн зураг fbcdn.net эсвэл cdninstagram.com дээр байдаг.
+ */
 export function isFacebookCdnUrl(url: string) {
   try {
     const { protocol, hostname } = new URL(url);
-    return protocol === "https:" && hostname.endsWith(".fbcdn.net");
+    return protocol === "https:" && (hostname.endsWith(".fbcdn.net") || hostname.endsWith(".cdninstagram.com"));
   } catch {
     return false;
   }

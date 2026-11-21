@@ -70,10 +70,11 @@ export function NewsForm({
         <Input name="excerpt" defaultValue={initial.excerpt} required />
       </div>
       <div>
-        <label className={label}>YouTube / Facebook холбоос (заавал биш)</label>
+        <label className={label}>YouTube / Facebook / Instagram холбоос (заавал биш)</label>
         <MediaLinkField
           name="mediaUrl"
           defaultValue={initial.mediaUrl ?? ""}
+          cover={imageUrl}
           onThumbnailChange={(thumb) => setImageUrl((current) => autoFillImage(current, thumb))}
         />
       </div>

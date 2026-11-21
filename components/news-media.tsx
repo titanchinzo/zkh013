@@ -1,11 +1,33 @@
+import type { ReactNode } from "react";
 import { FacebookPost } from "@/components/facebook-post";
+import { InstagramPost } from "@/components/instagram-post";
 import type { NewsMedia } from "@/lib/media";
 
 const IFRAME_ALLOW =
   "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share";
 
-/** Мэдээнд хавсаргасан YouTube/Facebook видео эсвэл Facebook постыг харуулна */
-export function NewsMediaEmbed({ media, title }: { media: NewsMedia; title: string }) {
+type Props = {
+  media: NewsMedia;
+  title: string;
+  cover?: string; // Instagram картын зураг (мэдээний нүүр зураг)
+  openLabel?: ReactNode; // «Instagram дээр үзэх» (MGL горимд монгол бичгээр)
+};
+
+/** Мэдээнд хавсаргасан YouTube/Facebook видео, Facebook пост эсвэл Instagram пост/reel-ийг харуулна */
+export function NewsMediaEmbed({ media, title, cover, openLabel }: Props) {
+  if (media.provider === "instagram") {
+    return (
+      <InstagramPost
+        key={media.href}
+        href={media.href}
+        code={media.code}
+        kind={media.kind}
+        title={title}
+        cover={cover}
+        label={openLabel}
+      />
+    );
+  }
   if (media.provider === "facebook" && media.kind === "post") {
     return <FacebookPost href={media.href} />;
   }

@@ -138,7 +138,7 @@ export default async function NewsDetailPage({ params }: PageProps<"/news/[id]">
 
               {news.media ? (
                 <div className="mt-8">
-                  <NewsMediaEmbed media={news.media} title={news.title} />
+                  <NewsMediaEmbed media={news.media} title={news.title} cover={news.imageUrl} />
                 </div>
               ) : (
                 showCover && (
@@ -319,7 +319,12 @@ async function MglArticle({
                 </p>
                 {news.media ? (
                   <div className="w-[min(40rem,78vw)] shrink-0 self-center">
-                    <NewsMediaEmbed media={news.media} title={news.title} />
+                    <NewsMediaEmbed
+                      media={news.media}
+                      title={news.title}
+                      cover={news.imageUrl}
+                      openLabel={<span className="mgl-v">{t("Instagram дээр үзэх")}</span>}
+                    />
                   </div>
                 ) : (
                   showCover && (

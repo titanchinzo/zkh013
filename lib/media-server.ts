@@ -15,7 +15,8 @@ const MAX_REDIRECTS = 5;
 
 /**
  * Хэрэглэгчийн оруулсан холбоосыг хадгалахад бэлэн болгоно.
- * Хоосон бол "", YouTube/Facebook биш бол null буцаана.
+ * Хоосон бол "", YouTube/Facebook/Instagram биш бол null буцаана.
+ * Instagram-ийн share/... богино холбоос нэвтрэх хуудас буцаадаг тул задлахгүй, хэвээр нь хадгална.
  */
 export async function prepareMediaUrl(raw: unknown): Promise<string | null> {
   if (raw == null || raw === "") return "";

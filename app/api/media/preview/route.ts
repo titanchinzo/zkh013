@@ -4,7 +4,7 @@ import { isNewsRole } from "@/lib/roles";
 import { MEDIA_URL_ERROR, parseMediaUrl } from "@/lib/media";
 import { bestYouTubeThumbnail, facebookPreviewImage, resolveMedia } from "@/lib/media-server";
 
-// Мэдээний формд YouTube/Facebook холбоос оруулахад урьдчилан харах мэдээлэл буцаана.
+// Мэдээний формд YouTube/Facebook/Instagram холбоос оруулахад урьдчилан харах мэдээлэл буцаана.
 // GET /api/media/preview?url=... → { media, thumbnailUrl }
 // Зургийн талбарт Facebook зургийн холбоос оруулахад жинхэнэ зургийг нь олоход ч ашиглана.
 export async function GET(req: NextRequest) {
@@ -19,10 +19,13 @@ export async function GET(req: NextRequest) {
   }
 
   const media = await resolveMedia(parsed);
-  // Facebook-ийн зураг түр хаягтай (fbcdn) — мэдээг хадгалахад Blob руу хуулагдана
+  // Facebook-ийн зураг түр хаягтай (fbcdn) — мэдээг хадгалахад Blob руу хуулагдана.
+  // Instagram нэвтрээгүй серверт зураг өгдөггүй тул нүүр зургийг хэрэглэгч өөрөө оруулна.
   const thumbnailUrl =
     media.provider === "youtube"
       ? await bestYouTubeThumbnail(media.videoId)
-      : await facebookPreviewImage(media.href);
+      : media.provider === "facebook"
+        ? await facebookPreviewImage(media.href)
+        : null;
   return NextResponse.json({ media, thumbnailUrl });
 }

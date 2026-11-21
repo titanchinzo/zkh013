@@ -315,7 +315,7 @@ export function NewsDetail({
             </p>
           </div>
           {media ? (
-            <NewsMediaEmbed media={media} title={news.title} />
+            <NewsMediaEmbed media={media} title={news.title} cover={cover} />
           ) : (
             cover && !videos.length && <Cover src={cover} className="aspect-video w-full rounded-md" sizes="(max-width: 448px) 100vw, 448px" />
           )}

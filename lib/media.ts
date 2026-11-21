@@ -1,4 +1,4 @@
-// Мэдээнд хавсаргах YouTube / Facebook холбоосыг задлах туслах функцууд
+// Мэдээнд хавсаргах YouTube / Facebook / Instagram холбоосыг задлах туслах функцууд
 // (server болон client аль алинд ажиллана)
 
 import { isFacebookCdnUrl } from "@/lib/images";
@@ -19,9 +19,17 @@ export type NewsMedia =
       embedSrc: string; // зөвхөн видеонд ашиглагдана, пост нь SDK-аар гарна
       // Reel хэвтээ ч, босоо ч байж болох тул Facebook видеог үргэлж 16:9 хүрээнд харуулна
       portrait: false;
+    }
+  | {
+      // Instagram нэвтрээгүй хүнд embed-ээ ихэвчлэн өгдөггүй тул «Instagram дээр үзэх» карт гарна,
+      // embed ачаалагдвал (Instagram зөвшөөрвөл) пост өөрөө харагдана
+      provider: "instagram";
+      kind: "video" | "post"; // reel / пост
+      href: string;
+      code: string | null; // постын код; задраагүй share/... богино холбоос бол null
     };
 
-export const MEDIA_URL_ERROR = "Зөвхөн YouTube эсвэл Facebook-ийн видео/постын холбоос оруулна уу";
+export const MEDIA_URL_ERROR = "Зөвхөн YouTube, Facebook эсвэл Instagram-ийн видео/постын холбоос оруулна уу";
 
 const YOUTUBE_HOSTS = new Set([
   "youtube.com",
@@ -39,6 +47,7 @@ const FACEBOOK_HOSTS = new Set([
   "fb.com",
   "fb.watch",
 ]);
+const INSTAGRAM_HOSTS = new Set(["instagram.com", "m.instagram.com", "instagr.am"]);
 
 // Facebook холбоосын замд хамааралтай query параметрүүд (бусад нь tracking тул хаяна)
 const FACEBOOK_KEEP_PARAMS = ["v", "story_fbid", "id", "fbid", "set"];
@@ -56,6 +65,7 @@ export function parseMediaUrl(raw: string | null | undefined): NewsMedia | null 
   const host = url.hostname.toLowerCase().replace(/^www\./, "");
   if (YOUTUBE_HOSTS.has(host)) return parseYouTube(url, host);
   if (FACEBOOK_HOSTS.has(host)) return parseFacebook(url, host);
+  if (INSTAGRAM_HOSTS.has(host)) return parseInstagram(url);
   return null;
 }
 
@@ -168,5 +178,46 @@ function parseFacebook(url: URL, host: string): NewsMedia | null {
     href,
     embedSrc: `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(href)}&show_text=false`,
     portrait: false,
+  };
+}
+
+// Instagram-ийн постын замын төрлүүд (reels/tv хуучин хэлбэрийг reel/tv болгоно)
+const INSTAGRAM_TYPES = new Map([
+  ["p", "p"],
+  ["reel", "reel"],
+  ["reels", "reel"],
+  ["tv", "tv"],
+]);
+
+function parseInstagram(url: URL): NewsMedia | null {
+  const segments = url.pathname.split("/").filter(Boolean);
+
+  // Аппын «Хуваалцах» богино холбоос: /share/<token>, /share/p/<token>, /share/reel/<token>
+  if (segments[0] === "share") {
+    const rest = segments.slice(1);
+    const token = rest[rest.length - 1];
+    if (rest.length < 1 || rest.length > 2 || !/^[\w-]+$/.test(token)) return null;
+    if (rest.length === 2 && !INSTAGRAM_TYPES.has(rest[0])) return null;
+    return {
+      provider: "instagram",
+      kind: rest.length === 2 && rest[0] !== "p" ? "video" : "post",
+      href: `https://www.instagram.com/share/${rest.join("/")}/`,
+      code: null,
+    };
+  }
+
+  // /p/<код>, /reel/<код>, /reels/<код>, /tv/<код>, мөн шинэ хэлбэрийн /<хэрэглэгч>/p/<код>
+  // (?igsh=, ?utm_source= зэрэг tracking параметрийг хаяна)
+  const at = segments.findIndex((segment) => INSTAGRAM_TYPES.has(segment));
+  if (at < 0 || at > 1 || (at === 1 && !/^[\w.]+$/.test(segments[0]))) return null;
+  const type = INSTAGRAM_TYPES.get(segments[at]);
+  const code = segments[at + 1];
+  if (!type || !code || !/^[\w-]{5,64}$/.test(code)) return null;
+
+  return {
+    provider: "instagram",
+    kind: type === "p" ? "post" : "video",
+    href: `https://www.instagram.com/${type}/${code}/`,
+    code,
   };
 }
