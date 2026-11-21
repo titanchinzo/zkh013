@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { isValidObjectId } from "mongoose";
 import { connectToDatabase } from "@/lib/mongodb";
 import Alert from "@/lib/models/Alert";
-import { getCurrentRole } from "@/lib/auth-role";
+import { getActor } from "@/lib/actor";
 import { isHrRole } from "@/lib/roles";
 import { parseAlert } from "@/lib/hr";
 import { announceAlert } from "@/lib/alerts";
@@ -15,7 +15,8 @@ type Params = { params: Promise<{ id: string }> };
  * Мэдэгдэл нь хараахан очоогүй (товлосон) мэдээлэл эхлэх цагтаа очно.
  */
 export async function PATCH(req: NextRequest, { params }: Params) {
-  if (!isHrRole(await getCurrentRole())) return NextResponse.json({ error: "Зөвшөөрөлгүй" }, { status: 403 });
+  // Сайтаас эсвэл утсан дээрх аппаас (зөвшөөрөгдсөн утас) — хүний нөөц, админ
+  if (!isHrRole((await getActor())?.role ?? null)) return NextResponse.json({ error: "Зөвшөөрөлгүй" }, { status: 403 });
   const { id } = await params;
   if (!isValidObjectId(id)) return NextResponse.json({ error: "Олдсонгүй" }, { status: 404 });
 
@@ -42,7 +43,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
 /** Зарлан мэдээллийг устгана — утсан дээрээс ч арилна */
 export async function DELETE(_req: NextRequest, { params }: Params) {
-  if (!isHrRole(await getCurrentRole())) return NextResponse.json({ error: "Зөвшөөрөлгүй" }, { status: 403 });
+  // Сайтаас эсвэл утсан дээрх аппаас (зөвшөөрөгдсөн утас) — хүний нөөц, админ
+  if (!isHrRole((await getActor())?.role ?? null)) return NextResponse.json({ error: "Зөвшөөрөлгүй" }, { status: 403 });
   const { id } = await params;
   if (!isValidObjectId(id)) return NextResponse.json({ error: "Олдсонгүй" }, { status: 404 });
 

@@ -63,6 +63,8 @@ type ServerPerson = StoredPerson & {
   lastSeenAt: string | null;
   canMessage: boolean;
   pending: { count: number; text: string; at: string } | null;
+  // Удирдах албан тушаалтан — жагсаалтын хамгийн дээр энэ дарааллаар (ангийн бүтцээр)
+  lead?: number;
 };
 type ChatRowData = ServerPerson & { lastMessage: LastMessage | null; unread: number };
 // Чатын жагсаалт дахь миний бүлгийн чат
@@ -226,7 +228,7 @@ function offlineList(threads: StoredThread[]): ListData {
   };
 }
 
-/** Чатын жагсаалт: хайлт, «Одоо идэвхтэй» хүмүүс, бүлгийн чат, сүүлд чатласан нь эхэндээ */
+/** Чатын жагсаалт: хайлт, удирдлага (хамгийн дээр), «Одоо идэвхтэй» хүмүүс, бүлгийн чат, сүүлд чатласан нь эхэндээ */
 export function ChatList({
   onOpen,
   onUnread,
@@ -289,6 +291,9 @@ export function ChatList({
   const { rows, group } = data;
   const q = query.trim().toLowerCase();
   const shown = q ? rows.filter((p) => `${p.rank} ${p.name} ${p.position}`.toLowerCase().includes(q)) : rows;
+  // Удирдлага — сүүлд чатласнаас үл хамааран хамгийн дээр, ангийн бүтцээр; бусад нь сүүлд чатласнаар
+  const leaders = shown.filter((p) => p.lead !== undefined).sort((a, b) => a.lead! - b.lead!);
+  const others = shown.filter((p) => p.lead === undefined);
   const showGroup = group && (!q || group.name.toLowerCase().includes(q));
   const active = rows.filter((p) => p.online && p.canMessage);
 
@@ -312,6 +317,17 @@ export function ChatList({
         </p>
       )}
 
+      {leaders.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-muted-foreground">Удирдлага</p>
+          <ul aria-label="Удирдлага" className="divide-y divide-border overflow-hidden rounded-xl border border-primary/40">
+            {leaders.map((p) => (
+              <ChatRow key={p.userId} person={p} onOpen={onOpen} />
+            ))}
+          </ul>
+        </div>
+      )}
+
       {!q && active.length > 0 && (
         <div className="space-y-2">
           <p className="text-xs font-semibold text-muted-foreground">Одоо идэвхтэй · {active.length}</p>
@@ -330,17 +346,18 @@ export function ChatList({
 
       {error && <p className="text-xs text-red-400">{error}</p>}
 
-      {shown.length === 0 ? (
-        !error && !showGroup && (
-          <p className="text-sm text-muted-foreground">{q ? "Олдсонгүй." : "Апп ашиглаж буй өөр хүн одоогоор алга."}</p>
-        )
-      ) : (
-        <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border">
-          {shown.map((p) => (
-            <ChatRow key={p.userId} person={p} onOpen={onOpen} />
-          ))}
-        </ul>
-      )}
+      {shown.length === 0
+        ? !error &&
+          !showGroup && (
+            <p className="text-sm text-muted-foreground">{q ? "Олдсонгүй." : "Апп ашиглаж буй өөр хүн одоогоор алга."}</p>
+          )
+        : others.length > 0 && (
+            <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border">
+              {others.map((p) => (
+                <ChatRow key={p.userId} person={p} onOpen={onOpen} />
+              ))}
+            </ul>
+          )}
 
       <p className="text-xs text-muted-foreground">
         Зурвас хүлээн авагч уншмагц серверээс устна; чатын түүх зөвхөн хүлээн авагчдын утсанд хадгалагдана. Албаны

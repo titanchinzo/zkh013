@@ -372,3 +372,36 @@ export function comparePersonnel(groups: readonly string[]) {
   return (a: { group?: string; rank: string; name: string }, b: { group?: string; rank: string; name: string }) =>
     at(a.group) - at(b.group) || rankSeniority(b.rank) - rankSeniority(a.rank) || a.name.localeCompare(b.name, "mn");
 }
+
+// Удирдах албан тушаал — албан тушаалын сүүлийн үгээр (толгой нэр): «Ангийн захирагч», «Штабын дарга»,
+// «Захирагчийн орлогч». «Даргын туслах», «Захирагчийн жолооч» зэрэг нь удирдлага биш. Тоо нь ижил цолтой үед эрэмбэ:
+// захирагч (командлагч) → дарга → орлогч
+const LEADER_TITLES = new Map([
+  ["захирагч", 0],
+  ["командлагч", 0],
+  ["дарга", 1],
+  ["орлогч", 2],
+]);
+
+/** Удирдах албан тушаал бол эрэмбэ (0 — захирагч), үгүй бол null */
+export function leaderTier(position: string | null | undefined): number | null {
+  const words = (position ?? "")
+    .toLowerCase()
+    // «Ротын дарга (түр)», «дарга /ахлах/» — хаалт доторх тайлбарыг тооцохгүй
+    .replace(/\([^)]*\)|\/[^/]*\//g, " ")
+    .split(/[^а-яёөүa-z0-9-]+/)
+    .filter(Boolean);
+  return LEADER_TITLES.get(words.at(-1) ?? "") ?? null;
+}
+
+/** Удирдлагыг ангийн бүтцээр: бүлгийн дараалал (захирагчаас) → цол (ахлахаас) → захирагч, дарга, орлогч → нэр */
+export function compareLeaders(groups: readonly string[]) {
+  const index = new Map(groups.map((g, i) => [g, i]));
+  const at = (group?: string) => (group ? (index.get(group) ?? groups.length) : groups.length + 1);
+  type Leader = { group?: string; rank: string; name: string; position?: string };
+  return (a: Leader, b: Leader) =>
+    at(a.group) - at(b.group) ||
+    rankSeniority(b.rank) - rankSeniority(a.rank) ||
+    (leaderTier(a.position) ?? 9) - (leaderTier(b.position) ?? 9) ||
+    a.name.localeCompare(b.name, "mn");
+}

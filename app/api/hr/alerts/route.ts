@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { currentUser } from "@clerk/nextjs/server";
 import { connectToDatabase } from "@/lib/mongodb";
 import Alert from "@/lib/models/Alert";
 import Device from "@/lib/models/Device";
 import Personnel from "@/lib/models/Personnel";
-import { getCurrentRole } from "@/lib/auth-role";
+import { getActor } from "@/lib/actor";
 import { isHrRole } from "@/lib/roles";
 import { parseAlert, personnelLabel } from "@/lib/hr";
 import { announceAlert, notExpired } from "@/lib/alerts";
@@ -27,7 +26,8 @@ type AlertDoc = {
  * Хугацаа нь дууссан мэдээлэл автоматаар устдаг тул энд харагдахгүй.
  */
 export async function GET() {
-  if (!isHrRole(await getCurrentRole())) return NextResponse.json({ error: "Зөвшөөрөлгүй" }, { status: 403 });
+  // Сайтаас эсвэл утсан дээрх аппаас (зөвшөөрөгдсөн утас) — хүний нөөц, админ
+  if (!isHrRole((await getActor())?.role ?? null)) return NextResponse.json({ error: "Зөвшөөрөлгүй" }, { status: 403 });
   await connectToDatabase();
 
   const [alerts, devices] = await Promise.all([
@@ -68,17 +68,14 @@ export async function GET() {
  * зөвшөөрөгдсөн бүх утас руу мэдэгдэл очиж, дуусах цаг өнгөрмөгц автоматаар устна.
  */
 export async function POST(req: NextRequest) {
-  if (!isHrRole(await getCurrentRole())) return NextResponse.json({ error: "Зөвшөөрөлгүй" }, { status: 403 });
+  const actor = await getActor();
+  if (!actor || !isHrRole(actor.role)) return NextResponse.json({ error: "Зөвшөөрөлгүй" }, { status: 403 });
   const parsed = parseAlert(await req.json().catch(() => null));
   if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
 
-  const user = await currentUser();
   await connectToDatabase();
-  const alert = await Alert.create({
-    ...parsed.value,
-    createdBy: user?.id ?? "",
-    createdByName: user?.fullName ?? user?.primaryEmailAddress?.emailAddress ?? "",
-  });
+  // Утаснаас илгээсэн бол хүний нөөцийн бүртгэлийн нэр (цолтой), сайтаас бол Clerk-ийн нэр
+  const alert = await Alert.create({ ...parsed.value, createdBy: actor.userId, createdByName: actor.name });
   const result = await announceAlert(alert._id);
   return NextResponse.json({ id: String(alert._id), ...(result ?? { scheduled: true }) }, { status: 201 });
 }

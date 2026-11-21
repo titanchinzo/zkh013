@@ -1,73 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
 import { DUTY_LABEL, addDays, formatDay, formatWeek, personnelLabel, todayUb, weekStart } from "@/lib/hr";
 import { PersonOptions } from "@/components/hr/group-select";
-
-type Person = { _id: string; rank: string; name: string; position: string; group?: string; active: boolean };
-type WeekData = {
-  weekStart: string;
-  week: { date: string; duty: string[]; reminded: string[] }[];
-  personnel: Person[];
-  groups: string[];
-};
+import { useDutyWeek } from "@/lib/use-duty-week";
 
 const selectClass = "h-9 rounded-md border border-border bg-background px-2 text-sm text-foreground";
 const navButton = "h-9 px-3 rounded-md border border-border text-sm text-foreground";
 
 export default function DutyPage() {
-  const [start, setStart] = useState(() => weekStart(todayUb()));
-  const [data, setData] = useState<WeekData | null>(null);
-  const [duty, setDuty] = useState<Record<string, string[]>>({});
-  const [dirty, setDirty] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState("");
-
-  const load = useCallback(async (from: string) => {
-    const res = await fetch(`/api/hr/days/${from}`, { cache: "no-store" }).catch(() => null);
-    if (!res?.ok) return;
-    const d: WeekData = await res.json();
-    setData(d);
-    setDuty(Object.fromEntries(d.week.map((w) => [w.date, w.duty])));
-    setDirty(false);
-  }, []);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch the shown week
-    load(start);
-  }, [start, load]);
-
-  function go(from: string) {
-    if (dirty && !confirm("Хадгалаагүй өөрчлөлт байна. Орхих уу?")) return;
-    setMessage("");
-    setStart(from);
-  }
-
-  function change(date: string, ids: string[]) {
-    setDuty({ ...duty, [date]: ids });
-    setDirty(true);
-    setMessage("");
-  }
-
-  async function save() {
-    setSaving(true);
-    const res = await fetch(`/api/hr/days/${start}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ duty }),
-    });
-    setSaving(false);
-    if (!res.ok) {
-      setMessage((await res.json().catch(() => null))?.error ?? "Алдаа гарлаа");
-      return;
-    }
-    await load(start);
-    setMessage("Хадгаллаа. Шинээр томилогдсон хүмүүсийн утсанд мэдэгдэл очно.");
-  }
+  const { start, ready, duty, dirty, saving, message, go, change, save } = useDutyWeek();
 
   const today = todayUb();
   const thisWeek = weekStart(today);
-  const ready = data?.weekStart === start ? data : null;
   const byId = new Map((ready?.personnel ?? []).map((p) => [p._id, p]));
   const which = start === thisWeek ? "энэ 7 хоног" : start === addDays(thisWeek, 7) ? "дараагийн 7 хоног" : "";
 
@@ -78,7 +22,7 @@ export default function DutyPage() {
         <p className="text-sm text-muted-foreground mt-1">
           Харуул хоногийн манааг 7 хоногоор (Даваа–Ням) гаргаж, өдөр бүрд хүмүүсийг нь сонгоно. Томилогдсон хүнд
           мэдэгдэл очиж, манаанд гарах өдрөө 11 цагаас хойш «Тайван хоноорой» мэдэгдэл авна (✓ — очсон). Алба хаагчид
-          энэ болон дараагийн 7 хоногийн хуваарийг утсандаа харна.
+          энэ болон дараагийн 7 хоногийн хуваарийг утсандаа харна. Хүний нөөц, админ утсан дээрх аппаасаа ч томилж болно.
         </p>
       </div>
 
@@ -170,7 +114,9 @@ export default function DutyPage() {
         >
           {saving ? "Хадгалж байна..." : "Хадгалах"}
         </button>
-        {message && <span className="text-sm text-muted-foreground">{message}</span>}
+        {message && (
+          <span className={`text-sm ${message.error ? "text-red-400" : "text-muted-foreground"}`}>{message.text}</span>
+        )}
         {dirty && !message && <span className="text-sm text-yellow-400">Хадгалаагүй өөрчлөлт байна</span>}
       </div>
     </div>

@@ -5,6 +5,8 @@ import Personnel from "@/lib/models/Personnel";
 import { approvedLastSeen, getChatUser, isOnline } from "@/lib/chat";
 import { groupOf, loadGroup, memberLabel } from "@/lib/chat-group";
 import { previewText } from "@/lib/chat-shared";
+import { compareLeaders, leaderTier } from "@/lib/hr";
+import { groupOrder } from "@/lib/personnel-groups";
 
 type PersonDoc = { userId: string; rank: string; name: string; position: string; group?: string; photo?: string; active: boolean };
 type PendingDoc = { _id: string; count: number; text: string; file?: { name: string } | null; ephemeral?: boolean; at: Date };
@@ -15,7 +17,8 @@ type GroupPendingDoc = { sender: string; text: string; file?: { name: string; ty
  * ирсэн уншаагүй зурвас (тоо, сүүлийнх нь). Өмнөх чатын түүх серверт байхгүй — утас өөрөө хадгалдаг.
  * ?summary=1 — зөвхөн уншаагүй нийт тоо (нүүр хуудсанд). removed — илгээгч нь «хоёулангаас устгасан» зурвасууд
  * (утас түүхээсээ арилгаад /api/app/chat/removed-д мэдэгдэнэ). group — миний бүлгийн чат (гишүүдийн тоо, уншаагүй
- * зурвас); бүлэггүй бол null.
+ * зурвас); бүлэггүй бол null. lead — удирдах албан тушаалтан (албан тушаал нь «…захирагч», «…дарга», «…орлогч»)
+ * бол жагсаалтын хамгийн дээр гарах дараалал (0 — ангийн бүтцээр хамгийн эхэнд), бусдад байхгүй.
  */
 export async function GET(req: NextRequest) {
   const auth = await getChatUser();
@@ -58,6 +61,11 @@ export async function GET(req: NextRequest) {
     .lean<PersonDoc[]>();
   const personOf = new Map(people.map((p) => [p.userId, p]));
 
+  // Удирдлага (идэвхтэй, утас нь зөвшөөрөгдсөн) — ангийн бүтцээр эрэмбэлж, жагсаалтын дээд талд
+  const leaders = people.filter((p) => p.active && seen.has(p.userId) && leaderTier(p.position) !== null);
+  if (leaders.length) leaders.sort(compareLeaders(await groupOrder()));
+  const leadOf = new Map(leaders.map((p, i) => [p.userId, i]));
+
   const now = Date.now();
   const rows = ids.flatMap((id) => {
     const person = personOf.get(id);
@@ -77,6 +85,7 @@ export async function GET(req: NextRequest) {
         online: isOnline(lastSeenAt, now),
         lastSeenAt,
         canMessage: Boolean(person?.active),
+        ...(leadOf.has(id) ? { lead: leadOf.get(id) } : {}),
         // Нууц зурвасын текстийг жагсаалтад харуулахгүй, файлыг нэрээр нь
         pending: waiting ? { count: waiting.count, text: previewText(waiting).slice(0, 200), at: waiting.at } : null,
       },

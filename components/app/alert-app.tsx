@@ -24,6 +24,7 @@ import { ChatList, Conversation } from "@/components/app/chat";
 import { NewsDetail, NewsList, NewsWrite } from "@/components/app/news";
 import { Directory } from "@/components/app/directory";
 import { DeviceRequests } from "@/components/app/device-requests";
+import { AlertManager, DutyManager, HrTools, type ManageView } from "@/components/app/manage";
 import { usePolling } from "@/lib/use-polling";
 import { clearChatHistory } from "@/lib/chat-store";
 
@@ -60,7 +61,8 @@ function urlBase64ToUint8Array(base64: string) {
 }
 
 // «Нүүр» — зарлан мэдээлэл, харуулын хуваарь, бүртгэл; «Мэдээ» — сайтын мэдээ, хянах, бичих (?tab=news, ?news=<id>,
-// ?write=new|<id>); «Чат» — алба хаагчид хоорондоо (?tab=chat, ?chat=<userId>); «Утас» — утасны жагсаалт (?tab=phones)
+// ?write=new|<id>); «Чат» — алба хаагчид хоорондоо (?tab=chat, ?chat=<userId>); «Утас» — утасны жагсаалт (?tab=phones);
+// хүний нөөц, админд «Нүүр»-ээс манаа томилох, зарлан мэдээлэх (?manage=duty|alerts)
 type Tab = "home" | "news" | "chat" | "phones";
 const TITLES: Record<Tab, string> = { home: "Зарлан мэдээлэх", news: "Мэдээ", chat: "Чат", phones: "Утасны жагсаалт" };
 
@@ -70,6 +72,8 @@ export function AlertApp() {
   const chatWith = params.get("chat");
   const newsId = params.get("news");
   const write = params.get("write");
+  const manageParam = params.get("manage");
+  const manage: ManageView | null = manageParam === "duty" || manageParam === "alerts" ? manageParam : null;
   const tab: Tab =
     chatWith || params.get("tab") === "chat"
       ? "chat"
@@ -115,7 +119,7 @@ export function AlertApp() {
       {!info ? (
         <p className="text-sm text-muted-foreground">Ачааллаж байна...</p>
       ) : approved ? (
-        <ApprovedView tab={tab} chatWith={chatWith} newsId={newsId} write={write} />
+        <ApprovedView tab={tab} chatWith={chatWith} newsId={newsId} write={write} manage={manage} />
       ) : info.device?.status === "pending" ? (
         <Card>
           <p className="font-semibold text-foreground">Хүсэлт илгээгдсэн</p>
@@ -452,11 +456,13 @@ function ApprovedView({
   chatWith,
   newsId,
   write,
+  manage,
 }: {
   tab: Tab;
   chatWith: string | null;
   newsId: string | null;
   write: string | null;
+  manage: ManageView | null;
 }) {
   const [feed, setFeed] = useState<Feed | null>(null);
   const [unread, setUnread] = useState(0);
@@ -587,6 +593,21 @@ function ApprovedView({
     dot: newsSeen !== null && latestNews !== null && latestNews > newsSeen,
   };
 
+  // Хүний нөөцийн хэрэгсэл (манаа томилох, зарлан мэдээлэх) — буцахад нүүр хуудсыг шинэчилнэ (хуваарь, мэдээлэл)
+  const openManage = useCallback((view: ManageView) => {
+    pushed.current = true;
+    window.history.pushState(null, "", `/app?manage=${view}`);
+  }, []);
+  const closeManage = useCallback(() => {
+    load();
+    if (pushed.current) {
+      pushed.current = false;
+      window.history.back();
+    } else window.history.replaceState(null, "", "/app");
+  }, [load]);
+  // Зөвхөн хүний нөөц, админд (feed.requests нь тэдэнд л ирдэг)
+  const isHr = feed?.requests !== undefined;
+
   async function ack(id: string) {
     await fetch(`/api/app/alerts/${id}/ack`, { method: "POST" });
     load();
@@ -595,7 +616,7 @@ function ApprovedView({
   return (
     <>
       <div className={tab === "home" ? "space-y-6" : "hidden"}>
-        {feed ? <HomeView feed={feed} onChange={load} onAck={ack} onRequests={setRequests} /> : <p className="text-sm text-muted-foreground">Ачааллаж байна...</p>}
+        {feed ? <HomeView feed={feed} onChange={load} onAck={ack} onRequests={setRequests} onManage={openManage} /> : <p className="text-sm text-muted-foreground">Ачааллаж байна...</p>}
       </div>
       {tab === "news" && (
         <NewsList version={newsVersion} notice={newsNotice} onOpen={openNews} onWrite={() => openWrite(null)} />
@@ -605,7 +626,9 @@ function ApprovedView({
       {tab === "chat" && !chatWith && <ChatList onOpen={openChat} onUnread={setUnread} pushEnabled={feed?.pushEnabled ?? true} />}
       {tab === "phones" && <Directory />}
       {chatWith && <Conversation key={chatWith} userId={chatWith} onBack={closeChat} />}
-      {!chatWith && !newsId && !write && <BottomNav tab={tab} unread={unread} news={newsBadge} requests={requests ?? feed?.requests ?? 0} onTab={switchTab} />}
+      {isHr && manage === "duty" && <DutyManager onBack={closeManage} />}
+      {isHr && manage === "alerts" && <AlertManager onBack={closeManage} />}
+      {!chatWith && !newsId && !write && !(isHr && manage) && <BottomNav tab={tab} unread={unread} news={newsBadge} requests={requests ?? feed?.requests ?? 0} onTab={switchTab} />}
     </>
   );
 }
@@ -686,16 +709,19 @@ function HomeView({
   onChange,
   onAck,
   onRequests,
+  onManage,
 }: {
   feed: Feed;
   onChange: () => void;
   onAck: (id: string) => void;
   onRequests: (count: number) => void;
+  onManage: (view: ManageView) => void;
 }) {
   return (
     <>
-      {/* Хүний нөөц, админд: шийдвэр хүлээж буй утасны хүсэлт — хамгийн дээр */}
+      {/* Хүний нөөц, админд: шийдвэр хүлээж буй утасны хүсэлт — хамгийн дээр, дараа нь манаа томилох, зарлан мэдээлэх */}
       {feed.requests !== undefined && <DeviceRequests onCount={onRequests} onChange={onChange} />}
+      {feed.requests !== undefined && <HrTools onOpen={onManage} />}
 
       {feed.person && <ProfileCard person={feed.person} onChange={onChange} />}
 

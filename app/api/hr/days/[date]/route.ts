@@ -3,7 +3,7 @@ import { isValidObjectId } from "mongoose";
 import { connectToDatabase } from "@/lib/mongodb";
 import DayRecord, { dutyIds } from "@/lib/models/DayRecord";
 import Personnel from "@/lib/models/Personnel";
-import { getCurrentRole } from "@/lib/auth-role";
+import { getActor } from "@/lib/actor";
 import { isHrRole } from "@/lib/roles";
 import {
   ATTENDANCE_STATUSES,
@@ -27,7 +27,8 @@ type DayDoc = { date: string; guard?: unknown[]; watch?: unknown[]; reminded?: u
  * + алба хаагчдын жагсаалт
  */
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ date: string }> }) {
-  if (!isHrRole(await getCurrentRole())) return NextResponse.json({ error: "Зөвшөөрөлгүй" }, { status: 403 });
+  // Сайтаас эсвэл утсан дээрх аппаас (зөвшөөрөгдсөн утас) — хүний нөөц, админ
+  if (!isHrRole((await getActor())?.role ?? null)) return NextResponse.json({ error: "Зөвшөөрөлгүй" }, { status: 403 });
   const { date } = await params;
   if (!isDateKey(date)) return NextResponse.json({ error: "Огноо буруу" }, { status: 400 });
 
@@ -61,7 +62,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ dat
  * Шинээр томилогдсон, утсаа бүртгүүлсэн хүмүүст мэдэгдэл очно.
  */
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ date: string }> }) {
-  if (!isHrRole(await getCurrentRole())) return NextResponse.json({ error: "Зөвшөөрөлгүй" }, { status: 403 });
+  // Сайтаас эсвэл утсан дээрх аппаас (зөвшөөрөгдсөн утас) — хүний нөөц, админ
+  if (!isHrRole((await getActor())?.role ?? null)) return NextResponse.json({ error: "Зөвшөөрөлгүй" }, { status: 403 });
   const { date } = await params;
   if (!isDateKey(date)) return NextResponse.json({ error: "Огноо буруу" }, { status: 400 });
   const body = await req.json().catch(() => null);

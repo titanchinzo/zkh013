@@ -5,6 +5,12 @@ import PersonnelGroup from "@/lib/models/PersonnelGroup";
 /** Тохируулаагүй бол захирагч, орлогч нарын бүлэг бүх утасны жагсаалтыг харна */
 const seesAllByDefault = (name: string) => /^захирагч/i.test(name.trim());
 
+/** Бүлгүүдийн нэр дарааллаараа (захирагчаас эхлэн) — тоо хэрэггүй үед listGroups-оос хөнгөн */
+export async function groupOrder(): Promise<string[]> {
+  const groups = await PersonnelGroup.find().sort({ order: 1, name: 1 }).select("name").lean<{ name: string }[]>();
+  return groups.map((g) => g.name);
+}
+
 /** Энэ бүлгийнхэн бүх хүний утасны жагсаалтыг харах эсэх */
 export async function groupSeesAll(name: string | undefined | null): Promise<boolean> {
   if (!name) return false;
