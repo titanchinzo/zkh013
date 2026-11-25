@@ -121,6 +121,9 @@ export function AndroidDownload() {
       <p className="text-sm text-foreground">
         Утасны дууг хаасан ч <b>улаан дохио сэрүүлгийн дуугаар</b> дуугарна.
       </p>
+      {!ANDROID_APP.released && (
+        <p className="text-sm text-yellow-400">Туршилтын хувилбар: зарим утсан дээр дохио дуугарахгүй байж магадгүй.</p>
+      )}
       <a href={ANDROID_APP.url} download className={primary}>
         Android апп татах
       </a>

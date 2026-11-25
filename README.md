@@ -283,8 +283,9 @@ gradle :app:testDebugUnitTest :app:lintRelease :app:assembleRelease
 cp app/build/outputs/apk/release/app-release.apk ../public/android/zkh013-<N>.apk
 ```
 
-`lib/android-app.ts`-ийн `released: false` үед апп-ыг хэнд ч санал болгохгүй; туршигчид `/download#android`-аас татна.
-Жинхэнэ утсан дээр туршаад `true` болгож байршуулна.
+Татах хуудсанд «Android» / «iPhone» гэсэн сонголт бий (утсандаа тохирох нь сонгогдсон байна). `lib/android-app.ts`-ийн
+`released: false` үед Android апп «Туршилтын хувилбар» гэж харагдаж, аппын нүүр, илгээх маягтад санал болгохгүй. Жинхэнэ
+утсан дээр туршаад `true` болгож байршуулна.
 
 Үүний өмнө `android/app/build.gradle`-ийн `versionCode`/`versionName`, дараа нь `lib/android-app.ts`-ийн `version`, `url`-ыг
 нэмэгдүүлнэ. Хуучин хувилбартай утсан дээр аппын нүүрт «Аппын шинэ хувилбар гарлаа» гарна. Хуучин APK файлыг хасна.
