@@ -132,13 +132,55 @@ public class ScreensTest {
     }
 
     @Test
-    public void siteHomeLinkGoesToTheBrowser() {
+    public void siteLinksGoToTheBrowser() {
         finishSetup();
-        MainActivity a = Robolectric.buildActivity(MainActivity.class, launch(Uri.parse("https://unit013.mn/"))).create().get();
-        Intent started = shadowOf(a).getNextStartedActivity();
-        assertEquals(Phone.CHROME, started.getPackage());
-        assertEquals("https://unit013.mn/", started.getDataString());
-        assertTrue(a.isFinishing());
+        for (String url : new String[] {"https://unit013.mn", "https://unit013.mn/", "https://unit013.mn/news/abc", "https://unit013.mn/admin/devices?x=1"}) {
+            MainActivity a = Robolectric.buildActivity(MainActivity.class, launch(Uri.parse(url))).create().get();
+            Intent started = shadowOf(a).getNextStartedActivity();
+            assertEquals(Phone.CHROME, started.getPackage());
+            assertEquals(url, started.getDataString());
+            assertTrue(a.isFinishing());
+            ReflectionHelpers.setStaticField(LauncherActivity.class, "sLauncherActivitiesAlive", 0);
+        }
+    }
+
+    /** Chrome мэдэгдэл дамжуулах апп-ыг сайтын хаягаар (зам нь хоосон эсвэл "/"), аппын хаягаар хайдаг */
+    @Test
+    public void chromeCanFindTheAppForTheSite() {
+        for (String url : new String[] {"https://unit013.mn", "https://unit013.mn/", "https://unit013.mn/app?apk=3", "https://unit013.mn/sign-in"}) {
+            Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(url)).addCategory(Intent.CATEGORY_BROWSABLE).setPackage("mn.unit013.app");
+            assertEquals(url, MainActivity.class.getName(),
+                    app.getPackageManager().resolveActivity(i, 0) == null ? null : app.getPackageManager().resolveActivity(i, 0).activityInfo.name);
+        }
+        Intent service = new Intent("android.support.customtabs.trusted.TRUSTED_WEB_ACTIVITY_SERVICE").setPackage("mn.unit013.app");
+        assertEquals(AlarmDelegationService.class.getName(), app.getPackageManager().resolveService(service, 0).serviceInfo.name);
+    }
+
+    @Test
+    public void remainingOldAppBringsTheSetupBack() {
+        finishSetup();
+        installOldApp();
+        MainActivity a = Robolectric.buildActivity(MainActivity.class, launch(null)).create().get();
+        assertEquals(SetupActivity.class.getName(), shadowOf(a).getNextStartedActivity().getComponent().getClassName());
+        // Тохиргооноос «Апп нээх» дарвал дутуу ч гэсэн нээнэ
+        SetupActivity s = Robolectric.setupActivity(SetupActivity.class);
+        button(s, "Апп нээх").performClick();
+        Intent open = shadowOf(s).getNextStartedActivity();
+        assertTrue(open.getBooleanExtra(MainActivity.EXTRA_SKIP_SETUP, false));
+        ReflectionHelpers.setStaticField(LauncherActivity.class, "sLauncherActivitiesAlive", 0);
+        MainActivity b = Robolectric.buildActivity(MainActivity.class, open).create().get();
+        Intent next = shadowOf(b).getNextStartedActivity();
+        assertFalse(next != null && next.getComponent() != null && SetupActivity.class.getName().equals(next.getComponent().getClassName()));
+    }
+
+    @Test
+    public void setupShowsTheDiary() {
+        Diary.add(app, "туршилтын тэмдэглэл");
+        SetupActivity a = Robolectric.setupActivity(SetupActivity.class);
+        assertTrue(texts(a).toString(), texts(a).toString().contains("туршилтын тэмдэглэл") && texts(a).toString().contains("Оношилгоо"));
+        button(a, "Хуулах").performClick();
+        ClipboardManager clip = app.getSystemService(ClipboardManager.class);
+        assertTrue(clip.getPrimaryClip().getItemAt(0).getText().toString().contains("туршилтын тэмдэглэл"));
     }
 
     @Test
@@ -164,9 +206,9 @@ public class ScreensTest {
     public void openingTheAppFromTheAlarmStopsIt() {
         finishSetup();
         Alarm.ring(app, "x", "Түгшүүр", Alarm.RING_MS);
-        assertTrue(Alarm.isPosted(app));
+        assertTrue(Alarm.isActive(app));
         Robolectric.buildActivity(MainActivity.class, MainActivity.openIntent(app)).create();
-        assertFalse(Alarm.isPosted(app));
+        assertFalse(Alarm.isActive(app));
     }
 
     @Test
@@ -222,10 +264,11 @@ public class ScreensTest {
         Button test = button(a, "Дохио турших");
         test.performClick();
         assertFalse(test.isEnabled());
-        assertFalse(Alarm.isPosted(app));
+        assertFalse(Alarm.isActive(app));
         shadowOf(Looper.getMainLooper()).idleFor(5100, TimeUnit.MILLISECONDS);
-        assertTrue(Alarm.isPosted(app));
-        assertEquals(Alarm.TEST_MS, nm.getActiveNotifications()[0].getNotification().getTimeoutAfter());
+        assertTrue(Alarm.isActive(app));
+        Intent service = shadowOf(app).getNextStartedService();
+        assertEquals(Alarm.TEST_MS, service.getLongExtra("for", 0));
         assertTrue(test.isEnabled());
     }
 
@@ -237,7 +280,7 @@ public class ScreensTest {
         assertTrue(texts(a).toString(), texts(a).contains("Түгшүүр"));
         button(a, "Дуу зогсоох").performClick();
         shadowOf(Looper.getMainLooper()).idle();
-        assertFalse(Alarm.isPosted(app));
+        assertFalse(Alarm.isActive(app));
         assertTrue(a.isFinishing());
     }
 
@@ -251,7 +294,7 @@ public class ScreensTest {
         assertNotNull(started);
         assertEquals(MainActivity.class.getName(), started.getComponent().getClassName());
         assertEquals("https://unit013.mn/app", started.getDataString());
-        assertFalse(Alarm.isPosted(app));
+        assertFalse(Alarm.isActive(app));
     }
 
     @Test
@@ -262,7 +305,7 @@ public class ScreensTest {
         AlarmActivity a = Robolectric.buildActivity(AlarmActivity.class, new Intent()).setup().get();
         button(a, "Апп нээх").performClick();
         shadowOf(Looper.getMainLooper()).idle();
-        assertFalse("дуу зогссон", Alarm.isPosted(app));
+        assertFalse("дуу зогссон", Alarm.isActive(app));
         assertFalse("түгжээ тайлуулах цонхны цаана дэлгэц хаагдахгүй", a.isFinishing());
         assertNull("түгжээтэй үед апп нээгдэхгүй", shadowOf(a).getNextStartedActivity());
         guard.setKeyguardLocked(false);

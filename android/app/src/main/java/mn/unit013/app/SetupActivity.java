@@ -24,6 +24,8 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
+import java.util.function.Supplier;
+
 /** Дохио дуугарахад хэрэгтэй зөвшөөрлүүд — ✓ болгож, дохиог турших дэлгэц. Анх нээхэд болон «Дохионы тохиргоо»-оор. */
 public class SetupActivity extends Activity {
     private static final String PREFS = "setup";
@@ -32,6 +34,7 @@ public class SetupActivity extends Activity {
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private LinearLayout steps;
+    private TextView diary;
 
     static boolean isDone(Context c) {
         return c.getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean(KEY_DONE, false);
@@ -59,10 +62,34 @@ public class SetupActivity extends Activity {
         Button open = Ui.button(this, getString(R.string.alarm_open), getColor(R.color.primary), getColor(R.color.on_primary));
         open.setOnClickListener(v -> openApp());
         page.addView(open, Ui.spaced(this, 12));
+        addDiary(page);
 
         ScrollView scroll = new ScrollView(this);
         scroll.addView(page);
         setContentView(scroll);
+    }
+
+    /** Дохио ирсэн, дуугарсан эсэхийн тэмдэглэл, утасны тохиргоо */
+    private void addDiary(LinearLayout page) {
+        LinearLayout card = card();
+        TextView title = Ui.text(this, getString(R.string.diary_title), 17, R.color.text);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        card.addView(title);
+        card.addView(Ui.text(this, getString(R.string.diary_about), 15, R.color.muted), Ui.spaced(this, 4));
+        diary = Ui.text(this, "", 12, R.color.text);
+        diary.setTypeface(Typeface.MONOSPACE);
+        card.addView(diary, Ui.spaced(this, 8));
+        card.addView(copyButton(() -> Diary.report(this)), Ui.spaced(this, 10));
+        page.addView(card, Ui.spaced(this, 24));
+    }
+
+    private Button copyButton(Supplier<String> text) {
+        Button copy = Ui.button(this, getString(R.string.copy), getColor(R.color.primary), getColor(R.color.on_primary));
+        copy.setOnClickListener(v -> {
+            getSystemService(ClipboardManager.class).setPrimaryClip(ClipData.newPlainText("013", text.get()));
+            copy.setText(R.string.copied);
+        });
+        return copy;
     }
 
     /** Апп унасан бол алдааны мөрийг харуулна — хэрэглэгч хуулж илгээнэ */
@@ -77,12 +104,7 @@ public class SetupActivity extends Activity {
         TextView text = Ui.text(this, trace.length() > 600 ? trace.substring(0, 600) + "…" : trace, 12, R.color.text);
         text.setTypeface(Typeface.MONOSPACE);
         card.addView(text, Ui.spaced(this, 8));
-        Button copy = Ui.button(this, getString(R.string.copy), getColor(R.color.primary), getColor(R.color.on_primary));
-        copy.setOnClickListener(v -> {
-            getSystemService(ClipboardManager.class).setPrimaryClip(ClipData.newPlainText("013", trace));
-            copy.setText(R.string.copied);
-        });
-        card.addView(copy, Ui.spaced(this, 10));
+        card.addView(copyButton(() -> trace), Ui.spaced(this, 10));
         page.addView(card, Ui.spaced(this, 12));
     }
 
@@ -115,6 +137,7 @@ public class SetupActivity extends Activity {
     }
 
     private void refresh() {
+        diary.setText(Diary.report(this));
         steps.removeAllViews();
         NotificationManager nm = Alarm.manager(this);
         if (!Phone.chromeReady(this)) {
@@ -132,7 +155,7 @@ public class SetupActivity extends Activity {
             step(false, R.string.step_channel, R.string.step_channel_about, R.string.open_settings,
                     () -> go(new Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
                             .putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName())
-                            .putExtra(Settings.EXTRA_CHANNEL_ID, Alarm.CHANNEL)));
+                            .putExtra(Settings.EXTRA_CHANNEL_ID, Alarm.SERVICE_CHANNEL)));
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             step(nm.canUseFullScreenIntent(), R.string.step_screen, R.string.step_screen_about, R.string.allow,
@@ -150,9 +173,8 @@ public class SetupActivity extends Activity {
 
     /** Хэрэглэгч сувгийн дууг унтраасан, ач холбогдлыг нь бууруулсан эсэх */
     private static boolean channelOk(NotificationManager nm) {
-        NotificationChannel channel = nm.getNotificationChannel(Alarm.CHANNEL);
-        return channel == null
-                || (channel.getImportance() >= NotificationManager.IMPORTANCE_DEFAULT && channel.getSound() != null);
+        NotificationChannel channel = nm.getNotificationChannel(Alarm.SERVICE_CHANNEL);
+        return channel == null || channel.getImportance() >= NotificationManager.IMPORTANCE_DEFAULT;
     }
 
     private Uri self() {
@@ -218,12 +240,15 @@ public class SetupActivity extends Activity {
             button.setEnabled(true);
             button.setText(R.string.test_start);
         }, TEST_DELAY_MS);
+        // Дуугарсан эсэх нь «Оношилгоо»-нд гарна
+        handler.postDelayed(this::refresh, TEST_DELAY_MS + Alarm.CHECK_MS + 500);
     }
 
     private void openApp() {
         getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(KEY_DONE, true).apply();
         Crash.seen(this);
         startActivity(new Intent(this, MainActivity.class).setAction(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+                .putExtra(MainActivity.EXTRA_SKIP_SETUP, true)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
         finish();
     }

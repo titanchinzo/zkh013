@@ -7,6 +7,8 @@
     <!-- Мэдэгдлийн сувгууд -->
     <string name="channel_alarm">Улаан дохио</string>
     <string name="channel_alarm_about">Утас дуугүй байсан ч сэрүүлгийн дуугаар дуугарна</string>
+    <string name="channel_backup">Улаан дохио (нөөц)</string>
+    <string name="channel_backup_about">Дохио өөрөө дуугарч чадаагүй үед мэдэгдлийн дуугаар дуугарна</string>
     <string name="channel_message">Улаан мэдээлэл</string>
     <string name="channel_message_about">Улаан мэдээллийн бичвэр. Дохио нь «Улаан дохио» сувгаар дуугарна</string>
 
@@ -49,6 +51,8 @@
     <string name="test_no_permission">Эхлээд мэдэгдлийг зөвшөөрнө үү</string>
     <string name="crash_title">Апп алдаа гаргасан байна</string>
     <string name="crash_about">Доорхыг хуулж хүний нөөц, админд илгээнэ үү.</string>
+    <string name="diary_title">Оношилгоо</string>
+    <string name="diary_about">Дохио дуугараагүй бол доорхыг хуулж илгээнэ үү. Мэдээллийн гарчиг, зурвас энд ордоггүй.</string>
     <string name="copy">Хуулах</string>
     <string name="copied">✓ Хууллаа</string>
 </resources>

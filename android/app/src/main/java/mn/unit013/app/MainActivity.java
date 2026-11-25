@@ -18,6 +18,8 @@ import com.google.androidbrowserhelper.trusted.TwaLauncher;
  */
 public class MainActivity extends LauncherActivity {
     private static final String EXTRA_STOP = "stop_alarm";
+    /** Тохиргооны дэлгэцээс нээсэн: дутуу алхамтай ч апп-ыг нээнэ */
+    static final String EXTRA_SKIP_SETUP = "skip_setup";
     private boolean isSite;
     private boolean needsSetup;
 
@@ -32,9 +34,12 @@ public class MainActivity extends LauncherActivity {
     @Override
     protected void onCreate(Bundle state) {
         Uri link = getIntent().getData();
-        isSite = link != null && "/".equals(link.getPath());
-        // Анх удаа, эсвэл сая унасан бол (дахин дахин унахгүйн тулд) тохиргооны дэлгэц рүү
-        needsSetup = !SetupActivity.isDone(this) || Crash.isNew(this);
+        isSite = link != null && !"/app".equals(link.getPath());
+        // Анх удаа, сая унасан (дахин дахин унахгүйн тулд), эсвэл хуучин вэб апп суусан хэвээр бол (тэгвэл дохио энэ апп руу
+        // ирдэггүй) тохиргооны дэлгэц рүү
+        needsSetup = !SetupActivity.isDone(this)
+                || Crash.isNew(this)
+                || (link == null && !getIntent().getBooleanExtra(EXTRA_SKIP_SETUP, false) && Phone.oldApp(this) != null);
         super.onCreate(state);
         // Сангийн нэмдэг «Site settings» товчлол: бүртгэлийг санамсаргүй арилгах боломжтой тул харуулахгүй
         getSystemService(ShortcutManager.class).removeAllDynamicShortcuts();
@@ -61,7 +66,7 @@ public class MainActivity extends LauncherActivity {
         return new CustomTabsCallback();
     }
 
-    /** Сайтын нүүр хуудасны холбоосыг (unit013.mn) апп биш, хөтөч нээнэ */
+    /** Аппынхаас бусад хуудасны холбоосыг (сайт, мэдээ г.м) хөтөч нээнэ */
     private void openSite(Uri link) {
         try {
             startActivity(new Intent(Intent.ACTION_VIEW, link).setPackage(Phone.CHROME));

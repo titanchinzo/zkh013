@@ -23,11 +23,21 @@ public class AlarmDelegationService extends DelegationService {
         return platformTag.contains(ALERT) && title != null && title.toString().startsWith(RED_MARK);
     }
 
+    /** Мэдэгдлийн төрөл (alert, chat, news…) — хэний, юуны тухай нь биш */
+    static String kind(String platformTag) {
+        int at = platformTag.lastIndexOf("#1");
+        String tag = at < 0 ? "" : platformTag.substring(at + 2);
+        int dash = tag.indexOf('-');
+        return dash > 0 ? tag.substring(0, dash) : "бусад";
+    }
+
     @Override
     @SuppressLint("MissingPermission") // Мэдэгдлийн зөвшөөрлийг areNotificationsEnabled шалгана
     public boolean onNotifyNotificationWithChannel(
             @NonNull String platformTag, int platformId, @NonNull Notification notification, @NonNull String channelName) {
-        if (!isRed(platformTag, notification)) {
+        boolean red = isRed(platformTag, notification);
+        Diary.add(this, "Chrome → апп: " + kind(platformTag) + (red ? " (УЛААН)" : ""));
+        if (!red) {
             return super.onNotifyNotificationWithChannel(platformTag, platformId, notification, channelName);
         }
         if (!NotificationUtils.areNotificationsEnabled(this, channelName)) return false;

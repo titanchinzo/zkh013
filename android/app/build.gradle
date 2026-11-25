@@ -18,8 +18,8 @@ android {
         minSdk = 26
         targetSdk = 36
         // Шинэ хувилбар гаргахад нэмэгдүүлж, lib/android-app.ts-ийг хамт шинэчилнэ
-        versionCode = 2
-        versionName = '1.1'
+        versionCode = 3
+        versionName = '1.2'
     }
 
     buildFeatures {

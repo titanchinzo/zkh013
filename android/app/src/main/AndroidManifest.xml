@@ -6,6 +6,14 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Дохиог сэрүүлэг шиг өөрөө дуугаргах үйлчилгээ (AlarmService) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" tools:ignore="ExactAlarm" />
+    <uses-permission
+        android:name="android.permission.SCHEDULE_EXACT_ALARM"
+        android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.REORDER_TASKS" />
     <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
@@ -60,16 +68,14 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- Chrome мэдэгдлийг аль апп руу дамжуулахаа service worker-ийн хүрээгээр (https://unit013.mn/) олдог
-                 тул "/" заавал байх ёстой. Бусад хуудасны холбоос хөтчөөр нээгдэнэ. -->
+            <!-- Chrome мэдэгдлийг аль апп руу дамжуулахаа сайтын хаягаар (https://unit013.mn, зам нь хоосон эсвэл "/")
+                 олдог тул замаар хязгаарлахгүй. /app-аас бусад холбоосыг MainActivity хөтөч рүү шилжүүлнэ. -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https" />
                 <data android:host="unit013.mn" />
-                <data android:path="/" />
-                <data android:path="/app" />
             </intent-filter>
         </activity>
 
@@ -127,6 +133,11 @@
         <receiver
             android:name=".StopReceiver"
             android:exported="false" />
+
+        <service
+            android:name=".AlarmService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
 
         <!-- Chrome сайтын мэдэгдлийг энд дамжуулна. Хандах эрхийг TrustedWebActivityService өөрөө шалгадаг
              (зөвхөн апп-ыг нээсэн, гарын үсэг нь таарах хөтөч). -->
