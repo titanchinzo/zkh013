@@ -47,4 +47,8 @@
     <string name="test_start">Дохио турших (5 секундын дараа)</string>
     <string name="test_waiting">Дэлгэцээ унтраана уу…</string>
     <string name="test_no_permission">Эхлээд мэдэгдлийг зөвшөөрнө үү</string>
+    <string name="crash_title">Апп алдаа гаргасан байна</string>
+    <string name="crash_about">Доорхыг хуулж хүний нөөц, админд илгээнэ үү.</string>
+    <string name="copy">Хуулах</string>
+    <string name="copied">✓ Хууллаа</string>
 </resources>

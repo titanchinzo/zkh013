@@ -6,6 +6,8 @@ import android.app.Activity;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.content.ActivityNotFoundException;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -46,6 +48,7 @@ public class SetupActivity extends Activity {
         heading.setTypeface(Typeface.DEFAULT_BOLD);
         page.addView(heading);
         page.addView(Ui.text(this, getString(R.string.setup_intro), 15, R.color.muted), Ui.spaced(this, 8));
+        addCrash(page);
         steps = Ui.column(this);
         page.addView(steps, Ui.spaced(this, 8));
 
@@ -60,6 +63,35 @@ public class SetupActivity extends Activity {
         ScrollView scroll = new ScrollView(this);
         scroll.addView(page);
         setContentView(scroll);
+    }
+
+    /** Апп унасан бол алдааны мөрийг харуулна — хэрэглэгч хуулж илгээнэ */
+    private void addCrash(LinearLayout page) {
+        String trace = Crash.last(this);
+        if (trace == null) return;
+        LinearLayout card = card();
+        TextView title = Ui.text(this, getString(R.string.crash_title), 17, R.color.warning);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        card.addView(title);
+        card.addView(Ui.text(this, getString(R.string.crash_about), 15, R.color.muted), Ui.spaced(this, 4));
+        TextView text = Ui.text(this, trace.length() > 600 ? trace.substring(0, 600) + "…" : trace, 12, R.color.text);
+        text.setTypeface(Typeface.MONOSPACE);
+        card.addView(text, Ui.spaced(this, 8));
+        Button copy = Ui.button(this, getString(R.string.copy), getColor(R.color.primary), getColor(R.color.on_primary));
+        copy.setOnClickListener(v -> {
+            getSystemService(ClipboardManager.class).setPrimaryClip(ClipData.newPlainText("013", trace));
+            copy.setText(R.string.copied);
+        });
+        card.addView(copy, Ui.spaced(this, 10));
+        page.addView(card, Ui.spaced(this, 12));
+    }
+
+    private LinearLayout card() {
+        LinearLayout card = Ui.column(this);
+        int pad = Ui.dp(this, 14);
+        card.setPadding(pad, pad, pad, pad);
+        card.setBackground(Ui.box(this, getColor(R.color.card)));
+        return card;
     }
 
     @Override
@@ -129,10 +161,7 @@ public class SetupActivity extends Activity {
 
     /** ok — null бол шалгах боломжгүй алхам (Autostart) */
     private void step(Boolean ok, int title, int about, int action, Runnable onAction) {
-        LinearLayout card = Ui.column(this);
-        int pad = Ui.dp(this, 14);
-        card.setPadding(pad, pad, pad, pad);
-        card.setBackground(Ui.box(this, getColor(R.color.card)));
+        LinearLayout card = card();
         boolean done = Boolean.TRUE.equals(ok);
         String mark = done ? "✓ " : ok == null ? "• " : "✗ ";
         TextView name = Ui.text(this, mark + getString(title), 17, done ? R.color.primary : R.color.warning);
@@ -193,6 +222,7 @@ public class SetupActivity extends Activity {
 
     private void openApp() {
         getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(KEY_DONE, true).apply();
+        Crash.seen(this);
         startActivity(new Intent(this, MainActivity.class).setAction(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
         finish();

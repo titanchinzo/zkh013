@@ -11,10 +11,17 @@ import static org.robolectric.Shadows.shadowOf;
 import android.Manifest;
 import android.app.Activity;
 import android.app.Application;
+import android.app.KeyguardManager;
 import android.app.NotificationManager;
+import android.content.ClipboardManager;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
+import android.content.pm.Signature;
+import android.content.pm.SigningInfo;
 import android.net.Uri;
 import android.os.Looper;
 import android.view.View;
@@ -24,7 +31,13 @@ import android.widget.TextView;
 
 import androidx.test.core.app.ApplicationProvider;
 
+import android.support.customtabs.ICustomTabsService;
+
+import com.google.androidbrowserhelper.trusted.FocusActivity;
 import com.google.androidbrowserhelper.trusted.LauncherActivity;
+import com.google.androidbrowserhelper.trusted.ManageDataLauncherActivity;
+import com.google.androidbrowserhelper.trusted.NotificationPermissionRequestActivity;
+import com.google.androidbrowserhelper.trusted.SharedPreferencesTokenStore;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -33,6 +46,8 @@ import org.robolectric.Robolectric;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.android.controller.ActivityController;
 import org.robolectric.annotation.Config;
+import org.robolectric.shadow.api.Shadow;
+import org.robolectric.shadows.ShadowKeyguardManager;
 import org.robolectric.util.ReflectionHelpers;
 
 import java.util.ArrayList;
@@ -40,7 +55,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 @RunWith(RobolectricTestRunner.class)
-@Config(sdk = 34)
+@Config(sdk = 34, shadows = StrictPackageManager.class)
 public class ScreensTest {
     private Application app;
     private NotificationManager nm;
@@ -237,6 +252,86 @@ public class ScreensTest {
         assertEquals(MainActivity.class.getName(), started.getComponent().getClassName());
         assertEquals("https://unit013.mn/app", started.getDataString());
         assertFalse(Alarm.isPosted(app));
+    }
+
+    @Test
+    public void lockedPhoneOpensTheAppOnlyAfterUnlocking() {
+        ShadowKeyguardManager guard = shadowOf(app.getSystemService(KeyguardManager.class));
+        guard.setKeyguardLocked(true);
+        Alarm.ring(app, "x", "Түгшүүр", Alarm.RING_MS);
+        AlarmActivity a = Robolectric.buildActivity(AlarmActivity.class, new Intent()).setup().get();
+        button(a, "Апп нээх").performClick();
+        shadowOf(Looper.getMainLooper()).idle();
+        assertFalse("дуу зогссон", Alarm.isPosted(app));
+        assertFalse("түгжээ тайлуулах цонхны цаана дэлгэц хаагдахгүй", a.isFinishing());
+        assertNull("түгжээтэй үед апп нээгдэхгүй", shadowOf(a).getNextStartedActivity());
+        guard.setKeyguardLocked(false);
+        shadowOf(Looper.getMainLooper()).idle();
+        assertEquals(MainActivity.class.getName(), shadowOf(a).getNextStartedActivity().getComponent().getClassName());
+        assertTrue(a.isFinishing());
+    }
+
+    /**
+     * LauncherActivity апп нээх бүрд ManageDataLauncherActivity-г идэвхжүүлдэг (setComponentEnabledSetting): манифестэд
+     * байхгүй бол жинхэнэ утсан дээр апп унадаг. Robolectric үүнийг шалгадаггүй тул энд шалгана.
+     */
+    @Test
+    public void libraryScreensAreDeclared() throws Exception {
+        for (Class<?> c : new Class<?>[] {
+            ManageDataLauncherActivity.class, FocusActivity.class, NotificationPermissionRequestActivity.class
+        }) {
+            assertNotNull(app.getPackageManager().getActivityInfo(
+                    new ComponentName(app, c), PackageManager.MATCH_DISABLED_COMPONENTS | PackageManager.GET_META_DATA));
+        }
+    }
+
+    /** Тохиргооны «Апп нээх» → Chrome-той холбогдох → unit013.mn/app-ыг Trusted Web Activity-аар нээх бүтэн зам */
+    @Test
+    public void openingTheAppReachesChrome() {
+        ApplicationInfo info = new ApplicationInfo();
+        info.packageName = Phone.CHROME;
+        info.enabled = true;
+        PackageInfo chrome = new PackageInfo();
+        chrome.packageName = Phone.CHROME;
+        chrome.applicationInfo = info;
+        // Мэдэгдэл дамжуулах эрхийг гарын үсгээр нь олгодог
+        chrome.signingInfo = Shadow.newInstanceOf(SigningInfo.class);
+        shadowOf(chrome.signingInfo).setSignatures(new Signature[] {new Signature("c0de")});
+        shadowOf(app.getPackageManager()).installPackage(chrome);
+        assertTrue(Phone.chromeReady(app));
+        ICustomTabsService.Stub service = new FakeChrome();
+        shadowOf(app).setComponentNameAndServiceForBindService(new ComponentName(Phone.CHROME, "Service"), service);
+
+        finishSetup();
+        ActivityController<MainActivity> c = Robolectric.buildActivity(MainActivity.class, launch(null));
+        MainActivity a = c.create().start().resume().get();
+        shadowOf(Looper.getMainLooper()).idle();
+        Intent bound = shadowOf(app).getNextStartedService();
+        assertNotNull("Chrome-ийн үйлчилгээнд холбогдсон", bound);
+        assertEquals(Phone.CHROME, bound.getPackage());
+        Intent opened = shadowOf(a).getNextStartedActivity();
+        assertNotNull("Chrome руу илгээсэн", opened);
+        assertEquals(Phone.CHROME, opened.getPackage());
+        assertEquals("https://unit013.mn/app?apk=" + BuildConfig.VERSION_CODE, opened.getDataString());
+        assertTrue(opened.getBooleanExtra("android.support.customtabs.extra.LAUNCH_AS_TRUSTED_WEB_ACTIVITY", false));
+        assertTrue("цаана үлдэхгүй", a.isFinishing());
+        assertNotNull("мэдэгдэл дамжуулах эрх Chrome-д олгогдсон", new SharedPreferencesTokenStore(app).load());
+    }
+
+    @Test
+    public void crashIsShownInTheSetupInsteadOfLooping() {
+        finishSetup();
+        Crash.save(app, new IllegalStateException("туршилтын алдаа"));
+        MainActivity a = Robolectric.buildActivity(MainActivity.class, launch(null)).create().get();
+        assertEquals(SetupActivity.class.getName(), shadowOf(a).getNextStartedActivity().getComponent().getClassName());
+        SetupActivity s = Robolectric.setupActivity(SetupActivity.class);
+        assertTrue(texts(s).toString(), texts(s).toString().contains("туршилтын алдаа"));
+        button(s, "Хуулах").performClick();
+        ClipboardManager clip = app.getSystemService(ClipboardManager.class);
+        assertTrue(clip.getPrimaryClip().getItemAt(0).getText().toString().contains("IllegalStateException"));
+        button(s, "Апп нээх").performClick();
+        assertFalse("дараагийн нээлтэд дахин саад болохгүй", Crash.isNew(app));
+        assertNotNull(Crash.last(app));
     }
 
     @Test

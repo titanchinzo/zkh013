@@ -83,25 +83,34 @@ public class AlarmActivity extends Activity {
         open.setOnClickListener(v -> open());
         page.addView(open, Ui.spaced(this, 16));
         Button stop = Ui.button(this, getString(R.string.alarm_stop), 0x33FFFFFF, 0xFFFFFFFF);
-        stop.setOnClickListener(v -> Alarm.stop(this));
+        stop.setOnClickListener(v -> {
+            Alarm.stop(this);
+            finish();
+        });
         page.addView(stop, Ui.spaced(this, 12));
         return page;
     }
 
     /** Утас түгжээтэй бол эхлээд түгжээг тайлуулна */
     private void open() {
+        // Түгжээ тайлуулах цонх гарч байхад энэ дэлгэц хаагдвал тайлах хүсэлт цуцлагдана — апп нээгдтэл хаахгүй
+        Alarm.onStop = null;
         Alarm.stop(this);
-        Intent app = MainActivity.openIntent(this);
         KeyguardManager guard = getSystemService(KeyguardManager.class);
-        if (guard.isKeyguardLocked()) {
-            guard.requestDismissKeyguard(this, new KeyguardManager.KeyguardDismissCallback() {
-                @Override
-                public void onDismissSucceeded() {
-                    startActivity(app);
-                }
-            });
-        } else {
-            startActivity(app);
+        if (!guard.isKeyguardLocked()) {
+            launch();
+            return;
         }
+        guard.requestDismissKeyguard(this, new KeyguardManager.KeyguardDismissCallback() {
+            @Override
+            public void onDismissSucceeded() {
+                launch();
+            }
+        });
+    }
+
+    private void launch() {
+        startActivity(MainActivity.openIntent(this));
+        finish();
     }
 }

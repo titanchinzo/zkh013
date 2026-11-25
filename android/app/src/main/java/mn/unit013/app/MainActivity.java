@@ -3,8 +3,11 @@ package mn.unit013.app;
 import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.ShortcutManager;
 import android.net.Uri;
 import android.os.Bundle;
+
+import androidx.browser.customtabs.CustomTabsCallback;
 
 import com.google.androidbrowserhelper.trusted.LauncherActivity;
 import com.google.androidbrowserhelper.trusted.TwaLauncher;
@@ -16,6 +19,7 @@ import com.google.androidbrowserhelper.trusted.TwaLauncher;
 public class MainActivity extends LauncherActivity {
     private static final String EXTRA_STOP = "stop_alarm";
     private boolean isSite;
+    private boolean needsSetup;
 
     /** Аппыг нээж, дуугарч буй дохиог зогсооно */
     static Intent openIntent(Context c) {
@@ -29,14 +33,18 @@ public class MainActivity extends LauncherActivity {
     protected void onCreate(Bundle state) {
         Uri link = getIntent().getData();
         isSite = link != null && "/".equals(link.getPath());
+        // Анх удаа, эсвэл сая унасан бол (дахин дахин унахгүйн тулд) тохиргооны дэлгэц рүү
+        needsSetup = !SetupActivity.isDone(this) || Crash.isNew(this);
         super.onCreate(state);
+        // Сангийн нэмдэг «Site settings» товчлол: бүртгэлийг санамсаргүй арилгах боломжтой тул харуулахгүй
+        getSystemService(ShortcutManager.class).removeAllDynamicShortcuts();
         if (getIntent().getBooleanExtra(EXTRA_STOP, false)) Alarm.stop(this);
         else Alarm.tidy(this);
         if (isFinishing()) return;
         if (isSite) {
             openSite(link);
             finish();
-        } else if (!SetupActivity.isDone(this)) {
+        } else if (needsSetup) {
             startActivity(new Intent(this, SetupActivity.class));
             finish();
         }
@@ -44,7 +52,13 @@ public class MainActivity extends LauncherActivity {
 
     @Override
     protected boolean shouldLaunchImmediately() {
-        return !isSite && SetupActivity.isDone(this);
+        return !isSite && !needsSetup;
+    }
+
+    /** Сайт түр ажиллахгүй үед (5xx г.м) хөтөч апп-ыг унагахыг хүсдэг — энгийн алдааны хуудас л харуулна */
+    @Override
+    protected CustomTabsCallback getCustomTabsCallback() {
+        return new CustomTabsCallback();
     }
 
     /** Сайтын нүүр хуудасны холбоосыг (unit013.mn) апп биш, хөтөч нээнэ */
