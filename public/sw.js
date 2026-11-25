@@ -11,6 +11,14 @@ self.addEventListener("push", (event) => {
   const quiet = chat || data.kind === "news" || data.kind === "request";
   // silent — өмнөх мэдэгдлийг дуугүй шинэчилнэ (илгээгч зурвасаа устгасан г.м); чичиргээ зааж болохгүй
   const silent = data.silent === true;
+  // Зарлан мэдээллийн түвшин: улаан — урт, давтсан чичиргээ; ногоон — энгийн мэдэгдэл
+  const red = data.level === "red";
+  const stays = !quiet && data.level !== "green";
+  const vibrate = red
+    ? [1000, 300, 1000, 300, 1000, 300, 1000, 300, 1000]
+    : stays
+      ? [300, 100, 300, 100, 300]
+      : [200, 100, 200];
   const tasks = [
     self.registration.showNotification(data.title || "013 анги", {
       body: data.body || "",
@@ -19,9 +27,9 @@ self.addEventListener("push", (event) => {
       tag: data.tag,
       renotify: Boolean(data.tag) && !silent,
       silent,
-      // Зарлан мэдээлэл дарах хүртэл дэлгэц дээр үлдэнэ; чатын зурвас, мэдээ бусад аппынх шиг өөрөө алга болно
-      requireInteraction: !quiet,
-      ...(silent ? {} : { vibrate: quiet ? [200, 100, 200] : [300, 100, 300, 100, 300] }),
+      // Улаан, шар мэдээлэл дарах хүртэл дэлгэц дээр үлдэнэ; бусад нь бусад аппынх шиг өөрөө алга болно
+      requireInteraction: stays,
+      ...(silent ? {} : { vibrate }),
       timestamp: Date.now(),
       data: { url: data.url || "/app" },
     }),
@@ -29,6 +37,14 @@ self.addEventListener("push", (event) => {
   // Аппын дүрс дээрх уншаагүй зурвасын тоо
   if (chat && typeof data.badge === "number" && self.navigator.setAppBadge) {
     tasks.push(self.navigator.setAppBadge(data.badge).catch(() => {}));
+  }
+  // Апп нээлттэй бол улаан дохиог тэр дор нь дуугаргана (service worker өөрөө дуу гаргаж чадахгүй)
+  if (red) {
+    tasks.push(
+      self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((windows) => {
+        for (const w of windows) if (new URL(w.url).pathname === "/app") w.postMessage({ type: "alarm" });
+      })
+    );
   }
   event.waitUntil(Promise.all(tasks));
 });

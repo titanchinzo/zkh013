@@ -16,6 +16,7 @@ import {
   formatWeek,
   relativeDay,
   todayUb,
+  type AlertLevel,
 } from "@/lib/hr";
 import { POLL_MS } from "@/lib/chat-shared";
 import { InstallSteps, useInstall } from "@/components/app/install";
@@ -26,18 +27,22 @@ import { Directory } from "@/components/app/directory";
 import { DeviceRequests } from "@/components/app/device-requests";
 import { AlertManager, DutyManager, HrTools, type ManageView } from "@/components/app/manage";
 import { LOCK_EVENT, LockScreen, inLockCeremony } from "@/components/app/app-lock";
+import { AlarmBanner, AlarmScreen, AlarmTest } from "@/components/app/alarm";
+import { ALERT_LEVEL_EDGE, AlertLevelBadge } from "@/components/alert-level";
 import { usePolling } from "@/lib/use-polling";
 import { clearChatHistory } from "@/lib/chat-store";
 
 type DeviceStatus = "pending" | "approved" | "rejected" | "revoked";
 // direct — урилгаар орж ирсэн тул бүртгэл хүний нөөцийн зөвшөөрөлгүй шууд идэвхжинэ
 // lock — зөвшөөрөгдсөн утасны апп түгжээ: setup (тохируулаагүй), locked, open (сервер дээр тайлсан), off (туршилтад)
+// alarm — хүлээн аваагүй улаан мэдээлэл (түгжээтэй үед дохио өгөхөд)
 type LockState = "off" | "setup" | "locked" | "open";
 type DeviceInfo = {
   signedIn: boolean;
   direct: boolean;
   device: { status: DeviceStatus; rank: string; name: string } | null;
   lock: LockState | null;
+  alarm: { id: string; title: string } | null;
 };
 
 // Файл, зураг сонгох (камер) цонх нээхэд апп далд ордог — ийм богино хугацаанд түгжихгүй
@@ -54,7 +59,16 @@ type Feed = {
   person: Person | null;
   pushEnabled: boolean;
   // endsAt — энэ цагт автоматаар устна (хугацаатай болохоос өмнөх мэдээлэлд null)
-  alerts: { id: string; title: string; body: string; startsAt: string; endsAt: string | null; edited: boolean; acked: boolean }[];
+  alerts: {
+    id: string;
+    title: string;
+    body: string;
+    level: AlertLevel;
+    startsAt: string;
+    endsAt: string | null;
+    edited: boolean;
+    acked: boolean;
+  }[];
   nextDuty: string | null;
   weeks: { start: string; days: { date: string; people: { name: string; me: boolean }[] }[] }[];
   // «Мэдээ»-ний тэмдэг: хянагчид хяналт хүлээж буй мэдээ, бусдад хамгийн сүүлийн мэдээний огноо
@@ -118,6 +132,20 @@ export function AlertApp() {
 
   // Хүсэлт хүлээгдэж байх хооронд байнга шалгана — хүний нөөц зөвшөөрмөгц апп өөрөө нээгдэнэ
   usePolling(load, 10_000, info?.device?.status === "pending");
+  // Түгжээтэй байхад ирсэн улаан мэдээллийн дохио
+  usePolling(load, 20_000, locked);
+
+  // Улаан дохио ирэх, давтагдах бүрд (service worker мэдэгдэнэ) дахин дуугарна — «Дуу зогсоох» дарсан байсан ч
+  const [ring, setRing] = useState(0);
+  useEffect(() => {
+    const onMessage = (e: MessageEvent) => {
+      if (e.data?.type !== "alarm") return;
+      setRing((n) => n + 1);
+      load();
+    };
+    navigator.serviceWorker?.addEventListener("message", onMessage);
+    return () => navigator.serviceWorker?.removeEventListener("message", onMessage);
+  }, [load]);
 
   // Апп далд орох бүрд (өөр апп, дэлгэц унтрах) шууд түгжинэ — сервер дээр ч. Файл сонгох, баталгаажуулах цонх
   // нээгдэхэд түгжихгүй. Чат зэрэг нь 403 авбал (түгжигдсэн) LOCK_EVENT-ээр мэдэгдэнэ.
@@ -131,6 +159,8 @@ export function AlertApp() {
     const onHidden = () => {
       if (document.visibilityState !== "hidden" || inLockCeremony() || Date.now() - pickerAt < PICKER_GRACE_MS) return;
       setUnlocked(false);
+      // Хүлээн авсан эсэх нь хуучирсан байж магадгүй — дахин асуутал дохио өгөхгүй
+      setInfo((i) => i && { ...i, alarm: null });
       navigator.sendBeacon?.("/api/app/lock/close");
     };
     const onLocked = () => {
@@ -168,14 +198,17 @@ export function AlertApp() {
       {!info ? (
         <p className="text-sm text-muted-foreground">Ачааллаж байна...</p>
       ) : locked ? (
-        <LockScreen
-          key={lockState === "setup" ? "setup" : "locked"}
-          mode={lockState === "setup" ? "setup" : "locked"}
-          name={[info.device?.rank, info.device?.name].filter(Boolean).join(" ")}
-          onUnlocked={onUnlocked}
-        />
+        <>
+          {info.alarm && <AlarmBanner key={`${info.alarm.id}-${ring}`} title={info.alarm.title} />}
+          <LockScreen
+            key={lockState === "setup" ? "setup" : "locked"}
+            mode={lockState === "setup" ? "setup" : "locked"}
+            name={[info.device?.rank, info.device?.name].filter(Boolean).join(" ")}
+            onUnlocked={onUnlocked}
+          />
+        </>
       ) : approved ? (
-        <ApprovedView tab={tab} chatWith={chatWith} newsId={newsId} write={write} manage={manage} />
+        <ApprovedView tab={tab} chatWith={chatWith} newsId={newsId} write={write} manage={manage} ring={ring} />
       ) : info.device?.status === "pending" ? (
         <Card>
           <p className="font-semibold text-foreground">Хүсэлт илгээгдсэн</p>
@@ -202,8 +235,8 @@ export function AlertApp() {
   );
 }
 
-function Card({ children }: { children: React.ReactNode }) {
-  return <section className="rounded-xl border border-border bg-card p-4 space-y-3">{children}</section>;
+function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return <section className={`rounded-xl border border-border bg-card p-4 space-y-3 ${className}`}>{children}</section>;
 }
 
 function SignInPrompt() {
@@ -513,12 +546,15 @@ function ApprovedView({
   newsId,
   write,
   manage,
+  ring,
 }: {
   tab: Tab;
   chatWith: string | null;
   newsId: string | null;
   write: string | null;
   manage: ManageView | null;
+  // Улаан дохио ирэх бүрд нэмэгдэнэ
+  ring: number;
 }) {
   const [feed, setFeed] = useState<Feed | null>(null);
   const [unread, setUnread] = useState(0);
@@ -538,9 +574,9 @@ function ApprovedView({
   }, []);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial data fetch on mount
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial data fetch on mount, and on every red alarm
     load();
-  }, [load]);
+  }, [load, ring]);
   // Апп руу буцаж ороход (мэдэгдэл дарсны дараа г.м) болон минут тутам шинэчилнэ — товлосон мэдээлэл эхлэх цагтаа
   // гарч ирж, хугацаа нь дууссан нь алга болно
   usePolling(load, 60_000);
@@ -664,13 +700,27 @@ function ApprovedView({
   // Зөвхөн хүний нөөц, админд (feed.requests нь тэдэнд л ирдэг)
   const isHr = feed?.requests !== undefined;
 
+  /** 404 — мэдээллийг устгасан эсвэл хугацаа нь дууссан: дохио мөн зогсоно */
   async function ack(id: string) {
-    await fetch(`/api/app/alerts/${id}/ack`, { method: "POST" });
+    const res = await fetch(`/api/app/alerts/${id}/ack`, { method: "POST" }).catch(() => null);
+    const done = Boolean(res && (res.ok || res.status === 404));
+    if (done) {
+      setFeed((f) => f && { ...f, alerts: f.alerts.map((a) => (a.id === id ? { ...a, acked: true } : a)) });
+      // Хүлээн авсан мэдээллийн мэдэгдэл утасны дэлгэц дээр үлдэхгүй
+      navigator.serviceWorker
+        ?.getRegistration()
+        .then((reg) => reg?.getNotifications({ tag: `alert-${id}` }))
+        .then((list) => list?.forEach((n) => n.close()))
+        .catch(() => {});
+    }
     load();
+    return done;
   }
+  const alarm = feed?.alerts.find((a) => a.level === "red" && !a.acked);
 
   return (
     <>
+      {alarm && <AlarmScreen key={`${alarm.id}-${ring}`} alert={alarm} onAck={ack} />}
       <div className={tab === "home" ? "space-y-6" : "hidden"}>
         {feed ? <HomeView feed={feed} onChange={load} onAck={ack} onRequests={setRequests} onManage={openManage} /> : <p className="text-sm text-muted-foreground">Ачааллаж байна...</p>}
       </div>
@@ -769,7 +819,7 @@ function HomeView({
 }: {
   feed: Feed;
   onChange: () => void;
-  onAck: (id: string) => void;
+  onAck: (id: string) => Promise<boolean>;
   onRequests: (count: number) => void;
   onManage: (view: ManageView) => void;
 }) {
@@ -789,8 +839,9 @@ function HomeView({
         <h2 className="font-bold text-foreground">Зарлан мэдээлэл</h2>
         {feed.alerts.length === 0 && <p className="text-sm text-muted-foreground">Одоогоор мэдээлэл алга.</p>}
         {feed.alerts.map((a) => (
-          <Card key={a.id}>
-            <div>
+          <Card key={a.id} className={ALERT_LEVEL_EDGE[a.level]}>
+            <div className="space-y-1">
+              <AlertLevelBadge level={a.level} />
               <p className="font-bold text-foreground">{a.title}</p>
               <p className="text-xs text-muted-foreground">
                 {formatDateTime(a.startsAt)}
@@ -927,7 +978,12 @@ function PushToggle({ enabled, onChange }: { enabled: boolean; onChange: () => v
     );
   }
   if (enabled && state !== "denied") {
-    return <p className="text-sm font-semibold text-primary">✓ Мэдэгдэл асаалттай</p>;
+    return (
+      <div className="space-y-2">
+        <p className="text-sm font-semibold text-primary">✓ Мэдэгдэл асаалттай</p>
+        <AlarmTest />
+      </div>
+    );
   }
   return (
     <Card>

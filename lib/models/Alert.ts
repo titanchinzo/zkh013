@@ -1,5 +1,5 @@
 import { Schema, model, models, type InferSchemaType } from "mongoose";
-import { ALERT_LIMITS } from "@/lib/hr";
+import { ALERT_LEVELS, ALERT_LIMITS } from "@/lib/hr";
 
 // Зарлан мэдээлэл — хүний нөөц илгээж, зөвшөөрөгдсөн утас бүрт мэдэгдэл очно. acks — "Хүлээн авлаа" дарсан хүмүүс.
 // Хугацаатай: эхлэх цаг болоход утсанд мэдэгдэл очиж харагдана, дуусах цаг өнгөрмөгц MongoDB өөрөө устгана (TTL).
@@ -15,6 +15,10 @@ const AlertSchema = new Schema(
     endsAt: { type: Date },
     // Утсанд мэдэгдэл илгээсэн цаг — товлосон мэдээлэлд эхлэх цаг нь болтол байхгүй
     notifiedAt: { type: Date },
+    // Түвшин — түвшинтэй болохоос өмнөх мэдээлэлд байхгүй (шар гэж үзнэ, lib/hr.ts-ийн alertLevel)
+    level: { type: String, enum: ALERT_LEVELS },
+    // Улаан мэдээллийг утсанд хамгийн сүүлд дуугаргасан цаг (давтан мэдэгдэхэд)
+    rangAt: { type: Date },
     editedAt: { type: Date },
     acks: [{ _id: false, userId: { type: String, required: true }, at: { type: Date, required: true } }],
   },

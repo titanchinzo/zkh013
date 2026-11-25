@@ -10,7 +10,7 @@ import { announceAlert } from "@/lib/alerts";
 type Params = { params: Promise<{ id: string }> };
 
 /**
- * Зарлан мэдээллийг засна. body: { title, body, startsAt?, endsAt, renotify? } — renotify: true бол утсанд дахин
+ * Зарлан мэдээллийг засна. body: { title, body, startsAt?, endsAt, level?, renotify? } — renotify: true бол утсанд дахин
  * мэдэгдэнэ (эхлэх цаг нь болсон бол одоо, үгүй бол тэр цагт), «Хүлээн авлаа» тэмдэглэл шинээр эхэлнэ.
  * Мэдэгдэл нь хараахан очоогүй (товлосон) мэдээлэл эхлэх цагтаа очно.
  */

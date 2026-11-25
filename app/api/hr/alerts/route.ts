@@ -5,13 +5,14 @@ import Device from "@/lib/models/Device";
 import Personnel from "@/lib/models/Personnel";
 import { getActor } from "@/lib/actor";
 import { isHrRole } from "@/lib/roles";
-import { parseAlert, personnelLabel } from "@/lib/hr";
+import { DEFAULT_ALERT_LEVEL, alertLevel, parseAlert, personnelLabel } from "@/lib/hr";
 import { announceAlert, notExpired } from "@/lib/alerts";
 
 type AlertDoc = {
   _id: unknown;
   title: string;
   body: string;
+  level?: string;
   createdByName: string;
   createdAt: Date;
   startsAt?: Date;
@@ -48,6 +49,7 @@ export async function GET() {
         id: String(a._id),
         title: a.title,
         body: a.body,
+        level: alertLevel(a.level),
         createdByName: a.createdByName,
         createdAt: a.createdAt,
         // Хуучин (хугацаагүй) мэдээлэл үүсгэхдээ шууд илгээгдсэн
@@ -64,8 +66,8 @@ export async function GET() {
 }
 
 /**
- * Зарлан мэдээлэл илгээнэ. body: { title, body, startsAt?, endsAt } — эхлэх цаг болоход (хоосон бол одоо)
- * зөвшөөрөгдсөн бүх утас руу мэдэгдэл очиж, дуусах цаг өнгөрмөгц автоматаар устна.
+ * Зарлан мэдээлэл илгээнэ. body: { title, body, startsAt?, endsAt, level? } — эхлэх цаг болоход (хоосон бол одоо)
+ * зөвшөөрөгдсөн бүх утас руу мэдэгдэл очиж, дуусах цаг өнгөрмөгц автоматаар устна. level: red | yellow | green.
  */
 export async function POST(req: NextRequest) {
   const actor = await getActor();
@@ -75,7 +77,7 @@ export async function POST(req: NextRequest) {
 
   await connectToDatabase();
   // Утаснаас илгээсэн бол хүний нөөцийн бүртгэлийн нэр (цолтой), сайтаас бол Clerk-ийн нэр
-  const alert = await Alert.create({ ...parsed.value, createdBy: actor.userId, createdByName: actor.name });
+  const alert = await Alert.create({ level: DEFAULT_ALERT_LEVEL, ...parsed.value, createdBy: actor.userId, createdByName: actor.name });
   const result = await announceAlert(alert._id);
   return NextResponse.json({ id: String(alert._id), ...(result ?? { scheduled: true }) }, { status: 201 });
 }

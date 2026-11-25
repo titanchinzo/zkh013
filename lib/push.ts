@@ -1,6 +1,7 @@
 import "server-only";
 import webpush, { WebPushError } from "web-push";
 import Device from "@/lib/models/Device";
+import type { AlertLevel } from "@/lib/hr";
 import { SITE_URL } from "@/lib/site";
 
 // Утас руу мэдэгдэл (Web Push). Хөтчийн өөрийн push үйлчилгээгээр (Google, Apple, Mozilla) үнэгүй очно.
@@ -9,7 +10,7 @@ import { SITE_URL } from "@/lib/site";
 // kind: "chat" — чатын зурвас (дэлгэц дээр удаан үлдэхгүй, зурвас илгээсэн хүний зурагтай); "news" — мэдээний
 // хяналт, шийдвэр (мөн удаан үлдэхгүй); "request" — утас бүртгүүлэх хүсэлт (хүний нөөц, админд; мөн удаан үлдэхгүй);
 // badge — аппын дүрс дээрх уншаагүй зурвасын тоо; silent — дуугүй, чичиргээгүй
-// (ижил tag-тай мэдэгдлийг шинэчлэхэд, жишээ нь илгээгч зурвасаа устгасан үед)
+// (ижил tag-тай мэдэгдлийг шинэчлэхэд, жишээ нь илгээгч зурвасаа устгасан үед); level — зарлан мэдээллийн түвшин
 export type PushPayload = {
   title: string;
   body: string;
@@ -19,6 +20,7 @@ export type PushPayload = {
   icon?: string;
   badge?: number;
   silent?: boolean;
+  level?: AlertLevel;
 };
 
 let configured = false;
@@ -48,14 +50,22 @@ function configure() {
 /**
  * Зөвшөөрөгдсөн, мэдэгдэл асаасан утсууд руу илгээнэ (userIds өгвөл зөвхөн тэдгээр хүмүүсийн утас руу).
  * badges — хүн бүрийн аппын дүрс дээрх тоо (бүлгийн чат: хүн бүрд өөр); өгвөл payload.badge-ийг орлоно.
+ * exclude — эдгээр хүмүүст илгээхгүй; ttl — утас холбогдоогүй бол мэдэгдэл хэдэн секунд хүлээх.
  * Хүчингүй болсон захиалгыг (утаснаас аппыг устгасан г.м) арилгана. Алдаа гарсан ч үндсэн үйлдлийг зогсоохгүй.
  */
-export async function pushToDevices(payload: PushPayload, userIds?: string[], badges?: Map<string, number>) {
+export async function pushToDevices(
+  payload: PushPayload,
+  userIds?: string[],
+  badges?: Map<string, number>,
+  { exclude, ttl = 24 * 60 * 60 }: { exclude?: string[]; ttl?: number } = {}
+) {
   if (!configure()) return { sent: 0, failed: 0 };
   const devices = await Device.find({
     status: "approved",
     "push.endpoint": { $exists: true },
-    ...(userIds ? { userId: { $in: userIds } } : {}),
+    ...(userIds || exclude
+      ? { userId: { ...(userIds ? { $in: userIds } : {}), ...(exclude ? { $nin: exclude } : {}) } }
+      : {}),
   })
     .select("userId push")
     .lean<{ _id: unknown; userId: string; push: webpush.PushSubscription }[]>();
@@ -63,7 +73,7 @@ export async function pushToDevices(payload: PushPayload, userIds?: string[], ba
   const bodyFor = (userId: string) =>
     JSON.stringify({ url: "/app", ...payload, ...(badges?.has(userId) ? { badge: badges.get(userId) } : {}) });
   const results = await Promise.allSettled(
-    devices.map((d) => webpush.sendNotification(d.push, bodyFor(d.userId), { TTL: 24 * 60 * 60, urgency: "high" }))
+    devices.map((d) => webpush.sendNotification(d.push, bodyFor(d.userId), { TTL: ttl, urgency: "high" }))
   );
 
   const gone = devices.filter((d, i) => {

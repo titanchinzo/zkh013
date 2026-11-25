@@ -17,7 +17,7 @@ async function newsBadge(userId: string) {
 }
 import DayRecord, { dutyIds } from "@/lib/models/DayRecord";
 import Personnel from "@/lib/models/Personnel";
-import { WEEK_DAYS, addDays, personnelLabel, todayUb, weekStart } from "@/lib/hr";
+import { WEEK_DAYS, addDays, alertLevel, personnelLabel, todayUb, weekStart } from "@/lib/hr";
 
 type DayDoc = { date: string; guard?: unknown[]; watch?: unknown[] };
 
@@ -38,6 +38,7 @@ export async function GET() {
         _id: unknown;
         title: string;
         body: string;
+        level?: string;
         createdAt: Date;
         startsAt?: Date;
         endsAt?: Date;
@@ -88,6 +89,7 @@ export async function GET() {
       id: String(a._id),
       title: a.title,
       body: a.body,
+      level: alertLevel(a.level),
       createdAt: a.createdAt,
       startsAt: a.startsAt ?? a.createdAt,
       endsAt: a.endsAt ?? null,

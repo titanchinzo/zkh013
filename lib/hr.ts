@@ -83,6 +83,19 @@ export const ALERT_LIMITS = { title: 120, body: 1000 } as const;
 /** Зарлан мэдээллийн дуусах цаг хамгийн хол нь одооноос хойш ийм хоног */
 export const ALERT_MAX_DAYS = 365;
 
+/** Зарлан мэдээллийн түвшин: улаан — яаралтай дохио, шар — анхааруулга, ногоон — энгийн мэдээлэл */
+export const ALERT_LEVELS = ["red", "yellow", "green"] as const;
+export type AlertLevel = (typeof ALERT_LEVELS)[number];
+export const ALERT_LEVEL_LABEL: Record<AlertLevel, string> = { red: "Улаан", yellow: "Шар", green: "Ногоон" };
+/** Мэдэгдлийн гарчгийн өмнөх тэмдэг */
+export const ALERT_LEVEL_MARK: Record<AlertLevel, string> = { red: "🔴", yellow: "🟡", green: "🟢" };
+export const DEFAULT_ALERT_LEVEL: AlertLevel = "yellow";
+const isAlertLevel = (value: unknown): value is AlertLevel => ALERT_LEVELS.includes(value as AlertLevel);
+/** Түвшинтэй болохоос (2026-11-25) өмнөх мэдээлэл шар — тэр үеийнх шигээ мэдэгдэнэ */
+export const alertLevel = (value: unknown): AlertLevel => (isAlertLevel(value) ? value : DEFAULT_ALERT_LEVEL);
+/** Улаан мэдээллийг хүлээн аваагүй утсанд ийм хугацаанд давтан мэдэгдэнэ */
+export const ALERT_RING_MINUTES = 10;
+
 const HOUR_MS = 3_600_000;
 /** Зарлан мэдээллийн маягт дээрх хугацааны товчнууд — эхлэх цагаас (хоосон бол одооноос) хойш */
 export const ALERT_DURATIONS = [
@@ -255,7 +268,8 @@ type PersonnelOptions = {
   /** Хүний нөөцийн талбарууд — бүлэг, бусад дугаар, «Шаардлагатай үед» (аппаас өөрчлөхгүй) */
   hr?: boolean;
 };
-type AlertFields = { title: string; body: string; startsAt: Date; endsAt: Date };
+// level — өгөөгүй бол байхгүй (шинэ мэдээлэлд DEFAULT_ALERT_LEVEL, засахад хуучнаараа)
+type AlertFields = { title: string; body: string; startsAt: Date; endsAt: Date; level?: AlertLevel };
 
 /**
  * Зарлан мэдээллийг шалгана: гарчиг (заавал), дэлгэрэнгүй, эхлэх (хоосон бол одоо), дуусах (заавал) — огноо нь ISO
@@ -267,6 +281,7 @@ export function parseAlert(body: unknown, now = new Date()): Result<AlertFields>
   const text = typeof b.body === "string" ? b.body.trim() : "";
   if (!title) return { ok: false, error: "Гарчгийг бичнэ үү" };
   if (title.length > ALERT_LIMITS.title || text.length > ALERT_LIMITS.body) return { ok: false, error: "Хэт урт байна" };
+  if (b.level !== undefined && !isAlertLevel(b.level)) return { ok: false, error: "Түвшнийг сонгоно уу" };
 
   const date = (value: unknown) => (typeof value === "string" && value ? new Date(value) : null);
   const startsAt = date(b.startsAt) ?? now;
@@ -278,7 +293,8 @@ export function parseAlert(body: unknown, now = new Date()): Result<AlertFields>
   if (endsAt.getTime() - now.getTime() > ALERT_MAX_DAYS * 86_400_000) {
     return { ok: false, error: `Дуусах цаг хэт хол байна (одооноос ${ALERT_MAX_DAYS} хоногийн дотор)` };
   }
-  return { ok: true, value: { title, body: text, startsAt, endsAt } };
+  const level = isAlertLevel(b.level) ? { level: b.level } : {};
+  return { ok: true, value: { title, body: text, startsAt, endsAt, ...level } };
 }
 
 /**
