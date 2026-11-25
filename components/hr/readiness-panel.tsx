@@ -15,6 +15,8 @@ type PhoneRow = {
   id: string;
   name: string;
   phone: string;
+  // Улаан дохио илгээх эсэх; null — алба хаагчийн бүртгэлтэй холбогдоогүй
+  alarm: boolean | null;
   kind: "iphone" | "android" | "other";
   push: boolean;
   apk: number | null;
@@ -53,18 +55,22 @@ export function ReadinessPanel() {
   }, [load]);
   usePolling(load, 15_000);
 
-  async function result(p: PhoneRow, value: "rang" | "silent") {
-    if (value === "silent" && !confirm(`${p.name}: дуугараагүй гэж тэмдэглэх үү? Тэр хүний аппад заавар дахин гарна.`)) return;
+  async function patch(p: PhoneRow, body: { result: "rang" | "silent" } | { alarm: boolean }) {
     setBusy(p.id);
     setError("");
     const res = await fetch(`/api/hr/readiness/${p.id}`, {
       method: "PATCH",
       headers: JSON_HEADERS,
-      body: JSON.stringify({ result: value }),
+      body: JSON.stringify(body),
     }).catch(() => null);
     if (!res?.ok) setError((await res?.json().catch(() => null))?.error ?? "Алдаа гарлаа");
     await load();
     setBusy("");
+  }
+
+  function result(p: PhoneRow, value: "rang" | "silent") {
+    if (value === "silent" && !confirm(`${p.name}: дуугараагүй гэж тэмдэглэх үү? Тэр хүний аппад заавар дахин гарна.`)) return;
+    patch(p, { result: value });
   }
 
   if (!data) return <p className="text-sm text-muted-foreground">Ачааллаж байна...</p>;
@@ -78,11 +84,21 @@ export function ReadinessPanel() {
   const others = data.phones.filter((p) => p.kind === "other");
   const set = iphones.filter((p) => p.bypass === "set").length;
   const tested = iphones.filter((p) => p.bypass === "tested").length;
+  const alarmOff = data.phones.filter((p) => p.alarm === false);
+  const setAlarm = (p: PhoneRow, alarm: boolean) => patch(p, { alarm });
 
   return (
     <div className="space-y-6">
       <NumbersForm key={data.numbers.join()} numbers={data.numbers} onSaved={load} />
       {error && <p className="text-sm text-red-400">{error}</p>}
+      <p className="text-sm text-muted-foreground">
+        «Дохио»-г авбал тэр хүнд улаан (цугларалтын) дохио илгээхгүй, мэдээлэл аппад нь харагдана.{" "}
+        <span className="text-foreground">
+          {alarmOff.length
+            ? `Дохио илгээхгүй ${alarmOff.length} хүн: ${alarmOff.map((p) => p.name).join(", ")}.`
+            : "Одоо бүх хүнд илгээнэ."}
+        </span>
+      </p>
 
       <section className="space-y-3" aria-label="iPhone">
         <h2 className="font-bold text-foreground">iPhone ({iphones.length})</h2>
@@ -96,7 +112,7 @@ export function ReadinessPanel() {
         <ul className="space-y-2">
           {iphones.map((p) => (
             <li key={p.id} className="space-y-2 rounded-xl border border-border p-3" aria-label={p.name}>
-              <PhoneHead p={p} />
+              <PhoneHead p={p} busy={busy === p.id} onAlarm={setAlarm} />
               <p className={`text-sm font-semibold ${BYPASS_COLOR[p.bypass]}`}>
                 {BYPASS_LABEL[p.bypass]}
                 {p.bypass === "tested" && p.testedAt && <Muted text={formatDateTime(p.testedAt)} />}
@@ -132,7 +148,7 @@ export function ReadinessPanel() {
         <ul className="space-y-2">
           {androids.map((p) => (
             <li key={p.id} className="space-y-1 rounded-xl border border-border p-3" aria-label={p.name}>
-              <PhoneHead p={p} />
+              <PhoneHead p={p} busy={busy === p.id} onAlarm={setAlarm} />
               <p className={`text-sm font-semibold ${p.apk ? "text-primary" : "text-yellow-400"}`}>
                 {p.apk ? (p.apk < ANDROID_APP.version ? "Android апп (хуучин хувилбар)" : "Android апп") : "Android апп суулгаагүй"}
               </p>
@@ -147,7 +163,7 @@ export function ReadinessPanel() {
           <ul className="space-y-2">
             {others.map((p) => (
               <li key={p.id} className="rounded-xl border border-border p-3" aria-label={p.name}>
-                <PhoneHead p={p} />
+                <PhoneHead p={p} busy={busy === p.id} onAlarm={setAlarm} />
               </li>
             ))}
           </ul>
@@ -161,14 +177,27 @@ function Muted({ text }: { text: string }) {
   return <span className="ml-2 text-xs font-normal text-muted-foreground">{text}</span>;
 }
 
-function PhoneHead({ p }: { p: PhoneRow }) {
+function PhoneHead({ p, busy, onAlarm }: { p: PhoneRow; busy: boolean; onAlarm: (p: PhoneRow, alarm: boolean) => void }) {
   return (
-    <div className="flex items-baseline justify-between gap-3">
-      <span className="min-w-0 text-sm font-semibold text-foreground">{p.name}</span>
-      <span className="shrink-0 text-xs text-muted-foreground">
-        {p.phone ? formatPhone(p.phone) : "дугааргүй"}
-        {!p.push && <span className="ml-2 text-yellow-400">мэдэгдэл унтраалттай</span>}
-      </span>
+    <div className="flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <p className="text-sm font-semibold text-foreground">{p.name}</p>
+        <p className="text-xs text-muted-foreground">
+          {p.phone ? formatPhone(p.phone) : "дугааргүй"}
+          {!p.push && <span className="ml-2 text-yellow-400">мэдэгдэл унтраалттай</span>}
+        </p>
+      </div>
+      <label className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground" title="Улаан дохио илгээх эсэх">
+        <input
+          type="checkbox"
+          checked={p.alarm !== false}
+          disabled={busy || p.alarm === null}
+          onChange={(e) => onAlarm(p, e.target.checked)}
+          aria-label={`${p.name}: улаан дохио`}
+          className="size-5 accent-[var(--primary)] disabled:opacity-40"
+        />
+        Дохио
+      </label>
     </div>
   );
 }

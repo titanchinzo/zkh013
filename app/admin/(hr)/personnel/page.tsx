@@ -23,6 +23,8 @@ type Person = {
   userId?: string;
   canRegister?: boolean;
   seesAllPhones?: boolean;
+  // Улаан (цугларалтын) дохио илгээхгүй
+  noAlarm?: boolean;
   invitedByName?: string;
 };
 type Group = { name: string; count: number; seesAll?: boolean };
@@ -173,6 +175,15 @@ export default function PersonnelPage() {
     }
   }
 
+  async function setGroupAlarm(name: string, alarm: boolean) {
+    const count = people.filter((p) => p.active && p.group === name).length;
+    if (!alarm && !confirm(`«${name}» бүлгийн ${count} хүнд улаан (цугларалтын) дохио илгээхгүй болгох уу?`)) return;
+    if (await send("/api/hr/groups", "PATCH", { name, alarm })) {
+      setNotice(alarm ? `«${name}» бүлгийн бүх хүнд улаан дохио илгээнэ.` : `«${name}» бүлгийнхэнд улаан дохио илгээхгүй.`);
+      load();
+    }
+  }
+
   async function renameGroup(name: string) {
     const to = prompt(`«${name}» бүлгийн шинэ нэр (байгаа бүлгийн нэр бичвэл нийлнэ):`, name)?.trim();
     if (!to || to === name) return;
@@ -214,7 +225,9 @@ export default function PersonnelPage() {
           алдааг «Засах»-аар засна. Халагдсан хүнийг «Идэвхгүй болгох»-д ирц, хуваарийн түүх нь үлдэнэ; «Устгах» нь бүр
           мөсөн устгана. «Бүртгэх эрх» олгосон хүн (албадын дарга) утсан дээрх аппаасаа доод хүмүүсээ и-мэйлээр урьж
           бүртгэнэ. «Бүх утас» олгосон хүн аппын «Утас» хэсгээс бүх алба хаагчийн дугаарыг бүлэг бүрээр харна (бүлгийн
-          толгой дахь «Бүх утас харна» нь тэр бүлгийн бүх хүнд олгоно).
+          толгой дахь «Бүх утас харна» нь тэр бүлгийн бүх хүнд олгоно). «Дохио»-г авбал тэр хүнд улаан (цугларалтын) дохио
+          илгээхгүй: мэдээлэл аппад нь харагдана, утас нь дуугарахгүй (захирагч, орлогч нарт; бүлгийн толгойноос бүгдэд нь
+          нэг дор).
         </p>
         <p className="text-sm text-muted-foreground mt-1">
           Урилга заавал биш: аппаа татсан хүн өөрөө хүсэлт илгээж, түүнийг{" "}
@@ -341,6 +354,12 @@ export default function PersonnelPage() {
                     >
                       Бүх утас
                     </th>
+                    <th
+                      className="text-left px-4 py-3 text-muted-foreground font-semibold"
+                      title="Улаан (цугларалтын) дохио илгээх эсэх"
+                    >
+                      Дохио
+                    </th>
                     <th />
                   </tr>
                 </thead>
@@ -349,7 +368,7 @@ export default function PersonnelPage() {
                   return (
                     <tbody key={section.name || NO_GROUP} data-group={section.name}>
                       <tr className="border-t border-border bg-muted/20">
-                        <th colSpan={7} className="px-4 py-2 text-left">
+                        <th colSpan={8} className="px-4 py-2 text-left">
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <span className="font-bold text-foreground">
                               {section.name || "Бүлэггүй"}{" "}
@@ -369,6 +388,11 @@ export default function PersonnelPage() {
                                   />
                                   Бүх утас харна
                                 </label>
+                                <GroupAlarm
+                                  people={active.filter((p) => p.group === section.name)}
+                                  name={section.name}
+                                  onChange={(alarm) => setGroupAlarm(section.name, alarm)}
+                                />
                                 <button
                                   onClick={() => moveGroup(section.name, -1)}
                                   disabled={index <= 0}
@@ -425,6 +449,34 @@ export default function PersonnelPage() {
   );
 }
 
+/** Бүлгийн бүх хүнд улаан дохио илгээх эсэх: бүгд / зарим нь (зураас) / хэн ч биш */
+function GroupAlarm({ people, name, onChange }: { people: Person[]; name: string; onChange: (alarm: boolean) => void }) {
+  const on = people.filter((p) => !p.noAlarm).length;
+  return (
+    <label
+      className="mr-2 flex items-center gap-1.5 text-xs font-normal text-muted-foreground"
+      title="Энэ бүлгийн бүх хүнд улаан (цугларалтын) дохио илгээх эсэх"
+    >
+      <input
+        type="checkbox"
+        ref={(el) => {
+          if (el) el.indeterminate = on > 0 && on < people.length;
+        }}
+        checked={on > 0 && on === people.length}
+        onChange={(e) => onChange(e.target.checked)}
+        aria-label={`${name}: улаан дохио`}
+        className="size-3.5 accent-[var(--primary)]"
+      />
+      Дохио авна
+      {on < people.length && (
+        <span className="text-yellow-400">
+          ({on}/{people.length})
+        </span>
+      )}
+    </label>
+  );
+}
+
 function PersonRow({
   person: p,
   groups,
@@ -449,7 +501,7 @@ function PersonRow({
   if (editing === p._id) {
     return (
       <tr className="border-t border-border">
-        <td colSpan={7} className="px-4 py-3">
+        <td colSpan={8} className="px-4 py-3">
           <form onSubmit={(e) => onSave(p._id, e)} className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
             <RankSelect defaultValue={p.rank} />
             <Input name="name" defaultValue={p.name} required maxLength={120} aria-label="Нэр" />
@@ -558,6 +610,17 @@ function PersonRow({
           }
           onChange={(e) => onUpdate(p, { seesAllPhones: e.target.checked })}
           aria-label={`${p.name} бүх утас харах`}
+          className="w-4 h-4 accent-[var(--primary)] disabled:opacity-30"
+        />
+      </td>
+      <td className="px-4 py-3">
+        <input
+          type="checkbox"
+          checked={!p.noAlarm}
+          disabled={!p.active}
+          title={p.noAlarm ? "Улаан дохио илгээхгүй — мэдээлэл аппад нь харагдана" : "Улаан (цугларалтын) дохио илгээнэ"}
+          onChange={(e) => onUpdate(p, { noAlarm: !e.target.checked })}
+          aria-label={`${p.name} улаан дохио`}
           className="w-4 h-4 accent-[var(--primary)] disabled:opacity-30"
         />
       </td>

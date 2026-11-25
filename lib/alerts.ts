@@ -1,6 +1,7 @@
 import "server-only";
 import { connectToDatabase } from "@/lib/mongodb";
 import Alert from "@/lib/models/Alert";
+import Personnel from "@/lib/models/Personnel";
 import { ALERT_LEVEL_MARK, ALERT_RING_MINUTES, alertLevel } from "@/lib/hr";
 import { pushToDevices, type PushPayload } from "@/lib/push";
 
@@ -27,6 +28,17 @@ function alertPush(alert: AlertPush): PushPayload {
 }
 
 /**
+ * Улаан дохио илгээхгүй гэж хүний нөөцийн тэмдэглэсэн хүмүүс (захирагч, орлогч г.м). Улаан мэдээлэл аппад нь энгийн
+ * мэдээлэл шиг харагдана: мэдэгдэл, давтан дохио очихгүй, бүтэн дэлгэцийн дохио гарахгүй. Шар, ногоон хэвээр очно.
+ */
+export async function alarmOffUsers(): Promise<string[]> {
+  const people = await Personnel.find({ noAlarm: true, userId: { $nin: [null, ""] } })
+    .select("userId")
+    .lean<{ userId: string }[]>();
+  return people.map((p) => p.userId);
+}
+
+/**
  * Эхлэх цаг нь болсон, мэдэгдэл нь хараахан очоогүй мэдээллийг эхлээд «очсон» гэж тэмдэглээд утсанд илгээнэ —
  * хоёр газраас зэрэг дуудсан ч давхар очихгүй. Хуучин мэдээлэлд startsAt байхгүй тул хамаарахгүй.
  */
@@ -37,7 +49,8 @@ async function announceOne(filter: Record<string, unknown>, now: Date) {
     { returnDocument: "after" }
   ).lean<AlertPush>();
   if (!alert) return null;
-  return pushToDevices(alertPush(alert));
+  const exclude = alertLevel(alert.level) === "red" ? await alarmOffUsers() : undefined;
+  return pushToDevices(alertPush(alert), undefined, undefined, { exclude });
 }
 
 /** Энэ мэдээллийн эхлэх цаг болсон бол одоо утсанд мэдэгдэнэ: { sent, failed }; товлосон бол null */
@@ -61,6 +74,7 @@ export async function sendDueAlerts(now = new Date()) {
 export async function ringRedAlerts(now = new Date()) {
   await connectToDatabase();
   const due = new Date(now.getTime() - RING_EVERY_MS);
+  let off: string[] | null = null;
   let count = 0;
   for (;;) {
     const alert = await Alert.findOneAndUpdate(
@@ -75,8 +89,9 @@ export async function ringRedAlerts(now = new Date()) {
       { returnDocument: "after" }
     ).lean<AlertPush & { acks: { userId: string }[] }>();
     if (!alert) return count;
+    off ??= await alarmOffUsers();
     await pushToDevices(alertPush(alert), undefined, undefined, {
-      exclude: alert.acks.map((k) => k.userId),
+      exclude: [...alert.acks.map((k) => k.userId), ...off],
       ttl: Math.ceil(RING_EVERY_MS / 1000),
     });
     count++;
@@ -89,7 +104,8 @@ export async function pendingRedAlert(userId: string, now = new Date()) {
     .sort({ startsAt: -1 })
     .select("title")
     .lean<{ _id: unknown; title: string }>();
-  return alert ? { id: String(alert._id), title: alert.title } : null;
+  if (!alert || (await Personnel.exists({ userId, noAlarm: true }))) return null;
+  return { id: String(alert._id), title: alert.title };
 }
 
 /** Сервер асахад нэг удаа дуудна (instrumentation.ts) */

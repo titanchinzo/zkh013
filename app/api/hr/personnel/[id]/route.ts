@@ -19,9 +19,10 @@ type Params = { params: Promise<{ id: string }> };
 
 /**
  * Алба хаагчийн мэдээллийг засах (үг үсгийн алдаа г.м). body: { rank?, name?, position?, phone?, group?,
- * extraPhones?, emergencyPhone?, active?, canRegister?, seesAllPhones?, photo: null } — active: false — халагдсан
+ * extraPhones?, emergencyPhone?, active?, canRegister?, seesAllPhones?, noAlarm?, photo: null } — active: false — халагдсан
  * хүнийг түүхтэй нь үлдээж идэвхгүй болгоно; photo: null — зургийг нь арилгана; canRegister — «Бүртгэх эрх» (доод
- * хүмүүсээ урьж бүртгэх); seesAllPhones — «Бүх утас харна» (бүлгээс үл хамааран бүх хүний утасны жагсаалт).
+ * хүмүүсээ урьж бүртгэх); seesAllPhones — «Бүх утас харна» (бүлгээс үл хамааран бүх хүний утасны жагсаалт); noAlarm —
+ * улаан (цугларалтын) дохио илгээхгүй.
  */
 export async function PATCH(req: NextRequest, { params }: Params) {
   if (!isHrRole(await getCurrentRole())) return NextResponse.json({ error: "Зөвшөөрөлгүй" }, { status: 403 });
@@ -42,6 +43,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     ...(typeof body?.active === "boolean" ? { active: body.active } : {}),
     ...(typeof body?.canRegister === "boolean" ? { canRegister: body.canRegister } : {}),
     ...(typeof body?.seesAllPhones === "boolean" ? { seesAllPhones: body.seesAllPhones } : {}),
+    ...(typeof body?.noAlarm === "boolean" ? { noAlarm: body.noAlarm } : {}),
     ...(body?.photo === null ? { photo: "" } : {}),
   });
   await person.save();

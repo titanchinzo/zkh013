@@ -36,6 +36,8 @@ type AlertRow = {
   notified: boolean;
   editedAt: string | null;
   acks: { name: string; at: string }[];
+  // Улаан дохио илгээгээгүй хүмүүс (тэмдэглэсэн, хариу өгөөгүй)
+  skipped: string[];
   // Улаан мэдээлэлд хариу өгөөгүй хүмүүс (залгахад)
   toCall: { id: string; name: string; phone: string; iphone: boolean }[];
   waiting: string[];
@@ -87,8 +89,21 @@ function endAfter(start: string, ms: number) {
 }
 
 /** Улаан мэдээлэл илгээхийн өмнөх анхааруулга */
-const RED_WARNING =
-  `🔴 УЛААН ТҮВШИН: «Хүлээн авлаа» дарах хүртэл бүх утсанд ${ALERT_RING_MINUTES} минут давтан дохио өгнө.\n\n`;
+const redWarning = (alarmOff: string[]) =>
+  [
+    `🔴 УЛААН ТҮВШИН: «Хүлээн авлаа» дарах хүртэл бүх утсанд ${ALERT_RING_MINUTES} минут давтан дохио өгнө.`,
+    alarmOffText(alarmOff),
+    "",
+  ]
+    .filter((line, i) => line || i === 2)
+    .join("\n\n");
+/** Мэдэгдэл очих утасны тоо */
+const phonesFor = (level: AlertLevel, recipients: number, alarmOff: string[]) =>
+  level === "red" ? recipients - alarmOff.length : recipients;
+
+/** Улаан дохио илгээхгүй гэж тэмдэглэсэн хүмүүс (захирагч, орлогч г.м) — илгээхийн өмнө харагдана */
+const alarmOffText = (names: string[]) =>
+  names.length ? `Улаан дохио илгээхгүй ${names.length} хүн: ${names.join(", ")}.` : "";
 
 async function errorOf(res: Response) {
   return (await res.json().catch(() => null))?.error ?? "Алдаа гарлаа";
@@ -97,6 +112,7 @@ async function errorOf(res: Response) {
 export function AlertsPanel() {
   const [alerts, setAlerts] = useState<AlertRow[]>([]);
   const [recipients, setRecipients] = useState(0);
+  const [alarmOff, setAlarmOff] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
@@ -110,6 +126,7 @@ export function AlertsPanel() {
     const data = await res.json();
     setAlerts(data.alerts ?? []);
     setRecipients(data.recipients ?? 0);
+    setAlarmOff(data.alarmOff ?? []);
     setLoading(false);
   }, []);
 
@@ -130,8 +147,8 @@ export function AlertsPanel() {
     }
     const later = v.startsAt && v.startsAt.getTime() > Date.now() ? v.startsAt : null;
     const question =
-      (v.level === "red" ? RED_WARNING : "") +
-      `«${v.title}» мэдээллийг ${later ? `${formatDateTime(later)}-д` : "одоо"} ${recipients} утас руу илгээх үү? ` +
+      (v.level === "red" ? redWarning(alarmOff) : "") +
+      `«${v.title}» мэдээллийг ${later ? `${formatDateTime(later)}-д` : "одоо"} ${phonesFor(v.level, recipients, alarmOff)} утас руу илгээх үү? ` +
       `${formatDateTime(v.endsAt)} хүртэл харагдаад автоматаар устна.`;
     if (!confirm(question)) return;
     setSending(true);
@@ -167,7 +184,7 @@ export function AlertsPanel() {
         <p className="text-xs text-muted-foreground">
           Зөвшөөрөгдсөн бүх утсанд ({recipients}) мэдэгдлээр очиж, аппад нь харагдана.
         </p>
-        <AlertFields />
+        <AlertFields alarmOff={alarmOff} />
         {error && <p className="text-sm text-red-400">{error}</p>}
         <button type="submit" disabled={sending} className={primaryButton}>
           {sending ? "Илгээж байна..." : "Илгээх"}
@@ -182,7 +199,9 @@ export function AlertsPanel() {
         ) : alerts.length === 0 ? (
           <p className="text-sm text-muted-foreground">Одоогоор мэдээлэл алга.</p>
         ) : (
-          alerts.map((a) => <AlertCard key={a.id} alert={a} recipients={recipients} onChanged={changed} />)
+          alerts.map((a) => (
+            <AlertCard key={a.id} alert={a} recipients={recipients} alarmOff={alarmOff} onChanged={changed} />
+          ))
         )}
       </section>
     </div>
@@ -190,7 +209,7 @@ export function AlertsPanel() {
 }
 
 /** Гарчиг, дэлгэрэнгүй, эхлэх, дуусах цаг — шинээр илгээх, засах маягтад */
-function AlertFields({ alert }: { alert?: AlertRow }) {
+function AlertFields({ alert, alarmOff }: { alert?: AlertRow; alarmOff: string[] }) {
   const [start, setStart] = useState(alert ? toUbInput(alert.startsAt) : "");
   const [end, setEnd] = useState(alert?.endsAt ? toUbInput(alert.endsAt) : "");
   const [level, setLevel] = useState<AlertLevel>(alert?.level ?? DEFAULT_ALERT_LEVEL);
@@ -226,6 +245,12 @@ function AlertFields({ alert }: { alert?: AlertRow }) {
               ? "Android апп суулгаж, тохируулсан утсанд дуу нь хаалттай ч сэрүүлгийн дуугаар дуугарна. iPhone, вэб апптай утсанд апп хаалттай, дуу хаалттай бол дуугүй мэдэгдэл, чичиргээ л очно."
               : "Аппаа нээсэн хүний утсанд дохио медиа дуугаар дуугарна. Апп хаалттай, утасны дуу хаалттай бол дуугүй мэдэгдэл, чичиргээ л очно."}{" "}
             Амь нас, аюулгүй байдалд хамаарах үед утсаар залгаж давхар мэдэгдэнэ үү.
+          </p>
+        )}
+        {level === "red" && alarmOff.length > 0 && (
+          <p className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground">
+            {alarmOffText(alarmOff)} Аппад нь энгийн мэдээлэл шиг харагдана. «Алба хаагчид» хуудас эсвэл аппын «Бэлэн
+            байдал»-аас өөрчилнө.
           </p>
         )}
       </fieldset>
@@ -281,10 +306,12 @@ function AlertFields({ alert }: { alert?: AlertRow }) {
 function AlertCard({
   alert: a,
   recipients,
+  alarmOff,
   onChanged,
 }: {
   alert: AlertRow;
   recipients: number;
+  alarmOff: string[];
   onChanged: (message: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
@@ -302,11 +329,11 @@ function AlertCard({
     const toRed = v.level === "red" && a.level !== "red";
     const rings = v.level === "red" && (v.renotify || (toRed && !a.notified));
     const question = v.renotify
-      ? `«${v.title}» мэдээллийг ${recipients} утас руу дахин мэдэгдэх үү?`
+      ? `«${v.title}» мэдээллийг ${phonesFor(v.level, recipients, alarmOff)} утас руу дахин мэдэгдэх үү?`
       : toRed && a.notified
         ? `«${v.title}» мэдээллийг улаан болгох уу? Хүлээн аваагүй хүн аппаа нээхэд дохио дуугарна. Бүх утсанд дахин дохио өгөх бол «Утсанд дахин мэдэгдэх»-ийг сонгоно.`
         : `«${v.title}» мэдээллийг хадгалах уу?`;
-    if ((v.renotify || toRed) && !confirm((rings ? RED_WARNING : "") + question)) return;
+    if ((v.renotify || toRed) && !confirm((rings ? redWarning(alarmOff) : "") + question)) return;
     setSaving(true);
     setError("");
     const res = await fetch(`/api/hr/alerts/${a.id}`, { method: "PATCH", headers: JSON_HEADERS, body: toBody(v) });
@@ -337,7 +364,7 @@ function AlertCard({
   if (editing) {
     return (
       <form onSubmit={save} className="rounded-xl border border-primary/40 bg-card p-4 space-y-3">
-        <AlertFields alert={a} />
+        <AlertFields alert={a} alarmOff={alarmOff} />
         {a.notified && (
           <label className="flex items-center gap-2 text-sm text-muted-foreground">
             <input type="checkbox" name="renotify" className="size-4 accent-primary" />
@@ -395,6 +422,7 @@ function AlertCard({
           <p className="text-sm">
             <span className="text-primary font-semibold">Хүлээн авсан: {a.acks.length}</span>
             <span className="text-muted-foreground"> · Хүлээгдэж буй: {a.waiting.length}</span>
+            {a.skipped.length > 0 && <span className="text-muted-foreground"> · Дохио илгээгээгүй: {a.skipped.length}</span>}
           </p>
           {a.toCall.length > 0 && (
             <details className="text-sm">
@@ -435,6 +463,9 @@ function AlertCard({
                   <li key={name} className="text-yellow-400">
                     … {name}
                   </li>
+                ))}
+                {a.skipped.map((name) => (
+                  <li key={name}>— {name} (дохио илгээгээгүй)</li>
                 ))}
               </ul>
             </div>

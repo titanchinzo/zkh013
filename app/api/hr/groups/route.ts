@@ -31,6 +31,8 @@ export async function PUT(req: NextRequest) {
 /**
  * Бүлгийн нэрийг солино (байгаа бүлгийн нэр өгвөл нийлүүлнэ): body: { from, to }.
  * Эсвэл бүлгийнхэн бүх хүний утасны жагсаалтыг харах эсэх: body: { name, seesAll }.
+ * Эсвэл бүлгийн бүх идэвхтэй хүнд улаан дохио илгээх эсэх: body: { name, alarm } — хүн бүрийн тэмдэглэгээг солино
+ * (дараа нь бүлэгт нэмэгдсэн хүн анхнаасаа дохио авна).
  */
 export async function PATCH(req: NextRequest) {
   if (!isHrRole(await getCurrentRole())) return NextResponse.json(FORBIDDEN, { status: 403 });
@@ -42,6 +44,13 @@ export async function PATCH(req: NextRequest) {
     await ensureGroups([name]);
     await PersonnelGroup.updateOne({ name }, { $set: { seesAll: body.seesAll } });
     return NextResponse.json({ ok: true });
+  }
+  if (typeof body?.alarm === "boolean") {
+    const name = cleanName(body?.name);
+    if (!name) return NextResponse.json({ error: "Бүлгийн нэрийг бичнэ үү" }, { status: 400 });
+    await connectToDatabase();
+    const { matchedCount } = await Personnel.updateMany({ group: name, active: true }, { $set: { noAlarm: !body.alarm } });
+    return NextResponse.json({ ok: true, people: matchedCount });
   }
   const from = cleanName(body?.from);
   const to = cleanName(body?.to);

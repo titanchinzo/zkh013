@@ -23,6 +23,8 @@ const PersonnelSchema = new Schema(
     canRegister: { type: Boolean, default: false },
     // «Бүх утас харна» — бүлгээс үл хамааран энэ хүн аппын утасны лавлахаас бүх алба хаагчийн дугаарыг харна
     seesAllPhones: { type: Boolean, default: false },
+    // Улаан (цугларалтын) дохио илгээхгүй — захирагч, орлогч г.м. Мэдээлэл аппад нь харагдана, дохио өгөхгүй
+    noAlarm: { type: Boolean, default: false },
     // Урьсан хүний Clerk userId (хүний нөөц, админ эсвэл бүртгэх эрхтэй дарга)
     invitedBy: { type: String },
     active: { type: Boolean, default: true },

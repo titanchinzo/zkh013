@@ -6,7 +6,7 @@ import Personnel from "@/lib/models/Personnel";
 import { getActor } from "@/lib/actor";
 import { isHrRole } from "@/lib/roles";
 import { DEFAULT_ALERT_LEVEL, alertLevel, parseAlert, personnelLabel } from "@/lib/hr";
-import { announceAlert, notExpired } from "@/lib/alerts";
+import { alarmOffUsers, announceAlert, notExpired } from "@/lib/alerts";
 import { phoneKind } from "@/lib/bypass";
 
 type AlertDoc = {
@@ -32,8 +32,9 @@ export async function GET() {
   if (!isHrRole((await getActor())?.role ?? null)) return NextResponse.json({ error: "Зөвшөөрөлгүй" }, { status: 403 });
   await connectToDatabase();
 
-  const [alerts, devices] = await Promise.all([
+  const [alerts, offIds, devices] = await Promise.all([
     Alert.find(notExpired()).sort({ startsAt: -1, createdAt: -1 }).limit(50).lean<AlertDoc[]>(),
+    alarmOffUsers(),
     Device.find({ status: "approved" })
       .select("userId name rank phone label")
       .lean<{ userId: string; name: string; rank: string; phone?: string; label: string }[]>(),
@@ -44,11 +45,19 @@ export async function GET() {
   const nameOf = new Map(devices.map((d) => [d.userId, personnelLabel(d)]));
   for (const p of people) nameOf.set(p.userId, personnelLabel(p));
   const phoneOf = new Map(people.map((p) => [p.userId, p.phone]));
+  const label = (d: { userId: string; name: string }) => nameOf.get(d.userId) ?? d.name;
+  const off = new Set(offIds);
 
   return NextResponse.json({
     recipients: devices.length,
+    // Улаан дохио илгээхгүй хүмүүс (зөвшөөрөгдсөн утастай)
+    alarmOff: devices.filter((d) => off.has(d.userId)).map(label),
     alerts: alerts.map((a) => {
       const acked = new Set(a.acks.map((k) => k.userId));
+      const red = alertLevel(a.level) === "red";
+      const noAnswer = devices.filter((d) => !acked.has(d.userId));
+      // Улаан мэдээлэлд дохио илгээгээгүй хүнээс хариу хүлээхгүй
+      const expected = noAnswer.filter((d) => !red || !off.has(d.userId));
       return {
         id: String(a._id),
         title: a.title,
@@ -63,15 +72,15 @@ export async function GET() {
         editedAt: a.editedAt ?? null,
         acks: a.acks.map((k) => ({ name: nameOf.get(k.userId) ?? "Хасагдсан утас", at: k.at })),
         // Одоо зөвшөөрөгдсөн утастай боловч хариу өгөөгүй хүмүүс
-        waiting: devices.filter((d) => !acked.has(d.userId)).map((d) => nameOf.get(d.userId) ?? d.name),
+        waiting: expected.map(label),
+        skipped: red ? noAnswer.filter((d) => off.has(d.userId)).map(label) : [],
         // Улаан мэдээлэлд хариу өгөөгүй хүн рүү залгах жагсаалт — iPhone нь эхэнд (дохио нь дуугүй үед дуугардаггүй)
         toCall:
-          alertLevel(a.level) === "red"
-            ? devices
-                .filter((d) => !acked.has(d.userId))
+          red
+            ? expected
                 .map((d) => ({
                   id: d.userId,
-                  name: nameOf.get(d.userId) ?? d.name,
+                  name: label(d),
                   phone: phoneOf.get(d.userId) || d.phone || "",
                   iphone: phoneKind(d.label) === "iphone",
                 }))

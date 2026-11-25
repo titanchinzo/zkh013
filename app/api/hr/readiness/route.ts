@@ -24,7 +24,7 @@ type DeviceDoc = {
   bypass?: { numbers?: string[]; at?: Date; testedAt?: Date };
   lastSeenAt?: Date;
 };
-type PersonDoc = { userId: string; rank: string; name: string; position: string; group?: string; phone?: string };
+type PersonDoc = { userId: string; rank: string; name: string; position: string; group?: string; phone?: string; noAlarm?: boolean };
 
 /**
  * Дохионы бэлэн байдал: зөвшөөрөгдсөн утас бүр улаан дохиог дуугүй үед сонсох эсэх — Android апп, iPhone-ы Emergency Bypass,
@@ -44,12 +44,12 @@ export async function GET() {
   ]);
   // Алба хаагчтай холбогдсон утсанд хүний нөөцийн бүртгэлийн нэр, дугаар
   const people = await Personnel.find({ userId: { $in: devices.map((d) => d.userId) } })
-    .select("userId rank name position group phone")
+    .select("userId rank name position group phone noAlarm")
     .lean<PersonDoc[]>();
   const personOf = new Map(people.map((p) => [p.userId, p]));
   const rows = devices.map((d) => {
     const p = personOf.get(d.userId);
-    return { d, rank: p?.rank ?? d.rank, name: p?.name ?? d.name, position: p?.position ?? d.position, group: p?.group ?? "", phone: p?.phone || d.phone || "" };
+    return { d, rank: p?.rank ?? d.rank, name: p?.name ?? d.name, position: p?.position ?? d.position, group: p?.group ?? "", phone: p?.phone || d.phone || "", alarm: p ? !p.noAlarm : null };
   });
   rows.sort(comparePersonnel(groups.map((g) => g.name)));
 
@@ -59,6 +59,8 @@ export async function GET() {
       id: String(d._id),
       name: personnelLabel(p),
       phone: p.phone,
+      // Улаан дохио илгээх эсэх; алба хаагчийн бүртгэлтэй холбогдоогүй утсанд null (үргэлж илгээнэ)
+      alarm: p.alarm,
       kind: phoneKind(d.label),
       push: Boolean(d.push?.endpoint),
       apk: d.apk ?? null,

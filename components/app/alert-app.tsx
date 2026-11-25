@@ -69,6 +69,8 @@ type Feed = {
     title: string;
     body: string;
     level: AlertLevel;
+    // Улаан дохио өгөх эсэх (хүний нөөц энэ хүнд дохио илгээхгүй гэж тэмдэглэсэн бол false)
+    rings: boolean;
     startsAt: string;
     endsAt: string | null;
     edited: boolean;
@@ -741,7 +743,7 @@ function ApprovedView({
     load();
     return done;
   }
-  const alarm = feed?.alerts.find((a) => a.level === "red" && !a.acked);
+  const alarm = feed?.alerts.find((a) => a.rings && !a.acked);
 
   return (
     <>

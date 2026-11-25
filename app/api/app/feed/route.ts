@@ -49,8 +49,17 @@ export async function GET() {
       }[]
     >(),
     Personnel.findOne({ userId: device.userId, active: true })
-      .select("rank name position phone photo canRegister")
-      .lean<{ _id: unknown; rank: string; name: string; position: string; phone?: string; photo?: string; canRegister?: boolean }>(),
+      .select("rank name position phone photo canRegister noAlarm")
+      .lean<{
+        _id: unknown;
+        rank: string;
+        name: string;
+        position: string;
+        phone?: string;
+        photo?: string;
+        canRegister?: boolean;
+        noAlarm?: boolean;
+      }>(),
     DayRecord.find({ date: { $in: days } }).select("date guard watch").lean<DayDoc[]>(),
     getBypassNumbers(),
   ]);
@@ -97,6 +106,8 @@ export async function GET() {
       title: a.title,
       body: a.body,
       level: alertLevel(a.level),
+      // Бүтэн дэлгэцийн дохио өгөх эсэх — улаан, хүний нөөц энэ хүнд дохио илгээхгүй гэж тэмдэглээгүй бол
+      rings: alertLevel(a.level) === "red" && !person?.noAlarm,
       createdAt: a.createdAt,
       startsAt: a.startsAt ?? a.createdAt,
       endsAt: a.endsAt ?? null,
