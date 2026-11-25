@@ -17,7 +17,9 @@ async function newsBadge(userId: string) {
 }
 import DayRecord, { dutyIds } from "@/lib/models/DayRecord";
 import Personnel from "@/lib/models/Personnel";
+import { bypassState } from "@/lib/bypass";
 import { WEEK_DAYS, addDays, alertLevel, personnelLabel, todayUb, weekStart } from "@/lib/hr";
+import { getBypassNumbers } from "@/lib/settings";
 
 type DayDoc = { date: string; guard?: unknown[]; watch?: unknown[] };
 
@@ -31,7 +33,7 @@ export async function GET() {
   const today = todayUb();
   const start = weekStart(today);
   const days = Array.from({ length: WEEK_DAYS * 2 }, (_, i) => addDays(start, i));
-  const [alerts, person, records] = await Promise.all([
+  const [alerts, person, records, bypassNumbers] = await Promise.all([
     // Эхэлсэн, хугацаа нь дуусаагүй мэдээлэл — товлосон нь эхлэх цагтаа, дууссан нь тэр дороо алга болно
     Alert.find(visibleNow()).sort({ startsAt: -1, createdAt: -1 }).limit(20).lean<
       {
@@ -50,6 +52,7 @@ export async function GET() {
       .select("rank name position phone photo canRegister")
       .lean<{ _id: unknown; rank: string; name: string; position: string; phone?: string; photo?: string; canRegister?: boolean }>(),
     DayRecord.find({ date: { $in: days } }).select("date guard watch").lean<DayDoc[]>(),
+    getBypassNumbers(),
   ]);
   const pid = person ? String(person._id) : "";
 
@@ -80,6 +83,10 @@ export async function GET() {
         }
       : null,
     pushEnabled: Boolean(device.push?.endpoint),
+    // iPhone: яаралтай дуудлагыг дуугүй үед ч дуугардаг болгох заавар (аппад зөвхөн iPhone дээр харагдана)
+    bypass: bypassNumbers.length
+      ? { numbers: bypassNumbers, state: bypassState(device.bypass, bypassNumbers), at: device.bypass?.at ?? null }
+      : null,
     // «Мэдээ» хэсгийн тэмдэг: хянагчид хяналт хүлээж буй мэдээний тоо, бусдад шинэ мэдээ нэмэгдсэн эсэх
     news,
     // Шийдвэр хүлээж буй утасны хүсэлтийн тоо — зөвхөн хүний нөөц, админд (бусдад байхгүй)

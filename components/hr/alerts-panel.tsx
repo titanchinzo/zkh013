@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Input, Textarea } from "@/components/ui/input";
 import { ANDROID_APP } from "@/lib/android-app";
+import { telHref } from "@/lib/bypass";
 import { ALERT_LEVEL_EDGE, AlertLevelBadge } from "@/components/alert-level";
 import {
   ALERT_DURATIONS,
@@ -11,6 +12,7 @@ import {
   ALERT_RING_MINUTES,
   DEFAULT_ALERT_LEVEL,
   formatDateTime,
+  formatPhone,
   fromUbInput,
   toUbInput,
   type AlertLevel,
@@ -34,6 +36,8 @@ type AlertRow = {
   notified: boolean;
   editedAt: string | null;
   acks: { name: string; at: string }[];
+  // Улаан мэдээлэлд хариу өгөөгүй хүмүүс (залгахад)
+  toCall: { id: string; name: string; phone: string; iphone: boolean }[];
   waiting: string[];
 };
 
@@ -392,6 +396,30 @@ function AlertCard({
             <span className="text-primary font-semibold">Хүлээн авсан: {a.acks.length}</span>
             <span className="text-muted-foreground"> · Хүлээгдэж буй: {a.waiting.length}</span>
           </p>
+          {a.toCall.length > 0 && (
+            <details className="text-sm">
+              <summary className="cursor-pointer font-semibold text-red-400">
+                Хариу өгөөгүй {a.toCall.length} хүн рүү залгах
+              </summary>
+              <ul className="mt-2 divide-y divide-border rounded-lg border border-border">
+                {a.toCall.map((p) => (
+                  <li key={p.id} className="flex items-center justify-between gap-3 px-3 py-2">
+                    <span className="min-w-0 text-foreground">
+                      {p.name}
+                      {p.iphone && <span className="ml-2 text-xs text-muted-foreground">iPhone</span>}
+                    </span>
+                    {p.phone ? (
+                      <a href={telHref(p.phone)} className="shrink-0 font-semibold text-primary">
+                        {formatPhone(p.phone)}
+                      </a>
+                    ) : (
+                      <span className="shrink-0 text-xs text-muted-foreground">дугааргүй</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
           <details className="text-sm text-muted-foreground">
             <summary className="cursor-pointer">Хэн хүлээн авсан</summary>
             <div className="mt-2 grid gap-3 sm:grid-cols-2">

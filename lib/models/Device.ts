@@ -24,6 +24,14 @@ const DeviceSchema = new Schema(
     },
     // Утсанд суусан Android аппын хувилбар (улаан дохио дуугүй үед ч дуугарна); вэб апп, iPhone-д байхгүй
     apk: { type: Number },
+    // iPhone: Emergency Bypass (lib/bypass.ts) — хэрэглэгчийн тэмдэглэсэн цаг, тэр үеийн дугаарууд; хүний нөөц залгаж шалгасан цаг
+    bypass: {
+      type: new Schema(
+        { numbers: { type: [String], default: [] }, at: { type: Date }, testedAt: { type: Date }, testedBy: { type: String } },
+        { _id: false }
+      ),
+      default: undefined,
+    },
     decidedBy: { type: String },
     decidedAt: { type: Date },
     lastSeenAt: { type: Date },

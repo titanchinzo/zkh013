@@ -1,21 +1,23 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CalendarDays, ChevronLeft, ChevronRight, Megaphone, Search, X } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, Megaphone, PhoneCall, Search, X } from "lucide-react";
 import { Screen } from "@/components/app/screen";
 import { AlertsPanel } from "@/components/hr/alerts-panel";
+import { ReadinessPanel } from "@/components/hr/readiness-panel";
 import { DUTY_LABEL, addDays, comparePersonnel, formatDay, formatWeek, personnelLabel, todayUb, weekStart } from "@/lib/hr";
 import { useDutyWeek, type DutyPerson } from "@/lib/use-duty-week";
 
-// Утсан дээрх аппаас хүний нөөц, админ хийх ажил: харуул хоногийн манаа томилох, зарлан мэдээлэх.
+// Утсан дээрх аппаас хүний нөөц, админ хийх ажил: харуул хоногийн манаа томилох, зарлан мэдээлэх, дохионы бэлэн байдал.
 // Бусад (алба хаагч нэмэх, засах, эрх олгох г.м) вэб дээр үлдэнэ. API нь сайтынх (/api/hr/...), утсаар нь танина.
 
-export type ManageView = "duty" | "alerts";
+export const MANAGE_VIEWS = ["duty", "alerts", "ready"] as const;
+export type ManageView = (typeof MANAGE_VIEWS)[number];
 
 /** «Нүүр» дээрх хүний нөөцийн хэрэгсэл */
 export function HrTools({ onOpen }: { onOpen: (view: ManageView) => void }) {
   const tool =
-    "flex flex-1 flex-col items-center gap-1.5 rounded-xl border border-border bg-background px-2 py-3 text-sm font-semibold text-foreground active:bg-muted";
+    "flex flex-1 flex-col items-center gap-1.5 rounded-xl border border-border bg-background px-1 py-3 text-sm font-semibold text-foreground active:bg-muted";
   return (
     <section className="space-y-2" aria-label="Хүний нөөцийн хэрэгсэл">
       <h2 className="text-xs font-semibold text-muted-foreground">Хүний нөөц</h2>
@@ -28,6 +30,10 @@ export function HrTools({ onOpen }: { onOpen: (view: ManageView) => void }) {
           <Megaphone className="size-5 text-primary" aria-hidden />
           Зарлан мэдээлэх
         </button>
+        <button onClick={() => onOpen("ready")} className={tool}>
+          <PhoneCall className="size-5 text-primary" aria-hidden />
+          Бэлэн байдал
+        </button>
       </div>
     </section>
   );
@@ -37,6 +43,15 @@ export function AlertManager({ onBack }: { onBack: () => void }) {
   return (
     <Screen title="Зарлан мэдээлэх" onBack={onBack}>
       <AlertsPanel />
+    </Screen>
+  );
+}
+
+/** Хэний утас дуугүй үед ч дохио, яаралтай дуудлага сонсогдох */
+export function ReadinessManager({ onBack }: { onBack: () => void }) {
+  return (
+    <Screen title="Дохионы бэлэн байдал" onBack={onBack}>
+      <ReadinessPanel />
     </Screen>
   );
 }

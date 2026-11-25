@@ -7,6 +7,7 @@ import { getActor } from "@/lib/actor";
 import { isHrRole } from "@/lib/roles";
 import { DEFAULT_ALERT_LEVEL, alertLevel, parseAlert, personnelLabel } from "@/lib/hr";
 import { announceAlert, notExpired } from "@/lib/alerts";
+import { phoneKind } from "@/lib/bypass";
 
 type AlertDoc = {
   _id: unknown;
@@ -33,13 +34,16 @@ export async function GET() {
 
   const [alerts, devices] = await Promise.all([
     Alert.find(notExpired()).sort({ startsAt: -1, createdAt: -1 }).limit(50).lean<AlertDoc[]>(),
-    Device.find({ status: "approved" }).select("userId name rank").lean<{ userId: string; name: string; rank: string }[]>(),
+    Device.find({ status: "approved" })
+      .select("userId name rank phone label")
+      .lean<{ userId: string; name: string; rank: string; phone?: string; label: string }[]>(),
   ]);
   const people = await Personnel.find({ userId: { $in: devices.map((d) => d.userId) } })
-    .select("rank name userId")
-    .lean<{ rank: string; name: string; userId: string }[]>();
+    .select("rank name userId phone")
+    .lean<{ rank: string; name: string; userId: string; phone?: string }[]>();
   const nameOf = new Map(devices.map((d) => [d.userId, personnelLabel(d)]));
   for (const p of people) nameOf.set(p.userId, personnelLabel(p));
+  const phoneOf = new Map(people.map((p) => [p.userId, p.phone]));
 
   return NextResponse.json({
     recipients: devices.length,
@@ -60,6 +64,19 @@ export async function GET() {
         acks: a.acks.map((k) => ({ name: nameOf.get(k.userId) ?? "Хасагдсан утас", at: k.at })),
         // Одоо зөвшөөрөгдсөн утастай боловч хариу өгөөгүй хүмүүс
         waiting: devices.filter((d) => !acked.has(d.userId)).map((d) => nameOf.get(d.userId) ?? d.name),
+        // Улаан мэдээлэлд хариу өгөөгүй хүн рүү залгах жагсаалт — iPhone нь эхэнд (дохио нь дуугүй үед дуугардаггүй)
+        toCall:
+          alertLevel(a.level) === "red"
+            ? devices
+                .filter((d) => !acked.has(d.userId))
+                .map((d) => ({
+                  id: d.userId,
+                  name: nameOf.get(d.userId) ?? d.name,
+                  phone: phoneOf.get(d.userId) || d.phone || "",
+                  iphone: phoneKind(d.label) === "iphone",
+                }))
+                .sort((x, y) => Number(y.iphone) - Number(x.iphone))
+            : [],
       };
     }),
   });

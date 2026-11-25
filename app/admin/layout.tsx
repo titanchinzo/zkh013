@@ -31,6 +31,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           { href: "/admin/personnel", label: "Алба хаагчид" },
           { href: "/admin/devices", label: "Утасны бүртгэл" },
           { href: "/admin/alerts", label: "Зарлан мэдээлэх" },
+          { href: "/admin/readiness", label: "Дохионы бэлэн байдал" },
         ]
       : []),
     ...(role === "admin"

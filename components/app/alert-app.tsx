@@ -25,7 +25,8 @@ import { ChatList, Conversation } from "@/components/app/chat";
 import { NewsDetail, NewsList, NewsWrite } from "@/components/app/news";
 import { Directory } from "@/components/app/directory";
 import { DeviceRequests } from "@/components/app/device-requests";
-import { AlertManager, DutyManager, HrTools, type ManageView } from "@/components/app/manage";
+import { AlertManager, DutyManager, HrTools, MANAGE_VIEWS, ReadinessManager, type ManageView } from "@/components/app/manage";
+import { IphoneBypassSection, type BypassInfo } from "@/components/app/iphone-bypass";
 import { LOCK_EVENT, LockScreen, inLockCeremony } from "@/components/app/app-lock";
 import { AlarmBanner, AlarmScreen, AlarmTest } from "@/components/app/alarm";
 import { AndroidAppSection, rememberAndroidApp } from "@/components/app/android-app";
@@ -60,6 +61,8 @@ type Person = {
 type Feed = {
   person: Person | null;
   pushEnabled: boolean;
+  // Яаралтай үед залгах дугаар, iPhone-ы тохиргоо (хүний нөөц дугаараа оруулаагүй бол null)
+  bypass?: BypassInfo | null;
   // endsAt — энэ цагт автоматаар устна (хугацаатай болохоос өмнөх мэдээлэлд null)
   alerts: {
     id: string;
@@ -89,7 +92,7 @@ function urlBase64ToUint8Array(base64: string) {
 
 // «Нүүр» — зарлан мэдээлэл, харуулын хуваарь, бүртгэл; «Мэдээ» — сайтын мэдээ, хянах, бичих (?tab=news, ?news=<id>,
 // ?write=new|<id>); «Чат» — алба хаагчид хоорондоо (?tab=chat, ?chat=<userId>); «Утас» — утасны жагсаалт (?tab=phones);
-// хүний нөөц, админд «Нүүр»-ээс манаа томилох, зарлан мэдээлэх (?manage=duty|alerts)
+// хүний нөөц, админд «Нүүр»-ээс манаа томилох, зарлан мэдээлэх, дохионы бэлэн байдал (?manage=duty|alerts|ready)
 type Tab = "home" | "news" | "chat" | "phones";
 const TITLES: Record<Tab, string> = { home: "Зарлан мэдээлэх", news: "Мэдээ", chat: "Чат", phones: "Утасны жагсаалт" };
 
@@ -100,7 +103,7 @@ export function AlertApp() {
   const newsId = params.get("news");
   const write = params.get("write");
   const manageParam = params.get("manage");
-  const manage: ManageView | null = manageParam === "duty" || manageParam === "alerts" ? manageParam : null;
+  const manage: ManageView | null = MANAGE_VIEWS.find((view) => view === manageParam) ?? null;
   const tab: Tab =
     chatWith || params.get("tab") === "chat"
       ? "chat"
@@ -756,6 +759,7 @@ function ApprovedView({
       {chatWith && <Conversation key={chatWith} userId={chatWith} onBack={closeChat} />}
       {isHr && manage === "duty" && <DutyManager onBack={closeManage} />}
       {isHr && manage === "alerts" && <AlertManager onBack={closeManage} />}
+      {isHr && manage === "ready" && <ReadinessManager onBack={closeManage} />}
       {!chatWith && !newsId && !write && !(isHr && manage) && <BottomNav tab={tab} unread={unread} news={newsBadge} requests={requests ?? feed?.requests ?? 0} onTab={switchTab} />}
     </>
   );
@@ -859,6 +863,7 @@ function HomeView({
 
       <PushToggle enabled={feed.pushEnabled} soundTest={!apk} onChange={onChange} />
       <AndroidAppSection apk={apk} pushEnabled={feed.pushEnabled} />
+      <IphoneBypassSection bypass={feed.bypass ?? null} onChange={onChange} />
 
       <section className="space-y-3">
         <h2 className="font-bold text-foreground">Зарлан мэдээлэл</h2>

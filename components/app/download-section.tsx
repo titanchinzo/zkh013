@@ -78,7 +78,10 @@ export function DownloadSection() {
             ) : (
               <InstallSteps state={{ ...state, ios: true, android: false }} />
             )}
-            <p className="text-xs text-muted-foreground">iPhone дээр утас дуугүй үед улаан дохио дуугарахгүй.</p>
+            <p className="text-xs text-muted-foreground">
+              iPhone дээр утас дуугүй үед улаан дохио дуугарахгүй. Оронд нь аппын нүүрэн дэх зааврын дагуу яаралтай дуудлагыг
+              дуугүй үед ч дуугардаг болгоно.
+            </p>
           </>
         )}
       </div>
