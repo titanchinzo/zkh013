@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="App" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/background</item>
+        <item name="android:colorBackground">@color/background</item>
+        <item name="android:colorAccent">@color/primary</item>
+        <item name="android:textColorPrimary">@color/text</item>
+    </style>
+
+    <style name="App.Launcher" parent="@android:style/Theme.Translucent.NoTitleBar" />
+
+    <style name="App.Alarm" parent="App">
+        <item name="android:windowBackground">@color/red</item>
+        <item name="android:colorBackground">@color/red</item>
+    </style>
+</resources>

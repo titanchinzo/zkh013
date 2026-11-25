@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Input, Textarea } from "@/components/ui/input";
+import { ANDROID_APP } from "@/lib/android-app";
 import { ALERT_LEVEL_EDGE, AlertLevelBadge } from "@/components/alert-level";
 import {
   ALERT_DURATIONS,
@@ -217,8 +218,10 @@ function AlertFields({ alert }: { alert?: AlertRow }) {
         </div>
         {level === "red" && (
           <p className="rounded-lg border border-red-500/40 bg-red-600/10 px-3 py-2 text-xs text-foreground">
-            Аппаа нээсэн хүний утсанд дохио медиа дуугаар дуугарна. Апп хаалттай, утасны дуу хаалттай бол дуугүй мэдэгдэл,
-            чичиргээ л очно. Амь нас, аюулгүй байдалд хамаарах үед утсаар залгаж давхар мэдэгдэнэ үү.
+            {ANDROID_APP.released
+              ? "Android апп суулгаж, тохируулсан утсанд дуу нь хаалттай ч сэрүүлгийн дуугаар дуугарна. iPhone, вэб апптай утсанд апп хаалттай, дуу хаалттай бол дуугүй мэдэгдэл, чичиргээ л очно."
+              : "Аппаа нээсэн хүний утсанд дохио медиа дуугаар дуугарна. Апп хаалттай, утасны дуу хаалттай бол дуугүй мэдэгдэл, чичиргээ л очно."}{" "}
+            Амь нас, аюулгүй байдалд хамаарах үед утсаар залгаж давхар мэдэгдэнэ үү.
           </p>
         )}
       </fieldset>

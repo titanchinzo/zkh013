@@ -1,0 +1,71 @@
+plugins {
+    id 'com.android.application'
+}
+
+// Гарын үсгийн түлхүүр репогийн гадна: Documents/zkh013-android-key/keystore.properties
+// (storeFile, storePassword, keyAlias, keyPassword). Байхгүй бол release нь гарын үсэггүй гарна.
+def keyFile = new File(System.getProperty('user.home'), 'Documents/zkh013-android-key/keystore.properties')
+def key = new Properties()
+if (keyFile.exists()) keyFile.withInputStream { key.load(it) }
+
+android {
+    namespace = 'mn.unit013.app'
+    compileSdk = 36
+    buildToolsVersion = '36.0.0'
+
+    defaultConfig {
+        applicationId = 'mn.unit013.app'
+        minSdk = 26
+        targetSdk = 36
+        // Шинэ хувилбар гаргахад нэмэгдүүлж, lib/android-app.ts-ийг хамт шинэчилнэ
+        versionCode = 1
+        versionName = '1.0'
+    }
+
+    buildFeatures {
+        buildConfig = true
+    }
+
+    signingConfigs {
+        release {
+            if (keyFile.exists()) {
+                storeFile = new File(keyFile.parentFile, key['storeFile'])
+                storePassword = key['storePassword']
+                keyAlias = key['keyAlias']
+                keyPassword = key['keyPassword']
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled = true
+            shrinkResources = true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt')
+            if (keyFile.exists()) signingConfig = signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    testOptions {
+        unitTests {
+            includeAndroidResources = true
+            all {
+                // Robolectric-ийн татдаг Android сангууд: ROBOLECTRIC_REPO өгвөл тэнд, үгүй бол ~/.m2
+                if (System.getenv('ROBOLECTRIC_REPO')) systemProperty 'maven.repo.local', System.getenv('ROBOLECTRIC_REPO')
+            }
+        }
+    }
+}
+
+dependencies {
+    implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.8.0'
+
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.robolectric:robolectric:4.18.1'
+    testImplementation 'androidx.test:core:1.7.0'
+}

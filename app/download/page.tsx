@@ -1,8 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { BellRing, CalendarCheck, Smartphone } from "lucide-react";
+import { BellRing, CalendarCheck, Siren, Smartphone } from "lucide-react";
 import { DownloadSection } from "@/components/app/download-section";
+import { ANDROID_APP } from "@/lib/android-app";
 
 export const metadata: Metadata = {
   title: "Апп татах",
@@ -15,6 +16,9 @@ export const viewport: Viewport = { themeColor: "#0a0f0a" };
 const FEATURES = [
   { icon: BellRing, text: "Зарлан мэдээлэл утсанд тань мэдэгдлээр шууд ирнэ" },
   { icon: CalendarCheck, text: "Өөрийн харуул, манааны хуваарийг харна" },
+  ...(ANDROID_APP.released
+    ? [{ icon: Siren, text: "Улаан дохио: Android апп дээр утасны дуу хаалттай ч сэрүүлгийн дуугаар дуугарна" }]
+    : []),
   { icon: Smartphone, text: "Үнэгүй — App Store, Play Store хэрэггүй, сайтаас шууд суулгана" },
 ];
 

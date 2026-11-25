@@ -22,6 +22,8 @@ const DeviceSchema = new Schema(
       ),
       default: undefined,
     },
+    // Утсанд суусан Android аппын хувилбар (улаан дохио дуугүй үед ч дуугарна); вэб апп, iPhone-д байхгүй
+    apk: { type: Number },
     decidedBy: { type: String },
     decidedAt: { type: Date },
     lastSeenAt: { type: Date },

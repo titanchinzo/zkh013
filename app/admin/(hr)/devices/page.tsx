@@ -22,6 +22,8 @@ type DeviceRow = {
   pushEnabled?: boolean;
   // Апп түгжээ (утасны хээ, царай, PIN) тохируулсан эсэх
   appLock?: boolean;
+  // Android аппын хувилбар — суулгаагүй бол байхгүй
+  apk?: number;
 };
 type Person = {
   _id: string;
@@ -137,7 +139,14 @@ export default function DevicesPage() {
                       {personnelLabel(d)}
                       <div className="text-xs text-muted-foreground">{d.email}</div>
                     </td>
-                    <td className="px-4 py-2.5 text-muted-foreground">{d.label}</td>
+                    <td className="px-4 py-2.5 text-muted-foreground">
+                      {d.label}
+                      {d.apk && (
+                        <div className="text-xs text-primary" title="Утас дуугүй үед ч улаан дохио дуугарна">
+                          Android апп
+                        </div>
+                      )}
+                    </td>
                     <td className="px-4 py-2.5">
                       {d.pushEnabled ? <span className="text-primary">Асаалттай</span> : <span className="text-yellow-400">Асаагаагүй</span>}
                     </td>

@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- INTERNET эрх байхгүй: апп өөрөө сүлжээнд гарахгүй. Сайтыг Chrome нээж, мэдэгдлийг Chrome хүлээж авна. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.REORDER_TASKS" />
+    <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
+
+    <queries>
+        <package android:name="com.android.chrome" />
+        <!-- Хуучин вэб апп (WebAPK) суусан эсэхийг мэдэхэд -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="https" android:host="unit013.mn" />
+        </intent>
+    </queries>
+
+    <application
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:theme="@style/App">
+
+        <meta-data
+            android:name="asset_statements"
+            android:resource="@string/asset_statements" />
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:theme="@style/App.Launcher">
+            <meta-data
+                android:name="android.support.customtabs.trusted.DEFAULT_URL"
+                android:value="@string/app_url" />
+            <meta-data
+                android:name="android.support.customtabs.trusted.STATUS_BAR_COLOR"
+                android:resource="@color/background" />
+            <meta-data
+                android:name="android.support.customtabs.trusted.STATUS_BAR_COLOR_DARK"
+                android:resource="@color/background" />
+            <meta-data
+                android:name="android.support.customtabs.trusted.NAVIGATION_BAR_COLOR"
+                android:resource="@color/background" />
+            <meta-data
+                android:name="android.support.customtabs.trusted.NAVIGATION_BAR_COLOR_DARK"
+                android:resource="@color/background" />
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- Chrome мэдэгдлийг аль апп руу дамжуулахаа service worker-ийн хүрээгээр (https://unit013.mn/) олдог
+                 тул "/" заавал байх ёстой. Бусад хуудасны холбоос хөтчөөр нээгдэнэ. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" />
+                <data android:host="unit013.mn" />
+                <data android:path="/" />
+                <data android:path="/app" />
+            </intent-filter>
+        </activity>
+
+        <!-- Тохиргоо: аппын дүрс дээр удаан дарах, эсвэл аппын нүүр дэх «Дохионы тохиргоо» холбоосоор нээгдэнэ -->
+        <activity
+            android:name=".SetupActivity"
+            android:exported="true"
+            android:label="@string/setup_title"
+            android:launchMode="singleTask"
+            android:taskAffinity="">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:host="setup"
+                    android:scheme="zkh013" />
+            </intent-filter>
+        </activity>
+
+        <!-- Бүтэн дэлгэцийн улаан дохио: түгжээтэй дэлгэц дээр ч гарна -->
+        <activity
+            android:name=".AlarmActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:launchMode="singleInstance"
+            android:showWhenLocked="true"
+            android:taskAffinity=""
+            android:theme="@style/App.Alarm"
+            android:turnScreenOn="true"
+            tools:targetApi="27" />
+
+        <!-- Мэдэгдэл дарахад (апп цаана нээлттэй үед) сайт аппыг урагш гаргана -->
+        <activity
+            android:name="com.google.androidbrowserhelper.trusted.FocusActivity"
+            android:exported="false"
+            android:theme="@style/App.Launcher" />
+
+        <!-- Сайтын «Мэдэгдэл асаах» товч Android 13+ дээр энэ цонхоор зөвшөөрөл асууна -->
+        <activity
+            android:name="com.google.androidbrowserhelper.trusted.NotificationPermissionRequestActivity"
+            android:exported="false"
+            android:theme="@style/App.Launcher" />
+
+        <receiver
+            android:name=".StopReceiver"
+            android:exported="false" />
+
+        <!-- Chrome сайтын мэдэгдлийг энд дамжуулна. Хандах эрхийг TrustedWebActivityService өөрөө шалгадаг
+             (зөвхөн апп-ыг нээсэн, гарын үсэг нь таарах хөтөч). -->
+        <service
+            android:name=".AlarmDelegationService"
+            android:exported="true"
+            tools:ignore="ExportedService">
+            <meta-data
+                android:name="android.support.customtabs.trusted.SMALL_ICON"
+                android:resource="@drawable/ic_notification" />
+            <meta-data
+                android:name="androidx.browser.trusted.USE_HIGH_PRI_NOTIFICATIONS"
+                android:value="true" />
+            <intent-filter>
+                <action android:name="android.support.customtabs.trusted.TRUSTED_WEB_ACTIVITY_SERVICE" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </service>
+    </application>
+</manifest>

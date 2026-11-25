@@ -28,6 +28,8 @@ import { DeviceRequests } from "@/components/app/device-requests";
 import { AlertManager, DutyManager, HrTools, type ManageView } from "@/components/app/manage";
 import { LOCK_EVENT, LockScreen, inLockCeremony } from "@/components/app/app-lock";
 import { AlarmBanner, AlarmScreen, AlarmTest } from "@/components/app/alarm";
+import { AndroidAppSection, rememberAndroidApp } from "@/components/app/android-app";
+import { ANDROID_APP } from "@/lib/android-app";
 import { ALERT_LEVEL_EDGE, AlertLevelBadge } from "@/components/alert-level";
 import { usePolling } from "@/lib/use-polling";
 import { clearChatHistory } from "@/lib/chat-store";
@@ -123,6 +125,13 @@ export function AlertApp() {
     setInfo(data);
   }, []);
 
+  // Утсанд суусан Android аппын хувилбар (байхгүй бол null)
+  const [apk, setApk] = useState<number | null>(null);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- read what the Android app passed in the URL
+    setApk(rememberAndroidApp());
+  }, []);
+
   useEffect(() => {
     // Мэдэгдлийг хүлээн авах service worker — апп нээгдэх бүрд бүртгэнэ
     navigator.serviceWorker?.register("/sw.js").catch(() => {});
@@ -208,7 +217,7 @@ export function AlertApp() {
           />
         </>
       ) : approved ? (
-        <ApprovedView tab={tab} chatWith={chatWith} newsId={newsId} write={write} manage={manage} ring={ring} />
+        <ApprovedView tab={tab} chatWith={chatWith} newsId={newsId} write={write} manage={manage} ring={ring} apk={apk} />
       ) : info.device?.status === "pending" ? (
         <Card>
           <p className="font-semibold text-foreground">Хүсэлт илгээгдсэн</p>
@@ -547,6 +556,7 @@ function ApprovedView({
   write,
   manage,
   ring,
+  apk,
 }: {
   tab: Tab;
   chatWith: string | null;
@@ -555,6 +565,8 @@ function ApprovedView({
   manage: ManageView | null;
   // Улаан дохио ирэх бүрд нэмэгдэнэ
   ring: number;
+  // Android аппын хувилбар
+  apk: number | null;
 }) {
   const [feed, setFeed] = useState<Feed | null>(null);
   const [unread, setUnread] = useState(0);
@@ -580,6 +592,16 @@ function ApprovedView({
   // Апп руу буцаж ороход (мэдэгдэл дарсны дараа г.м) болон минут тутам шинэчилнэ — товлосон мэдээлэл эхлэх цагтаа
   // гарч ирж, хугацаа нь дууссан нь алга болно
   usePolling(load, 60_000);
+
+  // Хүний нөөц хэний утас дуугүй үед ч дуугарахыг мэднэ
+  useEffect(() => {
+    if (!apk) return;
+    fetch("/api/app/android", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ version: apk }),
+    }).catch(() => {});
+  }, [apk]);
 
   // Нүүр хуудсанд байхад уншаагүй зурвасын тоо (мөн «Идэвхтэй» төлөвийг сэргээнэ); чатын жагсаалт өөрөө шинэчилнэ
   const loadUnread = useCallback(async () => {
@@ -722,7 +744,7 @@ function ApprovedView({
     <>
       {alarm && <AlarmScreen key={`${alarm.id}-${ring}`} alert={alarm} onAck={ack} />}
       <div className={tab === "home" ? "space-y-6" : "hidden"}>
-        {feed ? <HomeView feed={feed} onChange={load} onAck={ack} onRequests={setRequests} onManage={openManage} /> : <p className="text-sm text-muted-foreground">Ачааллаж байна...</p>}
+        {feed ? <HomeView feed={feed} apk={apk} onChange={load} onAck={ack} onRequests={setRequests} onManage={openManage} /> : <p className="text-sm text-muted-foreground">Ачааллаж байна...</p>}
       </div>
       {tab === "news" && (
         <NewsList version={newsVersion} notice={newsNotice} onOpen={openNews} onWrite={() => openWrite(null)} />
@@ -812,12 +834,14 @@ function BottomNav({
 /** «Нүүр»: утасны хүсэлт (хүний нөөц, админ), миний бүртгэл, дараагийн манаа, мэдэгдэл, зарлан мэдээлэл, харуулын хуваарь, хүн бүртгэх */
 function HomeView({
   feed,
+  apk,
   onChange,
   onAck,
   onRequests,
   onManage,
 }: {
   feed: Feed;
+  apk: number | null;
   onChange: () => void;
   onAck: (id: string) => Promise<boolean>;
   onRequests: (count: number) => void;
@@ -833,7 +857,8 @@ function HomeView({
 
       {feed.nextDuty && <NextDuty date={feed.nextDuty} />}
 
-      <PushToggle enabled={feed.pushEnabled} onChange={onChange} />
+      <PushToggle enabled={feed.pushEnabled} soundTest={!apk} onChange={onChange} />
+      <AndroidAppSection apk={apk} pushEnabled={feed.pushEnabled} />
 
       <section className="space-y-3">
         <h2 className="font-bold text-foreground">Зарлан мэдээлэл</h2>
@@ -929,15 +954,24 @@ function DutyWeek({ title, week }: { title: string; week: Feed["weeks"][number] 
   );
 }
 
-function PushToggle({ enabled, onChange }: { enabled: boolean; onChange: () => void }) {
+/** soundTest — аппын дотоод дохионы дууг турших товч (Android аппд жинхэнэ туршилтын дохио байдаг) */
+function PushToggle({ enabled, soundTest, onChange }: { enabled: boolean; soundTest: boolean; onChange: () => void }) {
   const [state, setState] = useState<"idle" | "working" | "unsupported" | "denied">("idle");
+  // Сервер «асаалттай» гэж үзсэн ч энэ утас зөвшөөрөл, захиалгаа алдсан (апп-аа сольсон, тохиргоо өөрчилсөн г.м)
+  const [lost, setLost] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- browser capability check after mount
     if (!("serviceWorker" in navigator) || !("PushManager" in window)) setState("unsupported");
     else if (Notification.permission === "denied") setState("denied");
-  }, []);
+    else if (enabled) {
+      navigator.serviceWorker.ready
+        .then((reg) => reg.pushManager.getSubscription())
+        .then((sub) => setLost(!sub || Notification.permission !== "granted"))
+        .catch(() => {});
+    }
+  }, [enabled]);
 
   async function enable() {
     setState("working");
@@ -960,6 +994,7 @@ function PushToggle({ enabled, onChange }: { enabled: boolean; onChange: () => v
       });
       if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? "Алдаа гарлаа");
       setState("idle");
+      setLost(false);
       onChange();
     } catch (err) {
       setState("idle");
@@ -977,11 +1012,11 @@ function PushToggle({ enabled, onChange }: { enabled: boolean; onChange: () => v
       </Card>
     );
   }
-  if (enabled && state !== "denied") {
+  if (enabled && !lost && state !== "denied") {
     return (
       <div className="space-y-2">
         <p className="text-sm font-semibold text-primary">✓ Мэдэгдэл асаалттай</p>
-        <AlarmTest />
+        {soundTest && <AlarmTest />}
       </div>
     );
   }
@@ -990,7 +1025,9 @@ function PushToggle({ enabled, onChange }: { enabled: boolean; onChange: () => v
       <p className="text-sm text-muted-foreground">
         {state === "denied"
           ? "Мэдэгдлийг хориглосон байна. Утасныхаа тохиргооноос энэ аппын мэдэгдлийг (Notifications) зөвшөөрнө үү."
-          : "Зарлан мэдээлэл, чатын зурвас ирэхэд утас тань дуугарч мэдэгдэнэ."}
+          : lost
+            ? "Энэ утсан дээр мэдэгдэл унтарсан байна. Дахин асаана уу."
+            : "Зарлан мэдээлэл, чатын зурвас ирэхэд утас тань дуугарч мэдэгдэнэ."}
       </p>
       {error && <p className="text-sm text-red-400">{error}</p>}
       {state !== "denied" && (
@@ -1010,16 +1047,24 @@ function InstallHint() {
     <Card>
       <p className="font-semibold text-foreground">Эхлээд утсандаа суулгана</p>
       <p className="text-sm text-muted-foreground">Суулгасан аппаас нэвтэрч, утсаа бүртгүүлнэ.</p>
-      {state.install && !state.inApp ? (
-        <button onClick={state.install} className={button}>
+      {ANDROID_APP.released && state.android && !state.inApp ? (
+        <Link href="/download" className={`${button} flex items-center justify-center`}>
           Апп татах
-        </button>
+        </Link>
       ) : (
-        <InstallSteps state={state} />
+        <>
+          {state.install && !state.inApp ? (
+            <button onClick={state.install} className={button}>
+              Апп татах
+            </button>
+          ) : (
+            <InstallSteps state={state} />
+          )}
+          <Link href="/download" className="block text-xs text-primary hover:underline">
+            Дэлгэрэнгүй заавар
+          </Link>
+        </>
       )}
-      <Link href="/download" className="block text-xs text-primary hover:underline">
-        Дэлгэрэнгүй заавар
-      </Link>
     </Card>
   );
 }

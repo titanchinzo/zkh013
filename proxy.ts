@@ -8,10 +8,11 @@ export default clerkMiddleware(async (auth, req) => {
   }
 });
 
-// robots.txt, sitemap.xml-ийг хайлтын робот Clerk-ээр дамжуулалгүй шууд авна
+// robots.txt, sitemap.xml-ийг хайлтын робот, /.well-known-ыг Android (аппын баталгаажуулалт), APK-г утас Clerk-ээр
+// дамжуулалгүй шууд авна
 export const config = {
   matcher: [
-    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest|txt|xml)).*)",
+    "/((?!_next|\\.well-known/|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|apk|webmanifest|txt|xml)).*)",
     "/(api|trpc)(.*)",
   ],
 };

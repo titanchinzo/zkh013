@@ -1,0 +1,9 @@
+.gradle/
+.kotlin/
+build/
+local.properties
+
+# Гарын үсгийн түлхүүр хэзээ ч репод орохгүй (репо нийтэд нээлттэй)
+*.jks
+*.keystore
+keystore.properties

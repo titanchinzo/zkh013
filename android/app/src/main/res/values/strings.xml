@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name" translatable="false">013 анги</string>
+    <string name="app_url" translatable="false">https://unit013.mn/app</string>
+    <string name="asset_statements" translatable="false">[{\"relation\":[\"delegate_permission/common.handle_all_urls\"],\"target\":{\"namespace\":\"web\",\"site\":\"https://unit013.mn\"}}]</string>
+
+    <!-- Мэдэгдлийн сувгууд -->
+    <string name="channel_alarm">Улаан дохио</string>
+    <string name="channel_alarm_about">Утас дуугүй байсан ч сэрүүлгийн дуугаар дуугарна</string>
+    <string name="channel_message">Улаан мэдээлэл</string>
+    <string name="channel_message_about">Улаан мэдээллийн бичвэр. Дохио нь «Улаан дохио» сувгаар дуугарна</string>
+
+    <!-- Дохио -->
+    <string name="red_level">Улаан түвшин</string>
+    <string name="alarm_title">🚨 Улаан дохио</string>
+    <string name="alarm_fallback">Улаан түвшний зарлан мэдээлэл</string>
+    <string name="alarm_stop">Дуу зогсоох</string>
+    <string name="alarm_open">Апп нээх</string>
+    <string name="alarm_hint">Аппаа нээж «Хүлээн авлаа» дарна уу</string>
+    <string name="alarm_test">Туршилтын дохио</string>
+
+    <!-- Тохиргоо -->
+    <string name="setup_title">Улаан дохионы тохиргоо</string>
+    <string name="setup_short">Дохионы тохиргоо</string>
+    <string name="setup_intro">Утас дуугүй байсан ч улаан мэдээлэл дуугарахын тулд доорхыг ✓ болгоно уу.</string>
+    <string name="step_notifications">Мэдэгдэл</string>
+    <string name="step_notifications_about">Зөвшөөрөөгүй бол дохио ирэхгүй.</string>
+    <string name="step_channel">«Улаан дохио» суваг</string>
+    <string name="step_channel_about">Сувгийн дууг хаасан байна. Нээхгүй бол дохио дуугарахгүй.</string>
+    <string name="step_screen">Түгжээтэй дэлгэц</string>
+    <string name="step_screen_about">Дохио түгжээтэй дэлгэц дээр бүтнээрээ гарна.</string>
+    <string name="step_dnd">«Бүү саад бол» горим</string>
+    <string name="step_dnd_about">Do Not Disturb асаалттай үед ч дуугарна.</string>
+    <string name="step_battery">Батарейн хязгаарлалт</string>
+    <string name="step_battery_about">Утас аппыг унтраавал дохио ирэхгүй. Хязгаарлалтаас чөлөөлнө.</string>
+    <string name="step_chrome">Google Chrome</string>
+    <string name="step_chrome_about">Мэдэгдлийг Chrome хүлээж авдаг. Суулгаж, идэвхжүүлнэ үү.</string>
+    <string name="step_old">Хуучин «013 анги» дүрс</string>
+    <string name="step_old_about">Хуучин апп үлдвэл дохио дуугарахгүй. Устгахад бүртгэл тань хэвээр үлдэнэ.</string>
+    <string name="step_autostart">Autostart (автоматаар эхлэх)</string>
+    <string name="step_autostart_about">Энэ утсан дээр аппын тохиргооноос Autostart-ыг гараар асаана. Асаагаагүй бол апп хаалттай үед дохио ирэхгүй байж магадгүй.</string>
+    <string name="allow">Зөвшөөрөх</string>
+    <string name="open_settings">Тохиргоо нээх</string>
+    <string name="install">Суулгах</string>
+    <string name="uninstall">Устгах</string>
+    <string name="test_about">Дарсны дараа утсаа дуугүй болгож, дэлгэцээ унтраагаад хүлээнэ үү.</string>
+    <string name="test_start">Дохио турших (5 секундын дараа)</string>
+    <string name="test_waiting">Дэлгэцээ унтраана уу…</string>
+    <string name="test_no_permission">Эхлээд мэдэгдлийг зөвшөөрнө үү</string>
+</resources>

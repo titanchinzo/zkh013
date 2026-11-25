@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutId="setup"
+        android:shortcutLongLabel="@string/setup_title"
+        android:shortcutShortLabel="@string/setup_short">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="zkh013://setup"
+            android:targetClass="mn.unit013.app.SetupActivity"
+            android:targetPackage="mn.unit013.app" />
+    </shortcut>
+</shortcuts>
