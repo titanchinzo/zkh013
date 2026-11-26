@@ -7,8 +7,12 @@ const PersonnelGroupSchema = new Schema(
   {
     name: { type: String, required: true, unique: true, maxlength: PERSONNEL_LIMITS.group },
     order: { type: Number, default: 0 },
-    // Энэ бүлгийнхэн аппад бүх хүний утасны жагсаалтыг (бүлэг бүрээр) харна. Тохируулаагүй бол «Захирагч…» бүлэг л.
+    // Энэ бүлгийнхэн аппын утасны жагсаалтад нууцалсан болон «Шаардлагатай үед» дугааруудыг харна. Тохируулаагүй
+    // бол «Захирагч…» бүлэг л.
     seesAll: { type: Boolean },
+    // Энэ бүлгийнхний дугаар нууц — зөвхөн «Бүх утас харна» эрхтэй хүмүүс болон бүлгийнхэн нь харна. Тохируулаагүй бол
+    // «Захирагч…» бүлэг л.
+    hidesPhones: { type: Boolean },
   },
   { timestamps: true }
 );

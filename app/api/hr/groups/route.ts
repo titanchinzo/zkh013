@@ -30,7 +30,8 @@ export async function PUT(req: NextRequest) {
 
 /**
  * Бүлгийн нэрийг солино (байгаа бүлгийн нэр өгвөл нийлүүлнэ): body: { from, to }.
- * Эсвэл бүлгийнхэн бүх хүний утасны жагсаалтыг харах эсэх: body: { name, seesAll }.
+ * Эсвэл бүлгийнхэн аппын утасны жагсаалтад нууц болон «Шаардлагатай үед» дугааруудыг харах эсэх: body: { name, seesAll }.
+ * Эсвэл бүлгийнхний дугаар нууц эсэх (зөвхөн «Бүх утас харна» эрхтэй хүмүүс, бүлгийнхэн нь харна): body: { name, hidesPhones }.
  * Эсвэл бүлгийн бүх идэвхтэй хүнд улаан дохио илгээх эсэх: body: { name, alarm } — хүн бүрийн тэмдэглэгээг солино
  * (дараа нь бүлэгт нэмэгдсэн хүн анхнаасаа дохио авна).
  */
@@ -43,6 +44,14 @@ export async function PATCH(req: NextRequest) {
     await connectToDatabase();
     await ensureGroups([name]);
     await PersonnelGroup.updateOne({ name }, { $set: { seesAll: body.seesAll } });
+    return NextResponse.json({ ok: true });
+  }
+  if (typeof body?.hidesPhones === "boolean") {
+    const name = cleanName(body?.name);
+    if (!name) return NextResponse.json({ error: "Бүлгийн нэрийг бичнэ үү" }, { status: 400 });
+    await connectToDatabase();
+    await ensureGroups([name]);
+    await PersonnelGroup.updateOne({ name }, { $set: { hidesPhones: body.hidesPhones } });
     return NextResponse.json({ ok: true });
   }
   if (typeof body?.alarm === "boolean") {

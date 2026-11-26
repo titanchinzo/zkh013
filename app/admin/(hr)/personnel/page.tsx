@@ -23,11 +23,13 @@ type Person = {
   userId?: string;
   canRegister?: boolean;
   seesAllPhones?: boolean;
+  // «Дугаар нууц» — аппын утасны жагсаалтад зөвхөн «Бүх утас» эрхтэй хүмүүс, өөрийн бүлгийнхэн нь харна
+  hidePhone?: boolean;
   // Улаан (цугларалтын) дохио илгээхгүй
   noAlarm?: boolean;
   invitedByName?: string;
 };
-type Group = { name: string; count: number; seesAll?: boolean };
+type Group = { name: string; count: number; seesAll?: boolean; hidesPhones?: boolean };
 type Invitation = { id: string; email: string; invitedByName: string; createdAt: number };
 type ImportResult = {
   committed: boolean;
@@ -170,7 +172,24 @@ export default function PersonnelPage() {
 
   async function setSeesAll(name: string, seesAll: boolean) {
     if (await send("/api/hr/groups", "PATCH", { name, seesAll })) {
-      setNotice(seesAll ? `«${name}» бүлгийнхэн бүх хүний утасны жагсаалтыг харна.` : `«${name}» бүлгийнхэн зөвхөн өөрийн бүлгийнхний утсыг харна.`);
+      setNotice(
+        seesAll
+          ? `«${name}» бүлгийнхэн нууц болон «Шаардлагатай үед» дугааруудыг харна.`
+          : `«${name}» бүлгийнхэн нууц болон «Шаардлагатай үед» дугааруудыг харахгүй.`
+      );
+      load();
+    }
+  }
+
+  async function setHidesPhones(name: string, hidesPhones: boolean) {
+    const count = people.filter((p) => p.active && p.group === name).length;
+    if (!hidesPhones && !confirm(`«${name}» бүлгийн ${count} хүний дугаар бүх алба хаагчид харагдах болно. Үргэлжлүүлэх үү?`)) return;
+    if (await send("/api/hr/groups", "PATCH", { name, hidesPhones })) {
+      setNotice(
+        hidesPhones
+          ? `«${name}» бүлгийнхний дугаарыг зөвхөн «Бүх утас харна» эрхтэй хүмүүс болон бүлгийнхэн нь харна.`
+          : `«${name}» бүлгийнхний дугаар бүх алба хаагчид харагдана.`
+      );
       load();
     }
   }
@@ -209,6 +228,8 @@ export default function PersonnelPage() {
     groups: groupNames,
     // «Бүх утас харна» тохиргоотой бүлгүүд — тэдгээрийн хүмүүст тус бүрд нь олгох шаардлагагүй
     allGroups: new Set(groups.filter((g) => g.seesAll).map((g) => g.name)),
+    // «Дугаар нууц» тохиргоотой бүлгүүд
+    hiddenGroups: new Set(groups.filter((g) => g.hidesPhones).map((g) => g.name)),
     editing,
     onEdit: setEditing,
     onSave: save,
@@ -224,10 +245,11 @@ export default function PersonnelPage() {
           Ирц, харуул хоногийн манаанд сонгогдох алба хаагчид — бүлгээр нь (алба, тасаг, рот…). Мэдээллийн үг үсгийн
           алдааг «Засах»-аар засна. Халагдсан хүнийг «Идэвхгүй болгох»-д ирц, хуваарийн түүх нь үлдэнэ; «Устгах» нь бүр
           мөсөн устгана. «Бүртгэх эрх» олгосон хүн (албадын дарга) утсан дээрх аппаасаа доод хүмүүсээ и-мэйлээр урьж
-          бүртгэнэ. «Бүх утас» олгосон хүн аппын «Утас» хэсгээс бүх алба хаагчийн дугаарыг бүлэг бүрээр харна (бүлгийн
-          толгой дахь «Бүх утас харна» нь тэр бүлгийн бүх хүнд олгоно). «Дохио»-г авбал тэр хүнд улаан (цугларалтын) дохио
-          илгээхгүй: мэдээлэл аппад нь харагдана, утас нь дуугарахгүй (захирагч, орлогч нарт; бүлгийн толгойноос бүгдэд нь
-          нэг дор).
+          бүртгэнэ. Аппын «Утас» хэсэгт хүн бүр бүх алба хаагчийн дугаарыг бүлэг бүрээр харна. «Дугаар нууц» хүний
+          (захирагч, орлогч нар г.м) дугаарыг зөвхөн «Бүх утас» эрхтэй хүмүүс болон өөрийн бүлгийнхэн нь харна; «Бүх утас»
+          эрхтэй хүн «Шаардлагатай үед» дугаарыг ч харна (бүлгийн толгой дахь check нь тэр бүлгийн бүх хүнд). «Дохио»-г
+          авбал тэр хүнд улаан (цугларалтын) дохио илгээхгүй: мэдээлэл аппад нь харагдана, утас нь дуугарахгүй (захирагч,
+          орлогч нарт; бүлгийн толгойноос бүгдэд нь нэг дор).
         </p>
         <p className="text-sm text-muted-foreground mt-1">
           Урилга заавал биш: аппаа татсан хүн өөрөө хүсэлт илгээж, түүнийг{" "}
@@ -350,9 +372,15 @@ export default function PersonnelPage() {
                     </th>
                     <th
                       className="text-left px-4 py-3 text-muted-foreground font-semibold"
-                      title="Утсан дээрх аппад бүх хүний утасны жагсаалтыг (бүлэг бүрээр) харна"
+                      title="Утсан дээрх аппын утасны жагсаалтад нууц болон «Шаардлагатай үед» дугааруудыг харна"
                     >
                       Бүх утас
+                    </th>
+                    <th
+                      className="text-left px-4 py-3 text-muted-foreground font-semibold"
+                      title="Энэ хүний дугаарыг зөвхөн «Бүх утас» эрхтэй хүмүүс болон өөрийн бүлгийнхэн нь харна"
+                    >
+                      Дугаар нууц
                     </th>
                     <th
                       className="text-left px-4 py-3 text-muted-foreground font-semibold"
@@ -368,7 +396,7 @@ export default function PersonnelPage() {
                   return (
                     <tbody key={section.name || NO_GROUP} data-group={section.name}>
                       <tr className="border-t border-border bg-muted/20">
-                        <th colSpan={8} className="px-4 py-2 text-left">
+                        <th colSpan={9} className="px-4 py-2 text-left">
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <span className="font-bold text-foreground">
                               {section.name || "Бүлэггүй"}{" "}
@@ -378,7 +406,7 @@ export default function PersonnelPage() {
                               <span className="flex flex-wrap items-center gap-1">
                                 <label
                                   className="mr-2 flex items-center gap-1.5 text-xs font-normal text-muted-foreground"
-                                  title="Энэ бүлгийнхэн утсан дээрх аппад бүх хүний утасны жагсаалтыг (бүлэг бүрээр) харна"
+                                  title="Энэ бүлгийнхэн утсан дээрх аппын утасны жагсаалтад нууц болон «Шаардлагатай үед» дугааруудыг харна"
                                 >
                                   <input
                                     type="checkbox"
@@ -387,6 +415,19 @@ export default function PersonnelPage() {
                                     className="size-3.5 accent-[var(--primary)]"
                                   />
                                   Бүх утас харна
+                                </label>
+                                <label
+                                  className="mr-2 flex items-center gap-1.5 text-xs font-normal text-muted-foreground"
+                                  title="Энэ бүлгийнхний дугаарыг зөвхөн «Бүх утас харна» эрхтэй хүмүүс болон бүлгийнхэн нь харна"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={Boolean(groups.find((g) => g.name === section.name)?.hidesPhones)}
+                                    onChange={(e) => setHidesPhones(section.name, e.target.checked)}
+                                    aria-label={`${section.name}: дугаар нууц`}
+                                    className="size-3.5 accent-[var(--primary)]"
+                                  />
+                                  Дугаар нууц
                                 </label>
                                 <GroupAlarm
                                   people={active.filter((p) => p.group === section.name)}
@@ -481,6 +522,7 @@ function PersonRow({
   person: p,
   groups,
   allGroups,
+  hiddenGroups,
   editing,
   onEdit,
   onSave,
@@ -490,6 +532,7 @@ function PersonRow({
   person: Person;
   groups: string[];
   allGroups: Set<string>;
+  hiddenGroups: Set<string>;
   editing: string | null;
   onEdit: (id: string | null) => void;
   onSave: (id: string, e: React.FormEvent<HTMLFormElement>) => void;
@@ -498,10 +541,12 @@ function PersonRow({
 }) {
   // Бүлгээрээ бүх утсыг харна — тусад нь олгох шаардлагагүй
   const byGroup = Boolean(p.group && allGroups.has(p.group));
+  // Бүлгээрээ дугаар нь нууц
+  const hiddenByGroup = Boolean(p.group && hiddenGroups.has(p.group));
   if (editing === p._id) {
     return (
       <tr className="border-t border-border">
-        <td colSpan={8} className="px-4 py-3">
+        <td colSpan={9} className="px-4 py-3">
           <form onSubmit={(e) => onSave(p._id, e)} className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
             <RankSelect defaultValue={p.rank} />
             <Input name="name" defaultValue={p.name} required maxLength={120} aria-label="Нэр" />
@@ -605,11 +650,26 @@ function PersonRow({
           disabled={byGroup || !p.active}
           title={
             byGroup
-              ? `«${p.group}» бүлгийнхэн бүгд бүх утсыг харна`
-              : "Утсан дээрх аппад бүх хүний утасны жагсаалтыг (бүлэг бүрээр) харна"
+              ? `«${p.group}» бүлгийнхэн бүгд нууц дугааруудыг харна`
+              : "Утсан дээрх аппын утасны жагсаалтад нууц болон «Шаардлагатай үед» дугааруудыг харна"
           }
           onChange={(e) => onUpdate(p, { seesAllPhones: e.target.checked })}
           aria-label={`${p.name} бүх утас харах`}
+          className="w-4 h-4 accent-[var(--primary)] disabled:opacity-30"
+        />
+      </td>
+      <td className="px-4 py-3">
+        <input
+          type="checkbox"
+          checked={Boolean(p.hidePhone) || hiddenByGroup}
+          disabled={hiddenByGroup || !p.active}
+          title={
+            hiddenByGroup
+              ? `«${p.group}» бүлгийнхний дугаар бүгд нууц`
+              : "Дугаарыг нь зөвхөн «Бүх утас» эрхтэй хүмүүс болон өөрийн бүлгийнхэн нь харна"
+          }
+          onChange={(e) => onUpdate(p, { hidePhone: e.target.checked })}
+          aria-label={`${p.name} дугаар нууц`}
           className="w-4 h-4 accent-[var(--primary)] disabled:opacity-30"
         />
       </td>

@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 import { ChevronDown, Phone, Search } from "lucide-react";
 import { formatPhone } from "@/lib/hr";
 
-// Утсан дээрх аппын утасны жагсаалт: өөрийн бүлгийнхэн, эсвэл (захирагч, орлогч нар г.м) бүх хүн бүлэг бүрээр.
-// Дугаар дээр дарахад залгана.
+// Утсан дээрх аппын утасны жагсаалт: ангийн бүх алба хаагч бүлэг бүрээр, өөрийн бүлэг нь эхэндээ нээлттэй. Дугаар
+// дээр дарахад залгана. Нууцалсан (захирагч, орлогч нар г.м) дугаар «Бүх утас харна» эрхгүй хүнд «Дугаар нууц» гэж
+// харагдана.
 
 type Entry = {
   id: string;
@@ -13,10 +14,12 @@ type Entry = {
   name: string;
   position: string;
   phones: string[];
+  // Дугаар нь нууц — серверээс ирдэггүй
+  hidden?: boolean;
   emergencyPhone?: string;
   me: boolean;
 };
-type Data = { scope: "group" | "all"; group: string; groups: { name: string; people: Entry[] }[] };
+type Data = { scope: "all" | "unit"; group: string; groups: { name: string; people: Entry[] }[] };
 
 const label = (p: { rank: string; name: string }) => (p.rank ? `${p.rank} ${p.name}` : p.name);
 
@@ -49,8 +52,10 @@ function Person({ p }: { p: Entry }) {
         {p.position && <span className="block text-xs text-muted-foreground">{p.position}</span>}
       </p>
       <div className="flex flex-wrap gap-1.5">
-        {p.phones.length ? p.phones.map((phone) => <Call key={phone} phone={phone} />) : (
-          <span className="text-xs text-muted-foreground">Дугааргүй</span>
+        {p.phones.length ? (
+          p.phones.map((phone) => <Call key={phone} phone={phone} />)
+        ) : (
+          <span className="text-xs text-muted-foreground">{p.hidden ? "Дугаар нууц" : "Дугааргүй"}</span>
         )}
       </div>
       {p.emergencyPhone && (
@@ -102,13 +107,7 @@ export function Directory() {
       <p className="rounded-md bg-yellow-400/10 px-3 py-2 text-xs text-yellow-300">
         Албан хэрэгцээнд ашиглана. Утасны жагсаалтыг бусдад дамжуулахгүй.
       </p>
-      <p className="text-sm text-muted-foreground">
-        {data.scope === "all"
-          ? `Бүх алба хаагч (${total}) — бүлэг бүрээр`
-          : data.group
-            ? `Таны бүлэг: ${data.group} (${total})`
-            : "Таны бүлэг тодорхойгүй байна — хүний нөөцөд хандана уу."}
-      </p>
+      <p className="text-sm text-muted-foreground">{`Бүх алба хаагч (${total}) — бүлэг бүрээр`}</p>
       {total > 0 && (
         <label className="flex items-center gap-2 rounded-full border border-border bg-muted/40 px-3">
           <Search className="size-4 shrink-0 text-muted-foreground" aria-hidden />
@@ -123,38 +122,31 @@ export function Directory() {
         </label>
       )}
       {searching && sections.length === 0 && <p className="text-sm text-muted-foreground">Хайлтад таарах хүн алга.</p>}
-      {data.scope === "group"
-        ? sections.map((g) => (
-            <ul key={g.name} className="divide-y divide-border rounded-xl border border-border bg-card">
-              {g.people.map((p) => (
-                <Person key={p.id} p={p} />
-              ))}
-            </ul>
-          ))
-        : sections.map((g) => {
-            const shown = searching || expanded.has(g.name);
-            return (
-              <section key={g.name || "-"} className="overflow-hidden rounded-xl border border-border bg-card" data-group={g.name}>
-                <button
-                  onClick={() => toggle(g.name)}
-                  aria-expanded={shown}
-                  className="flex w-full items-center justify-between gap-2 px-3 py-3 text-left"
-                >
-                  <span className="text-sm font-bold text-foreground">
-                    {g.name || "Бүлэггүй"} <span className="font-normal text-muted-foreground">({g.people.length})</span>
-                  </span>
-                  <ChevronDown className={`size-4 shrink-0 text-muted-foreground transition-transform ${shown ? "rotate-180" : ""}`} aria-hidden />
-                </button>
-                {shown && (
-                  <ul className="divide-y divide-border border-t border-border">
-                    {g.people.map((p) => (
-                      <Person key={p.id} p={p} />
-                    ))}
-                  </ul>
-                )}
-              </section>
-            );
-          })}
+      {sections.map((g) => {
+        const shown = searching || expanded.has(g.name);
+        return (
+          <section key={g.name || "-"} className="overflow-hidden rounded-xl border border-border bg-card" data-group={g.name}>
+            <button
+              onClick={() => toggle(g.name)}
+              aria-expanded={shown}
+              className="flex w-full items-center justify-between gap-2 px-3 py-3 text-left"
+            >
+              <span className="text-sm font-bold text-foreground">
+                {g.name || "Бүлэггүй"} <span className="font-normal text-muted-foreground">({g.people.length})</span>
+                {g.name && g.name === data.group && <span className="font-normal text-muted-foreground"> · таны бүлэг</span>}
+              </span>
+              <ChevronDown className={`size-4 shrink-0 text-muted-foreground transition-transform ${shown ? "rotate-180" : ""}`} aria-hidden />
+            </button>
+            {shown && (
+              <ul className="divide-y divide-border border-t border-border">
+                {g.people.map((p) => (
+                  <Person key={p.id} p={p} />
+                ))}
+              </ul>
+            )}
+          </section>
+        );
+      })}
     </div>
   );
 }
