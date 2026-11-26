@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { getApprovedDevice } from "@/lib/device";
-import { userRole } from "@/lib/actor";
 import Personnel from "@/lib/models/Personnel";
 import { comparePersonnel } from "@/lib/hr";
-import { listGroups } from "@/lib/personnel-groups";
+import { contactRules } from "@/lib/chat-access";
+import { groupOrder } from "@/lib/personnel-groups";
 
 type PersonDoc = {
   _id: unknown;
@@ -34,33 +34,26 @@ type Entry = {
  * «Дугаар нууц» хүний (захирагч, орлогч нарын бүлэг анхнаасаа; хүний нөөц бүлгээр эсвэл хүн тус бүрээр нууцална)
  * дугаарыг зөвхөн «Бүх утас харна» эрхтэй хүн (тийм бүлгийнхэн — захирагч, орлогч нар анхнаасаа; тус бүрд нь олгосон
  * хүн; хүний нөөц, админ) болон өөрийн бүлгийнхэн нь харна — бусдад «Дугаар нууц» гэж харагдана. «Шаардлагатай үед»
- * дугаар (гэр бүл г.м) зөвхөн «Бүх утас харна» эрхтэй хүнд.
+ * дугаар (гэр бүл г.м) зөвхөн «Бүх утас харна» эрхтэй хүнд. Дүрэм нь чаттай нэг: lib/chat-access.ts.
  */
 export async function GET() {
   const device = await getApprovedDevice();
   if (!device) return NextResponse.json({ error: "Энэ утсыг хүний нөөц зөвшөөрөөгүй байна" }, { status: 403 });
   const me = await Personnel.findOne({ userId: device.userId, active: true })
-    .select("group seesAllPhones")
-    .lean<{ group?: string; seesAllPhones?: boolean }>();
+    .select("group seesAllPhones hidePhone")
+    .lean<{ group?: string; seesAllPhones?: boolean; hidePhone?: boolean }>();
   if (!me) return NextResponse.json({ error: "Таны бүртгэл идэвхгүй байна" }, { status: 403 });
 
-  const [{ role }, groups, people] = await Promise.all([
-    userRole(device.userId),
-    listGroups(),
+  const [{ all, closed: secret }, order, people] = await Promise.all([
+    contactRules({ ...me, userId: device.userId }),
+    groupOrder(),
     Personnel.find({ active: true })
       .select("rank name position group phone extraPhones emergencyPhone hidePhone userId")
       .lean<PersonDoc[]>(),
   ]);
   const myGroup = me.group ?? "";
-  const flags = new Map(groups.map((g) => [g.name, g]));
-  const all = role === "admin" || role === "hr" || Boolean(me.seesAllPhones) || Boolean(flags.get(myGroup)?.seesAll);
   const isMe = (p: PersonDoc) => p.userId === device.userId;
-  const secret = (p: PersonDoc) =>
-    !all &&
-    !isMe(p) &&
-    !(myGroup && p.group === myGroup) &&
-    (Boolean(p.hidePhone) || Boolean(p.group && flags.get(p.group)?.hidesPhones));
-  people.sort(comparePersonnel(groups.map((g) => g.name)));
+  people.sort(comparePersonnel(order));
 
   // Өөрийн бүлэг эхэндээ, бусад нь ангийн бүтцийн дарааллаар
   const sections = new Map<string, Entry[]>(myGroup ? [[myGroup, []]] : []);

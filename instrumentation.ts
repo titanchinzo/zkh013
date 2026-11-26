@@ -11,5 +11,8 @@ export async function register() {
     startChatFileSweeper();
     const { migrateLegacyChat } = await import("./lib/chat-migrate");
     migrateLegacyChat().catch((err) => console.error("[chat] хуучин чатыг цэвэрлэж чадсангүй:", err));
+    // Удирдлагатай өмнө бичилцсэн хүмүүс чатаа үргэлжлүүлнэ (давхардуулахгүй тул асах бүрд)
+    const { rememberConversations } = await import("./lib/chat-access");
+    rememberConversations().catch((err) => console.error("[chat] удирдлагын өмнөх чатыг бүртгэж чадсангүй:", err));
   }
 }

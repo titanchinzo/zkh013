@@ -80,6 +80,8 @@ type ThreadInfo = {
   online: boolean;
   lastSeenAt: string | null;
   canMessage: boolean;
+  // Удирдлага (захирагч, орлогч нар г.м) — өмнө бичилцээгүй тул түрүүлж бичихгүй
+  closed?: boolean;
   // Бүлгийн чат: гишүүд (хэн идэвхтэй)
   group?: { members: GroupMember[] };
 };
@@ -94,6 +96,7 @@ type ThreadResponse = {
   group?: { id: string; name: string; members: GroupMember[] };
   reads?: Record<string, number>;
   canMessage: boolean;
+  closed?: boolean;
   messages: Message[];
   unreadFrom: string | null;
   files: { id: string; status: "ready" | "downloaded" }[];
@@ -869,6 +872,7 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
       online: Boolean(data.online),
       lastSeenAt: data.lastSeenAt ?? null,
       canMessage: data.canMessage,
+      ...(data.closed ? { closed: true } : {}),
       ...(data.group ? { group: { members: data.group.members } } : {}),
     });
     if (data.reads) {
@@ -1348,7 +1352,9 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
                     : "Зурвас бичиж чатаа эхлүүлнэ үү."
                   : chat.group
                     ? "Энэ бүлэгт зурвас илгээх боломжгүй."
-                    : "Энэ хүн чат ашиглах боломжгүй болсон."}
+                    : info?.closed
+                      ? "Удирдлагад түрүүлж бичих боломжгүй. Тэд танд бичвэл хариулж болно."
+                      : "Энэ хүн чат ашиглах боломжгүй болсон."}
               </p>
             </div>
           )}
@@ -1568,7 +1574,11 @@ export function Conversation({ userId, onBack }: { userId: string; onBack: () =>
           className="shrink-0 border-t border-border px-3 pt-3 text-center text-sm text-muted-foreground"
           style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
         >
-          {chat.group ? "Энэ бүлэгт зурвас илгээх боломжгүй." : "Энэ хүнд зурвас илгээх боломжгүй."}
+          {chat.group
+            ? "Энэ бүлэгт зурвас илгээх боломжгүй."
+            : info?.closed
+              ? "Удирдлагад түрүүлж бичих боломжгүй — тэд бичвэл хариулна."
+              : "Энэ хүнд зурвас илгээх боломжгүй."}
         </p>
       ) : (
         <form

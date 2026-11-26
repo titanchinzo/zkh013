@@ -14,6 +14,8 @@ import { deleteFile } from "@/lib/storage";
 import { pendingPersonnelInvitations, revokeInvitation } from "@/lib/invitation-list";
 import { ensureGroups } from "@/lib/personnel-groups";
 import { deleteChatFilesOf } from "@/lib/chat-files";
+import { rememberConversations } from "@/lib/chat-access";
+import ChatPermit from "@/lib/models/ChatPermit";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -23,7 +25,9 @@ type Params = { params: Promise<{ id: string }> };
  * false — халагдсан хүнийг түүхтэй нь үлдээж идэвхгүй болгоно; photo: null — зургийг нь арилгана; canRegister —
  * «Бүртгэх эрх» (доод хүмүүсээ урьж бүртгэх); seesAllPhones — «Бүх утас харна» (бүлгээс үл хамааран нууц болон
  * «Шаардлагатай үед» дугааруудыг харна); hidePhone — «Дугаар нууц» (аппын утасны жагсаалтад зөвхөн «Бүх утас харна»
- * эрхтэй хүмүүс, өөрийн бүлгийнхэн нь харна); noAlarm — улаан (цугларалтын) дохио илгээхгүй.
+ * эрхтэй хүмүүс, өөрийн бүлгийнхэн нь харна, бусад түрүүлж чат бичихгүй); noAlarm — улаан (цугларалтын) дохио
+ * илгээхгүй. Удирдлага болсон (hidePhone, эсвэл тийм бүлэгт шилжсэн) хүний өмнөх чатуудыг хадгална
+ * (rememberConversations — өмнө бичилцсэн хүмүүс чатаа үргэлжлүүлнэ).
  */
 export async function PATCH(req: NextRequest, { params }: Params) {
   if (!isHrRole(await getCurrentRole())) return NextResponse.json({ error: "Зөвшөөрөлгүй" }, { status: 403 });
@@ -50,6 +54,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   });
   await person.save();
   if (parsed.value.group) await ensureGroups([parsed.value.group]);
+  if (person.userId && (body?.hidePhone === true || parsed.value.group)) await rememberConversations([person.userId]);
   if (oldPhoto) await deleteFile(oldPhoto).catch(() => {});
   return NextResponse.json({ person });
 }
@@ -82,6 +87,7 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
     );
     await ChatMessage.deleteMany({ recipient: userId });
     await ChatDeletion.deleteMany({ recipient: userId });
+    await ChatPermit.deleteMany({ $or: [{ a: userId }, { b: userId }] });
     // Түүний илгээсэн, түүнд ирсэн чатын файлууд (серверийн хувийн хавтсаас)
     await deleteChatFilesOf(userId);
   }

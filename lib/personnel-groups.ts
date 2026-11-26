@@ -5,6 +5,25 @@ import PersonnelGroup from "@/lib/models/PersonnelGroup";
 /** Тохируулаагүй бол захирагч, орлогч нарын бүлэг нууц дугааруудыг харж, өөрсдийнх нь дугаар нууц байна */
 const leadersByDefault = (name: string) => /^захирагч/i.test(name.trim());
 
+export type GroupFlags = (name: string | undefined | null) => { seesAll: boolean; hidesPhones: boolean };
+
+/**
+ * Бүлгийн тохиргоо нэрээр нь: seesAll — бүлгийнхэн нууц болон «Шаардлагатай үед» дугааруудыг харж, удирдлагад
+ * түрүүлж бичнэ; hidesPhones — бүлгийнхэн удирдлага (дугаар нууц, бусад түрүүлж бичихгүй). Тохируулаагүй бол
+ * «Захирагч…» бүлэгт л true. Бүлэггүй бол хоёулаа false.
+ */
+export async function groupFlags(): Promise<GroupFlags> {
+  const docs = await PersonnelGroup.find()
+    .select("name seesAll hidesPhones")
+    .lean<{ name: string; seesAll?: boolean; hidesPhones?: boolean }[]>();
+  const saved = new Map(docs.map((g) => [g.name, g]));
+  return (name) => {
+    if (!name) return { seesAll: false, hidesPhones: false };
+    const g = saved.get(name);
+    return { seesAll: g?.seesAll ?? leadersByDefault(name), hidesPhones: g?.hidesPhones ?? leadersByDefault(name) };
+  };
+}
+
 /** Бүлгүүдийн нэр дарааллаараа (захирагчаас эхлэн) — тоо хэрэггүй үед listGroups-оос хөнгөн */
 export async function groupOrder(): Promise<string[]> {
   const groups = await PersonnelGroup.find().sort({ order: 1, name: 1 }).select("name").lean<{ name: string }[]>();

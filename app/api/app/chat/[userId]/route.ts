@@ -9,6 +9,7 @@ import { pushToDevices } from "@/lib/push";
 import { personnelLabel } from "@/lib/hr";
 import { CHAT_LIMITS, previewText, type ChatFileMeta } from "@/lib/chat-shared";
 import { allowSend, approvedLastSeen, getChatUser, isOnline, isUserId, isViewing, markViewing } from "@/lib/chat";
+import { chatAccess, CLOSED_ERROR, CLOSED_STATUS, rememberPair } from "@/lib/chat-access";
 import { fileExpiry, isUploaded } from "@/lib/chat-files";
 import { unreadTotal } from "@/lib/chat-group";
 import { deletePrivateFile } from "@/lib/storage";
@@ -34,11 +35,13 @@ const toClient = (me: string) => (m: MessageDoc) => ({
  * readUpTo — нөгөө хүн миний зурвасыг хэзээ хүртэл уншсан («Уншаад 2 минутад устах» зурвасыг хоёр утас устгахад).
  * files — бидний хооронд илгээсэн файлуудын төлөв (татаж авсан эсэх).
  * removed — тэр хүний «хоёулангаас устгасан» зурвасууд: утас түүхээсээ арилгаад /api/app/chat/removed-д мэдэгдэнэ.
+ * closed — тэр хүн надад хаалттай удирдлага (захирагч, орлогч нар г.м): өмнө бичилцээгүй тул түрүүлж бичихгүй, төлөв
+ * нь харагдахгүй (lib/chat-access.ts).
  */
 export async function GET(req: NextRequest, { params }: Params) {
   const auth = await getChatUser();
   if ("error" in auth) return auth.error;
-  const { me } = auth;
+  const { me, person: mine } = auth;
   const { userId: other } = await params;
   if (!isUserId(other) || other === me) return NextResponse.json(NOT_FOUND, { status: 404 });
 
@@ -52,8 +55,8 @@ export async function GET(req: NextRequest, { params }: Params) {
 
   const [person, seen, incoming, myUnread, receipt, files, removed] = await Promise.all([
     Personnel.findOne({ userId: other })
-      .select("rank name position group photo active")
-      .lean<{ rank: string; name: string; position: string; group?: string; photo?: string; active: boolean }>(),
+      .select("rank name position group photo active hidePhone")
+      .lean<{ rank: string; name: string; position: string; group?: string; photo?: string; active: boolean; hidePhone?: boolean }>(),
     approvedLastSeen([other]),
     ChatMessage.find({ recipient: me, sender: other }).sort({ _id: 1 }).limit(200).lean<MessageDoc[]>(),
     ChatMessage.findOne({ recipient: other, sender: me }).sort({ _id: 1 }).select("_id").lean<{ _id: unknown }>(),
@@ -73,9 +76,10 @@ export async function GET(req: NextRequest, { params }: Params) {
   ]);
   if (!person && !incoming.length) return NextResponse.json(NOT_FOUND, { status: 404 });
   markViewing(me, other);
+  const closed = person?.active ? (await chatAccess(mine, { userId: other, group: person.group, hidePhone: person.hidePhone })).blocked : false;
 
-  // Идэвхгүй болгосон (халагдсан) хүний төлөвийг харуулахгүй
-  const lastSeenAt = person?.active ? (seen.get(other) ?? null) : null;
+  // Идэвхгүй болгосон (халагдсан) хүний, надад хаалттай удирдлагын төлөвийг харуулахгүй
+  const lastSeenAt = person?.active && !closed ? (seen.get(other) ?? null) : null;
   return NextResponse.json({
     me,
     person: {
@@ -87,7 +91,8 @@ export async function GET(req: NextRequest, { params }: Params) {
     },
     online: isOnline(lastSeenAt),
     lastSeenAt,
-    canMessage: Boolean(person?.active),
+    canMessage: Boolean(person?.active) && !closed,
+    ...(closed ? { closed: true } : {}),
     messages: incoming.map(toClient(me)),
     unreadFrom: myUnread ? String(myUnread._id) : null,
     readUpTo: receipt ? { id: receipt.upTo, at: receipt.at } : null,
@@ -157,6 +162,8 @@ export async function DELETE(req: NextRequest, { params }: Params) {
 /**
  * Зурвас илгээнэ. body: { text?, fileId?, ephemeral? } — fileId: /files-аар эхлүүлж бүрэн оруулсан файл; ephemeral:
  * уншсанаас хойш 2 минутад хоёр утаснаас устна. Нөгөө хүн тэр чатыг нээж хараагүй бол утсанд нь мэдэгдэл очно.
+ * Удирдлагад (захирагч, орлогч нар г.м) өмнө бичилцээгүй бол түрүүлж бичихгүй — 409. Удирдлагатай бичилцвэл хосыг
+ * бүртгэнэ: удирдлага түрүүлж бичсэн бол нөгөө нь хариулна (lib/chat-access.ts).
  */
 export async function POST(req: NextRequest, { params }: Params) {
   const auth = await getChatUser();
@@ -172,8 +179,12 @@ export async function POST(req: NextRequest, { params }: Params) {
   if (!text && !fileId) return NextResponse.json({ error: "Зурвас хоосон байна" }, { status: 400 });
   if (text.length > CHAT_LIMITS.text) return NextResponse.json({ error: "Зурвас хэт урт байна" }, { status: 400 });
 
-  const recipient = await Personnel.exists({ userId: other, active: true });
+  const recipient = await Personnel.findOne({ userId: other, active: true })
+    .select("group hidePhone")
+    .lean<{ group?: string; hidePhone?: boolean }>();
   if (!recipient) return NextResponse.json({ error: "Энэ хүнд зурвас илгээх боломжгүй" }, { status: 404 });
+  const access = await chatAccess(sender, { userId: other, ...recipient });
+  if (access.blocked) return NextResponse.json({ error: CLOSED_ERROR }, { status: CLOSED_STATUS });
   if (!allowSend(me)) {
     return NextResponse.json({ error: "Хэт олон зурвас илгээлээ — түр хүлээгээд дахин оролдоно уу" }, { status: 429 });
   }
@@ -190,6 +201,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
 
   const message = await ChatMessage.create({ sender: me, recipient: other, text, file, ephemeral });
+  if (access.leaders) await rememberPair(me, other);
 
   after(async () => {
     if (isViewing(other, me)) return;

@@ -18,7 +18,17 @@ export const isUserId = (value: unknown): value is string =>
 export const isOnline = (lastSeenAt?: Date | null, now = Date.now()) =>
   Boolean(lastSeenAt && now - new Date(lastSeenAt).getTime() < ONLINE_MS);
 
-type Me = { rank: string; name: string; position: string; group?: string; photo?: string; userId: string };
+type Me = {
+  rank: string;
+  name: string;
+  position: string;
+  group?: string;
+  photo?: string;
+  userId: string;
+  // Удирдлагатай холбогдох дүрэмд (lib/chat-access.ts)
+  hidePhone?: boolean;
+  seesAllPhones?: boolean;
+};
 
 /** Энэ утсаар чат ашиглаж буй хүн, эсвэл хариулах алдаа */
 export async function getChatUser(): Promise<{ me: string; person: Me } | { error: NextResponse }> {
@@ -27,7 +37,7 @@ export async function getChatUser(): Promise<{ me: string; person: Me } | { erro
     return { error: NextResponse.json({ error: "Энэ утсыг хүний нөөц зөвшөөрөөгүй байна" }, { status: 403 }) };
   }
   const person = await Personnel.findOne({ userId: device.userId, active: true })
-    .select("rank name position group photo userId")
+    .select("rank name position group photo userId hidePhone seesAllPhones")
     .lean<Me>();
   if (!person) {
     return { error: NextResponse.json({ error: "Таны алба хаагчийн бүртгэл идэвхгүй байна" }, { status: 403 }) };

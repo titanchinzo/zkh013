@@ -9,6 +9,7 @@ import { getCurrentRole } from "@/lib/auth-role";
 import { isHrRole } from "@/lib/roles";
 import { PERSONNEL_LIMITS } from "@/lib/hr";
 import { ensureGroups } from "@/lib/personnel-groups";
+import { rememberConversations } from "@/lib/chat-access";
 
 const FORBIDDEN = { error: "Зөвшөөрөлгүй" };
 const cleanName = (value: unknown) => (typeof value === "string" ? value.trim().replace(/\s+/g, " ") : "");
@@ -31,7 +32,8 @@ export async function PUT(req: NextRequest) {
 /**
  * Бүлгийн нэрийг солино (байгаа бүлгийн нэр өгвөл нийлүүлнэ): body: { from, to }.
  * Эсвэл бүлгийнхэн аппын утасны жагсаалтад нууц болон «Шаардлагатай үед» дугааруудыг харах эсэх: body: { name, seesAll }.
- * Эсвэл бүлгийнхний дугаар нууц эсэх (зөвхөн «Бүх утас харна» эрхтэй хүмүүс, бүлгийнхэн нь харна): body: { name, hidesPhones }.
+ * Эсвэл бүлгийнхэн удирдлага эсэх — дугаар нь нууц (зөвхөн «Бүх утас харна» эрхтэй хүмүүс, бүлгийнхэн нь харна), бусад
+ * түрүүлж чат бичихгүй: body: { name, hidesPhones }. Асаахад бүлгийнхний өмнөх чатуудыг хадгална.
  * Эсвэл бүлгийн бүх идэвхтэй хүнд улаан дохио илгээх эсэх: body: { name, alarm } — хүн бүрийн тэмдэглэгээг солино
  * (дараа нь бүлэгт нэмэгдсэн хүн анхнаасаа дохио авна).
  */
@@ -52,6 +54,10 @@ export async function PATCH(req: NextRequest) {
     await connectToDatabase();
     await ensureGroups([name]);
     await PersonnelGroup.updateOne({ name }, { $set: { hidesPhones: body.hidesPhones } });
+    if (body.hidesPhones) {
+      const members = await Personnel.find({ group: name, userId: { $type: "string" } }).select("userId").lean<{ userId: string }[]>();
+      if (members.length) await rememberConversations(members.map((m) => m.userId));
+    }
     return NextResponse.json({ ok: true });
   }
   if (typeof body?.alarm === "boolean") {
